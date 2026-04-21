@@ -14,10 +14,10 @@ node_modules/
 theia-panel/dist/
 *.tsbuildinfo
 
-# Generated (remove this line when examples/graph.json is intentionally committed)
-# examples/graph.json
+# Generated
+examples/graph.json
 
-# Superpowers
+# Superpowers (brainstorming/plans sessions)
 .superpowers/
 
 # OS

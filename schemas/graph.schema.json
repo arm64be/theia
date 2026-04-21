@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://theia.local/schemas/graph.schema.json",
+  "title": "TheiaGraph",
+  "type": "object",
+  "required": ["meta", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["generated_at", "source_count", "projection"],
+      "additionalProperties": false,
+      "properties": {
+        "generated_at": { "type": "string", "format": "date-time" },
+        "source_count": { "type": "integer", "minimum": 0 },
+        "projection": { "enum": ["pca", "umap", "tool-vector"] },
+        "feature_dim": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "started_at", "duration_sec", "tool_count", "position"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string" },
+          "started_at": { "type": "string", "format": "date-time" },
+          "duration_sec": { "type": "number", "minimum": 0 },
+          "tool_count": { "type": "integer", "minimum": 0 },
+          "message_count": { "type": "integer", "minimum": 0 },
+          "model": { "type": "string" },
+          "position": {
+            "type": "object",
+            "required": ["x", "y"],
+            "additionalProperties": false,
+            "properties": {
+              "x": { "type": "number", "minimum": -1.5, "maximum": 1.5 },
+              "y": { "type": "number", "minimum": -1.5, "maximum": 1.5 }
+            }
+          },
+          "features": {
+            "oneOf": [
+              { "type": "null" },
+              { "type": "array", "items": { "type": "number" } }
+            ]
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "target", "kind", "weight"],
+        "additionalProperties": false,
+        "properties": {
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "kind": { "enum": ["memory-share", "cross-search", "tool-overlap"] },
+          "weight": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence": { "type": "object" }
+        }
+      }
+    }
+  }
+}

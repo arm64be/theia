@@ -1,0 +1,26 @@
+{
+  "name": "theia-panel",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "generate-types": "json2ts -i ../schemas/graph.schema.json -o src/data/types.ts --additionalProperties false",
+    "format": "prettier --write src index.html",
+    "format:check": "prettier --check src index.html"
+  },
+  "dependencies": {
+    "three": "^0.163.0",
+    "d3-force-3d": "^3.0.5"
+  },
+  "devDependencies": {
+    "@types/three": "^0.163.0",
+    "json-schema-to-typescript": "^14.0.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "vitest": "^1.5.0"
+  }
+}
