@@ -27,6 +27,33 @@ function makeGlowTexture(): THREE.Texture {
   return tex;
 }
 
+/** Simple string hash to a number in [0, 1). */
+function hashString(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+  }
+  return ((h >>> 0) % 1000) / 1000;
+}
+
+/** Derive a slight tint from the model name, keeping the base amber feel. */
+function modelTintColor(model: string | undefined): THREE.Color {
+  const base = new THREE.Color(PALETTE.nodeBase);
+  if (!model) return base;
+  const hash = hashString(model);
+  const hsl = { h: 0, s: 0, l: 0 };
+  base.getHSL(hsl);
+  // Shift hue +/- 25 degrees for visible but tasteful model distinction
+  hsl.h = (hsl.h + (hash - 0.5) * 0.14 + 1) % 1;
+  // Vary saturation and lightness subtly
+  hsl.s = Math.min(1, Math.max(0.3, hsl.s + (hash - 0.5) * 0.2));
+  hsl.l = Math.min(0.85, Math.max(0.25, hsl.l + (hash - 0.5) * 0.15));
+  const c = new THREE.Color();
+  c.setHSL(hsl.h, hsl.s, hsl.l);
+  return c;
+}
+
 export interface NodeLayer {
   mesh: THREE.InstancedMesh;
   count: number;
@@ -47,16 +74,27 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
   });
   const mesh = new THREE.InstancedMesh(geometry, material, n);
   const dummy = new THREE.Object3D();
-  const baseColor = new THREE.Color(PALETTE.nodeBase);
+  const highlightColor = new THREE.Color(PALETTE.nodeHighlight);
+
+  // Precompute per-node size and color
+  const nodeSizes = new Float32Array(n);
+  const nodeColors: THREE.Color[] = new Array(n);
 
   for (let i = 0; i < n; i++) {
     const node = graph.nodes[i]!;
-    const size = Math.min(0.16, 0.06 + Math.log1p(node.tool_count) * 0.012);
+    const turns = node.message_count ?? node.tool_count;
+    nodeSizes[i] = Math.min(0.18, 0.05 + Math.log1p(turns) * 0.014);
+    nodeColors[i] = modelTintColor(node.model);
+  }
+
+  for (let i = 0; i < n; i++) {
+    const node = graph.nodes[i]!;
     dummy.position.set(node.position.x, node.position.y, 0);
-    dummy.scale.set(size, size, size);
+    const sz = nodeSizes[i]!;
+    dummy.scale.set(sz, sz, sz);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
-    mesh.setColorAt(i, baseColor);
+    mesh.setColorAt(i, nodeColors[i]!);
   }
   mesh.instanceMatrix.needsUpdate = true;
   mesh.instanceColor!.needsUpdate = true;
@@ -72,8 +110,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
       mesh.setMatrixAt(i, dummy.matrix);
     },
     setHighlight(i, on) {
-      const c = on ? new THREE.Color(PALETTE.nodeHighlight) : baseColor;
-      mesh.setColorAt(i, c);
+      mesh.setColorAt(i, on ? highlightColor : nodeColors[i]!);
     },
     flush() {
       mesh.instanceMatrix.needsUpdate = true;
