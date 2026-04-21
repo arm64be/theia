@@ -65,6 +65,8 @@ def _extract_tool_calls_from_messages(messages: list[dict[str, Any]]) -> list[To
 
 def _infer_memory_events(tool_calls: list[ToolCall]) -> list[MemoryEvent]:
     """Heuristic: treat 'memory' tool calls as memory events."""
+    import hashlib
+
     events: list[MemoryEvent] = []
     for tc in tool_calls:
         if tc.name != "memory":
@@ -78,7 +80,20 @@ def _infer_memory_events(tool_calls: list[ToolCall]) -> list[MemoryEvent]:
         action = str(args.get("action", "")).lower()
         write_actions = {"write", "store", "save", "add", "replace", "remove"}
         kind = "write" if action in write_actions else "read"
-        mem_id = str(args.get("memory_id", args.get("id", args.get("target", "unknown"))))
+
+        # Prefer explicit ids; fall back to a hash of the content being modified
+        # so that sessions touching the same text are linked.
+        mem_id = str(args.get("memory_id", args.get("id", "")))
+        if not mem_id:
+            content = ""
+            if action in ("add", "replace") and "content" in args:
+                content = str(args["content"])
+            elif action in ("replace", "remove") and "old_text" in args:
+                content = str(args["old_text"])
+            if content:
+                mem_id = hashlib.sha256(content.encode()).hexdigest()[:16]
+            else:
+                mem_id = "unknown"
         events.append(MemoryEvent(kind=kind, memory_id=mem_id, raw=tc.raw))
     return events
 

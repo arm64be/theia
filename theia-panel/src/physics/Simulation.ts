@@ -21,6 +21,7 @@ interface PhysicsLink {
   source: string;
   target: string;
   weight: number;
+  kind: string;
 }
 
 /** Custom force: pulls each node toward its semantic anchor. */
@@ -59,10 +60,23 @@ export function createSimulation(graph: TheiaGraph) {
     source: e.source,
     target: e.target,
     weight: e.weight,
+    kind: e.kind,
   }));
 
+  // Per-kind link strengths: cross-search and memory-share pull strongly;
+  // tool-overlap is weaker because it's broader.
+  const kindStrength: Record<string, number> = {
+    "cross-search": 0.25,
+    "memory-share": 0.2,
+    "tool-overlap": 0.04,
+  };
+
+  const linkForce = forceLink<PhysicsNode, PhysicsLink>(links)
+    .id((n) => n.id)
+    .strength((l) => kindStrength[l.kind] ?? 0.05);
+
   const sim: Simulation<PhysicsNode, PhysicsLink> = forceSimulation(nodes, 2)
-    .force("link", forceLink<PhysicsNode, PhysicsLink>(links).id((n) => n.id).strength(0.05))
+    .force("link", linkForce)
     .force("charge", forceManyBody<PhysicsNode>().strength(-0.06))
     .force("anchor", forceAnchor(0.35))
     .force("center", forceCenter(0, 0))
