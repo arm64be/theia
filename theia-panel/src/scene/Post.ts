@@ -24,65 +24,12 @@ void main() {
 }
 `;
 
-const BG_TINT_VERT = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const BG_TINT_FRAG = `
-uniform sampler2D tDiffuse;
-uniform float uTime;
-varying vec2 vUv;
-
-// Sample the bloomed scene at offset points to gather ambient color
-vec3 gatherAmbient(vec2 uv, float radius) {
-  vec3 sum = vec3(0.0);
-  sum += texture2D(tDiffuse, uv + vec2(radius, 0.0)).rgb;
-  sum += texture2D(tDiffuse, uv - vec2(radius, 0.0)).rgb;
-  sum += texture2D(tDiffuse, uv + vec2(0.0, radius)).rgb;
-  sum += texture2D(tDiffuse, uv - vec2(0.0, radius)).rgb;
-  sum += texture2D(tDiffuse, uv + vec2(radius * 0.7, radius * 0.7)).rgb;
-  sum += texture2D(tDiffuse, uv - vec2(radius * 0.7, radius * 0.7)).rgb;
-  sum += texture2D(tDiffuse, uv + vec2(radius * 0.7, -radius * 0.7)).rgb;
-  sum += texture2D(tDiffuse, uv - vec2(radius * 0.7, -radius * 0.7)).rgb;
-  return sum / 8.0;
-}
-
-void main() {
-  // Dark base background
-  vec3 bg = vec3(0.027, 0.031, 0.051); // 0x07080d
-
-  // Gather bloomed colors from surroundings
-  float wave = sin(uTime * 0.3 + vUv.x * 4.0 + vUv.y * 3.0) * 0.5 + 0.5;
-  float radius = 0.04 + 0.03 * wave;
-  vec3 ambient = gatherAmbient(vUv, radius);
-
-  // Second, larger-radius gather for broader atmosphere
-  float wave2 = sin(uTime * 0.2 + vUv.x * 2.5 - vUv.y * 2.0) * 0.5 + 0.5;
-  vec3 broad = gatherAmbient(vUv, 0.12 + 0.06 * wave2);
-
-  // Mix: heavy tint from bloom, but keep it dark and atmospheric
-  float tintStrength = 0.35 + 0.15 * wave;
-  vec3 tinted = mix(bg, ambient * 0.8 + broad * 0.5, tintStrength);
-
-  // Add the actual scene content on top
-  vec4 scene = texture2D(tDiffuse, vUv);
-  vec3 final = tinted + scene.rgb;
-
-  gl_FragColor = vec4(final, 1.0);
-}
-`;
-
 export interface PostContext {
   composer: EffectComposer;
   bloom: UnrealBloomPass;
   edgesTarget: THREE.WebGLRenderTarget;
   resize(): void;
   renderEdges(scene: THREE.Scene, camera: THREE.Camera): void;
-  setTime(t: number): void;
 }
 
 export function createPost(
@@ -131,18 +78,6 @@ export function createPost(
   );
   composer.addPass(bloom);
 
-  // Pass 4: atmospheric background tint from bloom colors
-  const bgTintPass = new ShaderPass({
-    uniforms: {
-      tDiffuse: { value: null },
-      uTime: { value: 0 },
-    },
-    vertexShader: BG_TINT_VERT,
-    fragmentShader: BG_TINT_FRAG,
-  });
-  bgTintPass.needsSwap = true;
-  composer.addPass(bgTintPass);
-
   function renderEdges(edgesScene: THREE.Scene, edgesCamera: THREE.Camera) {
     const prevTarget = renderer.getRenderTarget();
     const prevClearColor = new THREE.Color();
@@ -165,9 +100,5 @@ export function createPost(
     composer.setSize(w2, h2);
   }
 
-  function setTime(t: number) {
-    (bgTintPass.uniforms.uTime as { value: number }).value = t;
-  }
-
-  return { composer, bloom, edgesTarget, resize, renderEdges, setTime };
+  return { composer, bloom, edgesTarget, resize, renderEdges };
 }
