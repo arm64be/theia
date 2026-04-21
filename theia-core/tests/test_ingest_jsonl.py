@@ -64,7 +64,7 @@ def test_parse_jsonl_session_search(tmp_path: Path) -> None:
         '{"role":"assistant","content":"ok","tool_calls":['
         '{"id":"tc1","type":"function","function":'
         '{"name":"session_search","arguments":'
-        '"{\\"query\\": \\"auth\\"}"}}],'
+        '"{\\"query\\": \\"auth\\", \\"source_session_id\\": \\"other\\"}"}}],'
         '"timestamp":"2026-04-16T20:53:36.860369"}\n'
     )
     p = tmp_path / "sess.jsonl"
@@ -74,3 +74,4 @@ def test_parse_jsonl_session_search(tmp_path: Path) -> None:
 
     assert len(sess.search_hits) == 1
     assert sess.search_hits[0].query == "auth"
+    assert sess.search_hits[0].source_session_id == "other"

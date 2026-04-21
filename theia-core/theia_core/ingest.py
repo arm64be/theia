@@ -96,6 +96,8 @@ def _infer_search_hits(tool_calls: list[ToolCall], session_id: str) -> list[Sear
             args = {}
         query = str(args.get("query", ""))
         source = str(args.get("source_session_id", ""))
+        if not source:
+            continue
         hits.append(
             SearchHit(
                 query=query,

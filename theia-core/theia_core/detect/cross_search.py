@@ -12,7 +12,7 @@ def detect_cross_search(sessions: Iterable[Session]) -> list[Edge]:
     by_pair: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for sess in sessions:
         for hit in sess.search_hits:
-            if hit.source_session_id == sess.id:
+            if not hit.source_session_id or hit.source_session_id == sess.id:
                 continue
             by_pair[(hit.source_session_id, sess.id)].append(
                 {"query": hit.query, "hit_rank": hit.hit_rank}

@@ -1,0 +1,2685 @@
+{
+  "meta": {
+    "generated_at": "2026-04-21T15:48:49.461883Z",
+    "source_count": 35,
+    "projection": "pca",
+    "feature_dim": 19
+  },
+  "nodes": [
+    {
+      "id": "20260331_010749_d7dbe94e",
+      "title": "20260331_010749_d7dbe94e",
+      "started_at": "2026-03-31T01:08:23.063420Z",
+      "duration_sec": 4817.383835,
+      "tool_count": 18,
+      "message_count": 57,
+      "model": "unknown",
+      "position": {
+        "x": -0.06261221358303971,
+        "y": -0.07316639048510536
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_022853_c4eca25b",
+      "title": "20260331_022853_c4eca25b",
+      "started_at": "2026-03-31T02:29:05.256491Z",
+      "duration_sec": 4976.882632,
+      "tool_count": 72,
+      "message_count": 184,
+      "model": "unknown",
+      "position": {
+        "x": -0.20811852692778332,
+        "y": 0.5009355960332873
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_032241_28319319",
+      "title": "20260331_032241_28319319",
+      "started_at": "2026-03-31T03:22:51.547450Z",
+      "duration_sec": 142.833488,
+      "tool_count": 6,
+      "message_count": 20,
+      "model": "unknown",
+      "position": {
+        "x": 0.31505227516977075,
+        "y": -0.06111097695214648
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_083202_c381e7ba",
+      "title": "20260331_083202_c381e7ba",
+      "started_at": "2026-03-31T08:33:05.837986Z",
+      "duration_sec": 4155.087603,
+      "tool_count": 65,
+      "message_count": 153,
+      "model": "unknown",
+      "position": {
+        "x": 0.001200236930656965,
+        "y": 0.3133088394131664
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_102110_26f791dc",
+      "title": "20260331_102110_26f791dc",
+      "started_at": "2026-03-31T10:21:40.597383Z",
+      "duration_sec": 0.0,
+      "tool_count": 15,
+      "message_count": 26,
+      "model": "unknown",
+      "position": {
+        "x": 0.29542647673612193,
+        "y": -0.07121032474638465
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_105123_93bd91e6",
+      "title": "20260331_105123_93bd91e6",
+      "started_at": "2026-03-31T10:51:35.730374Z",
+      "duration_sec": 5888.750204,
+      "tool_count": 89,
+      "message_count": 256,
+      "model": "unknown",
+      "position": {
+        "x": 0.006831859220144574,
+        "y": 0.35072754949379525
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_131235_b9cb0e60",
+      "title": "20260331_131235_b9cb0e60",
+      "started_at": "2026-03-31T13:12:59.809366Z",
+      "duration_sec": 16953.206365,
+      "tool_count": 92,
+      "message_count": 275,
+      "model": "unknown",
+      "position": {
+        "x": 0.1736713307681757,
+        "y": 0.15629751191166058
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_180004_6b28be",
+      "title": "20260331_180004_6b28be",
+      "started_at": "2026-03-31T18:00:45.922811Z",
+      "duration_sec": 12615.583009,
+      "tool_count": 73,
+      "message_count": 211,
+      "model": "unknown",
+      "position": {
+        "x": 0.2126214372758659,
+        "y": 0.137418944300927
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_181326_884b79d9",
+      "title": "20260331_181326_884b79d9",
+      "started_at": "2026-03-31T18:13:44.078456Z",
+      "duration_sec": 16.507444,
+      "tool_count": 5,
+      "message_count": 14,
+      "model": "unknown",
+      "position": {
+        "x": -0.6080236203364388,
+        "y": -0.16399592830568838
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_210602_93bda0c0",
+      "title": "20260331_210602_93bda0c0",
+      "started_at": "2026-03-31T21:08:17.224042Z",
+      "duration_sec": 2111.02421,
+      "tool_count": 88,
+      "message_count": 197,
+      "model": "unknown",
+      "position": {
+        "x": -0.38079012759433856,
+        "y": -0.25129178904685173
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_214730_a1a3b547",
+      "title": "20260331_214730_a1a3b547",
+      "started_at": "2026-03-31T21:47:44.320089Z",
+      "duration_sec": 1456.228921,
+      "tool_count": 57,
+      "message_count": 152,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": 0.22454891700846827,
+        "y": -0.13039303907547722
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_221857_add5cd82",
+      "title": "20260331_221857_add5cd82",
+      "started_at": "2026-03-31T22:26:28.251583Z",
+      "duration_sec": 1217.006879,
+      "tool_count": 13,
+      "message_count": 37,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": -0.8540083838293471,
+        "y": -0.47857637335256126
+      },
+      "features": null
+    },
+    {
+      "id": "20260331_234545_ab8ba826",
+      "title": "20260331_234545_ab8ba826",
+      "started_at": "2026-03-31T23:45:54.563727Z",
+      "duration_sec": 98.579167,
+      "tool_count": 5,
+      "message_count": 13,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": -0.8971944582206179,
+        "y": 0.4307964151878183
+      },
+      "features": null
+    },
+    {
+      "id": "20260401_124503_0f5b6d73",
+      "title": "20260401_124503_0f5b6d73",
+      "started_at": "2026-04-01T12:45:08.882305Z",
+      "duration_sec": 15582.284441,
+      "tool_count": 88,
+      "message_count": 264,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": 0.23345764031673533,
+        "y": 0.033675856316294245
+      },
+      "features": null
+    },
+    {
+      "id": "20260401_170738_9f28a5",
+      "title": "20260401_170738_9f28a5",
+      "started_at": "2026-04-01T23:53:57.671862Z",
+      "duration_sec": 8098.510711,
+      "tool_count": 66,
+      "message_count": 207,
+      "model": "unknown",
+      "position": {
+        "x": 0.2508555648002674,
+        "y": -0.014245492216037286
+      },
+      "features": null
+    },
+    {
+      "id": "20260401_191252_fb537a4e",
+      "title": "20260401_191252_fb537a4e",
+      "started_at": "2026-04-01T19:13:55.015117Z",
+      "duration_sec": 0.0,
+      "tool_count": 4,
+      "message_count": 10,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": -0.18549614309759407,
+        "y": -0.28779519779533175
+      },
+      "features": null
+    },
+    {
+      "id": "20260402_021034_5533d1",
+      "title": "20260402_021034_5533d1",
+      "started_at": "2026-04-02T02:12:26.402942Z",
+      "duration_sec": 3106.705601,
+      "tool_count": 31,
+      "message_count": 99,
+      "model": "unknown",
+      "position": {
+        "x": 0.14152042723720648,
+        "y": -0.12558170507854216
+      },
+      "features": null
+    },
+    {
+      "id": "20260402_030431_e55600aa",
+      "title": "20260402_030431_e55600aa",
+      "started_at": "2026-04-02T03:04:57.796512Z",
+      "duration_sec": 21843.226748,
+      "tool_count": 55,
+      "message_count": 183,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": 0.2546586131328997,
+        "y": 0.037169821296442876
+      },
+      "features": null
+    },
+    {
+      "id": "20260402_091045_67bdc02b",
+      "title": "20260402_091045_67bdc02b",
+      "started_at": "2026-04-02T12:19:48.884762Z",
+      "duration_sec": 42131.785438,
+      "tool_count": 139,
+      "message_count": 384,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": 0.16709979182007414,
+        "y": 0.1923979194498335
+      },
+      "features": null
+    },
+    {
+      "id": "20260403_151118_8ae55795",
+      "title": "20260403_151118_8ae55795",
+      "started_at": "2026-04-03T15:11:25.866996Z",
+      "duration_sec": 14449.741681,
+      "tool_count": 16,
+      "message_count": 41,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": 0.27085342215059555,
+        "y": -0.09372653476747422
+      },
+      "features": null
+    },
+    {
+      "id": "20260404_005635_09aed8b5",
+      "title": "20260404_005635_09aed8b5",
+      "started_at": "2026-04-04T00:56:40.551850Z",
+      "duration_sec": 0.0,
+      "tool_count": 1,
+      "message_count": 4,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": 0.31505227516977086,
+        "y": -0.061110976952146574
+      },
+      "features": null
+    },
+    {
+      "id": "20260405_013219_f5b99927",
+      "title": "20260405_013219_f5b99927",
+      "started_at": "2026-04-05T01:32:27.309785Z",
+      "duration_sec": 0.0,
+      "tool_count": 1,
+      "message_count": 4,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": 0.31505227516977086,
+        "y": -0.061110976952146574
+      },
+      "features": null
+    },
+    {
+      "id": "20260405_235537_2750e78f",
+      "title": "20260405_235537_2750e78f",
+      "started_at": "2026-04-05T23:55:44.791618Z",
+      "duration_sec": 0.0,
+      "tool_count": 1,
+      "message_count": 4,
+      "model": "google/gemini-3-flash-preview",
+      "position": {
+        "x": 0.31505227516977086,
+        "y": -0.061110976952146574
+      },
+      "features": null
+    },
+    {
+      "id": "20260412_111035_ea5474a6",
+      "title": "20260412_111035_ea5474a6",
+      "started_at": "2026-04-12T11:10:47.998628Z",
+      "duration_sec": 6061.452692,
+      "tool_count": 82,
+      "message_count": 194,
+      "model": "minimax-m2.7",
+      "position": {
+        "x": 0.2892735985576358,
+        "y": 0.005783672058729165
+      },
+      "features": null
+    },
+    {
+      "id": "20260412_125608_411379",
+      "title": "20260412_125608_411379",
+      "started_at": "2026-04-12T12:57:54.791978Z",
+      "duration_sec": 9529.65835,
+      "tool_count": 125,
+      "message_count": 277,
+      "model": "unknown",
+      "position": {
+        "x": 0.14170243419707576,
+        "y": 0.13530371063016267
+      },
+      "features": null
+    },
+    {
+      "id": "20260412_153803_d1b9ed",
+      "title": "20260412_153803_d1b9ed",
+      "started_at": "2026-04-12T15:38:29.178999Z",
+      "duration_sec": 0.0,
+      "tool_count": 5,
+      "message_count": 15,
+      "model": "unknown",
+      "position": {
+        "x": -0.7647734832604219,
+        "y": 0.6442992467027423
+      },
+      "features": null
+    },
+    {
+      "id": "20260412_154400_6ead4d9c",
+      "title": "20260412_154400_6ead4d9c",
+      "started_at": "2026-04-12T15:44:23.628961Z",
+      "duration_sec": 7439.196915,
+      "tool_count": 13,
+      "message_count": 35,
+      "model": "kimi-k2.5",
+      "position": {
+        "x": 0.18874861208349691,
+        "y": -0.15468483295889635
+      },
+      "features": null
+    },
+    {
+      "id": "20260412_173501_164d3929",
+      "title": "20260412_173501_164d3929",
+      "started_at": "2026-04-12T20:22:51.755125Z",
+      "duration_sec": 0.0,
+      "tool_count": 1,
+      "message_count": 9,
+      "model": "unknown",
+      "position": {
+        "x": 0.31505227516977086,
+        "y": -0.061110976952146574
+      },
+      "features": null
+    },
+    {
+      "id": "20260412_175852_7571a28c",
+      "title": "20260412_175852_7571a28c",
+      "started_at": "2026-04-12T17:59:02.628814Z",
+      "duration_sec": 26.187304,
+      "tool_count": 2,
+      "message_count": 8,
+      "model": "kimi-k2.5",
+      "position": {
+        "x": 0.31505227516977086,
+        "y": -0.061110976952146574
+      },
+      "features": null
+    },
+    {
+      "id": "20260412_191812_80df6578",
+      "title": "20260412_191812_80df6578",
+      "started_at": "2026-04-12T19:18:26.851780Z",
+      "duration_sec": 40.531067,
+      "tool_count": 1,
+      "message_count": 5,
+      "model": "kimi-k2.5",
+      "position": {
+        "x": -0.8678750853676579,
+        "y": -0.37550836312565805
+      },
+      "features": null
+    },
+    {
+      "id": "20260413_223815_f88aab2e",
+      "title": "20260413_223815_f88aab2e",
+      "started_at": "2026-04-13T22:38:58.545913Z",
+      "duration_sec": 53.29608,
+      "tool_count": 3,
+      "message_count": 7,
+      "model": "google_gemma-4-26B-A4B-it-IQ4_XS.gguf",
+      "position": {
+        "x": 0.31505227516977086,
+        "y": -0.061110976952146574
+      },
+      "features": null
+    },
+    {
+      "id": "20260417_100715_f4c764df",
+      "title": "20260417_100715_f4c764df",
+      "started_at": "2026-04-17T10:07:30.704172Z",
+      "duration_sec": 8.621346,
+      "tool_count": 0,
+      "message_count": 4,
+      "model": "xiaomi/mimo-v2-pro",
+      "position": {
+        "x": -0.5101820073660245,
+        "y": -0.08935024417605861
+      },
+      "features": null
+    },
+    {
+      "id": "20260419_025221_3ac65cd6",
+      "title": "20260419_025221_3ac65cd6",
+      "started_at": "2026-04-19T02:52:38.761804Z",
+      "duration_sec": 1963.114183,
+      "tool_count": 45,
+      "message_count": 93,
+      "model": "MiniMax-M2.7",
+      "position": {
+        "x": 0.278003535793571,
+        "y": -0.011151205469545655
+      },
+      "features": null
+    },
+    {
+      "id": "20260421_114228_9a733e53",
+      "title": "20260421_114228_9a733e53",
+      "started_at": "2026-04-21T11:43:14.563868Z",
+      "duration_sec": 0.0,
+      "tool_count": 5,
+      "message_count": 10,
+      "model": "MiniMax-M2.7",
+      "position": {
+        "x": -0.20414811599760724,
+        "y": -0.3011710414908758
+      },
+      "features": null
+    },
+    {
+      "id": "20260421_115133_c9f09655",
+      "title": "20260421_115133_c9f09655",
+      "started_at": "2026-04-21T12:10:12.937538Z",
+      "duration_sec": 5244.332515,
+      "tool_count": 87,
+      "message_count": 195,
+      "model": "MiniMax-M2.7",
+      "position": {
+        "x": 0.20738234136348338,
+        "y": 0.11151021796065505
+      },
+      "features": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260331_022853_c4eca25b",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260331_083202_c381e7ba",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260331_131235_b9cb0e60",
+      "kind": "tool-overlap",
+      "weight": 0.5454545454545454,
+      "evidence": {
+        "jaccard": 0.5454545454545454,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "session_search",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260331_180004_6b28be",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260331_210602_93bda0c0",
+      "kind": "tool-overlap",
+      "weight": 0.7142857142857143,
+      "evidence": {
+        "jaccard": 0.7142857142857143,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260331_214730_a1a3b547",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260401_124503_0f5b6d73",
+      "kind": "tool-overlap",
+      "weight": 0.4166666666666667,
+      "evidence": {
+        "jaccard": 0.4166666666666667,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.625,
+      "evidence": {
+        "jaccard": 0.625,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260412_154400_6ead4d9c",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "search_files",
+          "session_search",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_010749_d7dbe94e",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260331_083202_c381e7ba",
+      "kind": "tool-overlap",
+      "weight": 0.8571428571428571,
+      "evidence": {
+        "jaccard": 0.8571428571428571,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "todo",
+          "web_search",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260331_105123_93bd91e6",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "patch",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260331_131235_b9cb0e60",
+      "kind": "tool-overlap",
+      "weight": 0.5454545454545454,
+      "evidence": {
+        "jaccard": 0.5454545454545454,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260331_180004_6b28be",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260331_210602_93bda0c0",
+      "kind": "tool-overlap",
+      "weight": 0.7142857142857143,
+      "evidence": {
+        "jaccard": 0.7142857142857143,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260331_214730_a1a3b547",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260401_124503_0f5b6d73",
+      "kind": "tool-overlap",
+      "weight": 0.5454545454545454,
+      "evidence": {
+        "jaccard": 0.5454545454545454,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.625,
+      "evidence": {
+        "jaccard": 0.625,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260419_025221_3ac65cd6",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "terminal",
+          "todo",
+          "web_search",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_022853_c4eca25b",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "web_search",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_032241_28319319",
+      "target": "20260404_005635_09aed8b5",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_032241_28319319",
+      "target": "20260405_013219_f5b99927",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_032241_28319319",
+      "target": "20260405_235537_2750e78f",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_032241_28319319",
+      "target": "20260412_173501_164d3929",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_032241_28319319",
+      "target": "20260412_175852_7571a28c",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_032241_28319319",
+      "target": "20260413_223815_f88aab2e",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260331_105123_93bd91e6",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260331_131235_b9cb0e60",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260331_180004_6b28be",
+      "kind": "tool-overlap",
+      "weight": 0.625,
+      "evidence": {
+        "jaccard": 0.625,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260331_210602_93bda0c0",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260401_124503_0f5b6d73",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "read_file",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.6666666666666666,
+      "evidence": {
+        "jaccard": 0.6666666666666666,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260419_025221_3ac65cd6",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "terminal",
+          "todo",
+          "web_search",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_083202_c381e7ba",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.625,
+      "evidence": {
+        "jaccard": 0.625,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "web_search",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_102110_26f791dc",
+      "target": "20260331_214730_a1a3b547",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "clarify",
+          "search_files",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_102110_26f791dc",
+      "target": "20260412_154400_6ead4d9c",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "search_files",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_105123_93bd91e6",
+      "target": "20260331_131235_b9cb0e60",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "patch",
+          "process",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_105123_93bd91e6",
+      "target": "20260331_180004_6b28be",
+      "kind": "tool-overlap",
+      "weight": 0.625,
+      "evidence": {
+        "jaccard": 0.625,
+        "shared_tools": [
+          "patch",
+          "process",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_105123_93bd91e6",
+      "target": "20260401_124503_0f5b6d73",
+      "kind": "tool-overlap",
+      "weight": 0.6,
+      "evidence": {
+        "jaccard": 0.6,
+        "shared_tools": [
+          "patch",
+          "process",
+          "terminal",
+          "todo",
+          "web_extract",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_105123_93bd91e6",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "process",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_105123_93bd91e6",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "patch",
+          "process",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_105123_93bd91e6",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "patch",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_105123_93bd91e6",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "terminal",
+          "web_extract",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_105123_93bd91e6",
+      "target": "20260419_025221_3ac65cd6",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "terminal",
+          "todo",
+          "web_extract",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260331_180004_6b28be",
+      "kind": "tool-overlap",
+      "weight": 0.5454545454545454,
+      "evidence": {
+        "jaccard": 0.5454545454545454,
+        "shared_tools": [
+          "patch",
+          "process",
+          "read_file",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260331_210602_93bda0c0",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260331_214730_a1a3b547",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "execute_code",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260401_124503_0f5b6d73",
+      "kind": "tool-overlap",
+      "weight": 0.6666666666666666,
+      "evidence": {
+        "jaccard": 0.6666666666666666,
+        "shared_tools": [
+          "execute_code",
+          "patch",
+          "process",
+          "read_file",
+          "search_files",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "execute_code",
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.7,
+      "evidence": {
+        "jaccard": 0.7,
+        "shared_tools": [
+          "execute_code",
+          "process",
+          "read_file",
+          "search_files",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260402_030431_e55600aa",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "execute_code",
+          "patch",
+          "process",
+          "read_file",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.5454545454545454,
+      "evidence": {
+        "jaccard": 0.5454545454545454,
+        "shared_tools": [
+          "patch",
+          "process",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_131235_b9cb0e60",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.4166666666666667,
+      "evidence": {
+        "jaccard": 0.4166666666666667,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "vision_analyze",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260331_210602_93bda0c0",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260401_124503_0f5b6d73",
+      "kind": "tool-overlap",
+      "weight": 0.5454545454545454,
+      "evidence": {
+        "jaccard": 0.5454545454545454,
+        "shared_tools": [
+          "patch",
+          "process",
+          "read_file",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "process",
+          "read_file",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260402_030431_e55600aa",
+      "kind": "tool-overlap",
+      "weight": 0.625,
+      "evidence": {
+        "jaccard": 0.625,
+        "shared_tools": [
+          "cronjob",
+          "patch",
+          "process",
+          "read_file",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "patch",
+          "process",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_180004_6b28be",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260331_214730_a1a3b547",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260331_234545_ab8ba826",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "patch",
+          "read_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260401_124503_0f5b6d73",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.6666666666666666,
+      "evidence": {
+        "jaccard": 0.6666666666666666,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.7142857142857143,
+      "evidence": {
+        "jaccard": 0.7142857142857143,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.8,
+      "evidence": {
+        "jaccard": 0.8,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.8333333333333334,
+      "evidence": {
+        "jaccard": 0.8333333333333334,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260412_153803_d1b9ed",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "patch",
+          "search_files"
+        ]
+      }
+    },
+    {
+      "source": "20260331_210602_93bda0c0",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_214730_a1a3b547",
+      "target": "20260331_221857_add5cd82",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "execute_code",
+          "read_file",
+          "search_files"
+        ]
+      }
+    },
+    {
+      "source": "20260331_214730_a1a3b547",
+      "target": "20260401_124503_0f5b6d73",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "execute_code",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_214730_a1a3b547",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "execute_code",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_214730_a1a3b547",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.625,
+      "evidence": {
+        "jaccard": 0.625,
+        "shared_tools": [
+          "execute_code",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_214730_a1a3b547",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_214730_a1a3b547",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_214730_a1a3b547",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_221857_add5cd82",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "execute_code",
+          "read_file",
+          "search_files"
+        ]
+      }
+    },
+    {
+      "source": "20260331_234545_ab8ba826",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "patch",
+          "read_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_234545_ab8ba826",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file"
+        ]
+      }
+    },
+    {
+      "source": "20260331_234545_ab8ba826",
+      "target": "20260412_191812_80df6578",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "read_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260401_170738_9f28a5",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "execute_code",
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.7,
+      "evidence": {
+        "jaccard": 0.7,
+        "shared_tools": [
+          "execute_code",
+          "process",
+          "read_file",
+          "search_files",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260402_030431_e55600aa",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "execute_code",
+          "patch",
+          "process",
+          "read_file",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.7,
+      "evidence": {
+        "jaccard": 0.7,
+        "shared_tools": [
+          "patch",
+          "process",
+          "read_file",
+          "search_files",
+          "skill_view",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260403_151118_8ae55795",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "search_files",
+          "skill_view",
+          "terminal",
+          "web_extract",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.6,
+      "evidence": {
+        "jaccard": 0.6,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "web_extract",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260419_025221_3ac65cd6",
+      "kind": "tool-overlap",
+      "weight": 0.45454545454545453,
+      "evidence": {
+        "jaccard": 0.45454545454545453,
+        "shared_tools": [
+          "execute_code",
+          "terminal",
+          "todo",
+          "web_extract",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_124503_0f5b6d73",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.4166666666666667,
+      "evidence": {
+        "jaccard": 0.4166666666666667,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "skill_view",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_170738_9f28a5",
+      "target": "20260402_021034_5533d1",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "execute_code",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_170738_9f28a5",
+      "target": "20260402_030431_e55600aa",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "execute_code",
+          "patch",
+          "read_file",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260401_170738_9f28a5",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_170738_9f28a5",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.8,
+      "evidence": {
+        "jaccard": 0.8,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_170738_9f28a5",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_170738_9f28a5",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260401_191252_fb537a4e",
+      "target": "20260403_151118_8ae55795",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "search_files",
+          "skill_view",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260401_191252_fb537a4e",
+      "target": "20260412_154400_6ead4d9c",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "search_files",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260401_191252_fb537a4e",
+      "target": "20260421_114228_9a733e53",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "skill_view",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260402_021034_5533d1",
+      "target": "20260402_030431_e55600aa",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "execute_code",
+          "process",
+          "read_file",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260402_021034_5533d1",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "process",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260402_021034_5533d1",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260402_021034_5533d1",
+      "target": "20260419_025221_3ac65cd6",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "execute_code",
+          "terminal",
+          "todo",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260402_030431_e55600aa",
+      "target": "20260402_091045_67bdc02b",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "patch",
+          "process",
+          "read_file",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260402_030431_e55600aa",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260402_091045_67bdc02b",
+      "target": "20260403_151118_8ae55795",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "search_files",
+          "skill_view",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260402_091045_67bdc02b",
+      "target": "20260412_111035_ea5474a6",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260402_091045_67bdc02b",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.625,
+      "evidence": {
+        "jaccard": 0.625,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "search_files",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260402_091045_67bdc02b",
+      "target": "20260421_114228_9a733e53",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "read_file",
+          "skill_view",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260402_091045_67bdc02b",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.5555555555555556,
+      "evidence": {
+        "jaccard": 0.5555555555555556,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "skill_view",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260403_151118_8ae55795",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.5,
+      "evidence": {
+        "jaccard": 0.5,
+        "shared_tools": [
+          "search_files",
+          "terminal",
+          "web_extract",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260404_005635_09aed8b5",
+      "target": "20260405_013219_f5b99927",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260404_005635_09aed8b5",
+      "target": "20260405_235537_2750e78f",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260404_005635_09aed8b5",
+      "target": "20260412_173501_164d3929",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260404_005635_09aed8b5",
+      "target": "20260412_175852_7571a28c",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260404_005635_09aed8b5",
+      "target": "20260413_223815_f88aab2e",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260405_013219_f5b99927",
+      "target": "20260405_235537_2750e78f",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260405_013219_f5b99927",
+      "target": "20260412_173501_164d3929",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260405_013219_f5b99927",
+      "target": "20260412_175852_7571a28c",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260405_013219_f5b99927",
+      "target": "20260413_223815_f88aab2e",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260405_235537_2750e78f",
+      "target": "20260412_173501_164d3929",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260405_235537_2750e78f",
+      "target": "20260412_175852_7571a28c",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260405_235537_2750e78f",
+      "target": "20260413_223815_f88aab2e",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260412_111035_ea5474a6",
+      "target": "20260412_125608_411379",
+      "kind": "tool-overlap",
+      "weight": 0.6666666666666666,
+      "evidence": {
+        "jaccard": 0.6666666666666666,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260412_111035_ea5474a6",
+      "target": "20260421_114228_9a733e53",
+      "kind": "tool-overlap",
+      "weight": 0.4,
+      "evidence": {
+        "jaccard": 0.4,
+        "shared_tools": [
+          "read_file",
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260412_111035_ea5474a6",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.5714285714285714,
+      "evidence": {
+        "jaccard": 0.5714285714285714,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260412_125608_411379",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.4444444444444444,
+      "evidence": {
+        "jaccard": 0.4444444444444444,
+        "shared_tools": [
+          "patch",
+          "read_file",
+          "terminal",
+          "write_file"
+        ]
+      }
+    },
+    {
+      "source": "20260412_173501_164d3929",
+      "target": "20260412_175852_7571a28c",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260412_173501_164d3929",
+      "target": "20260413_223815_f88aab2e",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260412_175852_7571a28c",
+      "target": "20260413_223815_f88aab2e",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "jaccard": 1.0,
+        "shared_tools": [
+          "terminal"
+        ]
+      }
+    },
+    {
+      "source": "20260421_114228_9a733e53",
+      "target": "20260421_115133_c9f09655",
+      "kind": "tool-overlap",
+      "weight": 0.42857142857142855,
+      "evidence": {
+        "jaccard": 0.42857142857142855,
+        "shared_tools": [
+          "read_file",
+          "skill_view",
+          "terminal"
+        ]
+      }
+    }
+  ]
+}
