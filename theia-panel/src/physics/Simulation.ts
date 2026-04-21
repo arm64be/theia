@@ -63,12 +63,11 @@ export function createSimulation(graph: TheiaGraph) {
     kind: e.kind,
   }));
 
-  // Per-kind link strengths: cross-search and memory-share pull strongly;
-  // tool-overlap is weaker because it's broader.
+  // Per-kind link strengths
   const kindStrength: Record<string, number> = {
     "cross-search": 0.25,
-    "memory-share": 0.2,
-    "tool-overlap": 0.04,
+    "memory-share": 0.08,
+    "tool-overlap": 0.12,
   };
 
   const linkForce = forceLink<PhysicsNode, PhysicsLink>(links)
