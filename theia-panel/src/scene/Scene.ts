@@ -18,15 +18,8 @@ export function createScene(container: HTMLElement): SceneContext {
 
   const { clientWidth: w, clientHeight: h } = container;
   const aspect = w / h;
-  const baseSize = 1.2; // visible window = roughly the unit disk + margin
-  const camera = new THREE.OrthographicCamera(
-    -baseSize * aspect,
-    baseSize * aspect,
-    baseSize,
-    -baseSize,
-    -10,
-    10,
-  );
+  const baseSize = 2.0; // visible window = larger to accommodate spread
+  const camera = new THREE.OrthographicCamera(-baseSize * aspect, baseSize * aspect, baseSize, -baseSize, -10, 10);
   camera.position.z = 5;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -75,7 +68,7 @@ export function createScene(container: HTMLElement): SceneContext {
       apply();
     },
     setZoom(z) {
-      zoom = Math.max(0.1, Math.min(z, 10));
+      zoom = Math.max(0.05, z);
       apply();
     },
     getZoom() {

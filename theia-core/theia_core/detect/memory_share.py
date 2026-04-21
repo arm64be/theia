@@ -30,6 +30,19 @@ def detect_memory_share(sessions: Iterable[Session]) -> list[Edge]:
                 agg = edges_by_pair.setdefault(key, {"read_count": 0, "salience": salience})
                 agg["read_count"] += 1
 
+    # Also link sessions that WRITE to the same memory (co-authorship model).
+    # This is especially important for Hermes archives where all memory ops are writes.
+    for memory_id, writers in writes.items():
+        if len(writers) < 2:
+            continue
+        for i in range(len(writers)):
+            for j in range(i + 1, len(writers)):
+                a_id, a_sal = writers[i]
+                b_id, b_sal = writers[j]
+                key = tuple(sorted([a_id, b_id]) + [memory_id])  # type: ignore[arg-type]
+                agg = edges_by_pair.setdefault(key, {"read_count": 0, "salience": max(a_sal, b_sal)})  # type: ignore[arg-type]
+                agg["read_count"] += 1
+
     edges: list[Edge] = []
     for (src, tgt, memory_id), agg in edges_by_pair.items():
         # weight combines salience and log-scaled read count; clamp to [0, 1]

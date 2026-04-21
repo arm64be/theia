@@ -76,14 +76,35 @@ def _infer_memory_events(tool_calls: list[ToolCall]) -> list[MemoryEvent]:
         except json.JSONDecodeError:
             args = {}
         action = str(args.get("action", "")).lower()
-        kind = "write" if action in ("write", "store", "save") else "read"
-        mem_id = str(args.get("memory_id", args.get("id", "unknown")))
+        write_actions = {"write", "store", "save", "add", "replace", "remove"}
+        kind = "write" if action in write_actions else "read"
+        mem_id = str(args.get("memory_id", args.get("id", args.get("target", "unknown"))))
         events.append(MemoryEvent(kind=kind, memory_id=mem_id, raw=tc.raw))
     return events
 
 
-def _infer_search_hits(tool_calls: list[ToolCall], session_id: str) -> list[SearchHit]:
-    """Heuristic: treat cross-session search tool calls as search hits."""
+def _infer_search_hits(tool_calls: list[ToolCall], session_id: str, messages: list[dict[str, Any]]) -> list[SearchHit]:
+    """Heuristic: treat cross-session search tool calls as search hits.
+
+    Parses tool responses to extract the actual searched session_ids.
+    """
+    # Build map of tool_call_id -> response content dict
+    responses: dict[str, dict[str, Any]] = {}
+    for msg in messages:
+        if msg.get("role") != "tool":
+            continue
+        tc_id = msg.get("tool_call_id", "")
+        if not tc_id:
+            continue
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                content = {}
+        if isinstance(content, dict):
+            responses[tc_id] = content
+
     hits: list[SearchHit] = []
     for tc in tool_calls:
         if tc.name not in ("session_search",):
@@ -95,8 +116,23 @@ def _infer_search_hits(tool_calls: list[ToolCall], session_id: str) -> list[Sear
         except json.JSONDecodeError:
             args = {}
         query = str(args.get("query", ""))
+        # Try arguments first, then tool response results
         source = str(args.get("source_session_id", ""))
         if not source:
+            resp = responses.get(tc.raw.get("id", tc.raw.get("call_id", "")), {})
+            for result in resp.get("results", []):
+                sid = str(result.get("session_id", ""))
+                if sid and sid != session_id:
+                    hits.append(
+                        SearchHit(
+                            query=query,
+                            source_session_id=sid,
+                            hit_rank=1,
+                            raw=tc.raw,
+                        )
+                    )
+            continue
+        if source == session_id:
             continue
         hits.append(
             SearchHit(
@@ -155,7 +191,7 @@ def _parse_session_json(path: Path) -> Session:
 
     tool_calls = _extract_tool_calls_from_messages(messages)
     memory_events = _infer_memory_events(tool_calls)
-    search_hits = _infer_search_hits(tool_calls, session_id)
+    search_hits = _infer_search_hits(tool_calls, session_id, messages)
 
     return Session(
         id=session_id,
@@ -197,7 +233,7 @@ def _parse_jsonl(path: Path) -> Session:
 
     tool_calls = _extract_tool_calls_from_messages(messages)
     memory_events = _infer_memory_events(tool_calls)
-    search_hits = _infer_search_hits(tool_calls, session_id)
+    search_hits = _infer_search_hits(tool_calls, session_id, messages)
 
     return Session(
         id=session_id,

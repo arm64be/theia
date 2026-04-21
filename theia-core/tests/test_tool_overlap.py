@@ -19,8 +19,8 @@ def _sess(id: str, tools: list[str]) -> Session:
 
 
 def test_tool_overlap_returns_edge_above_threshold() -> None:
-    a = _sess("A", ["read", "edit", "bash"])
-    b = _sess("B", ["read", "edit", "bash"])
+    a = _sess("A", ["skill_view", "web_search", "memory"])
+    b = _sess("B", ["skill_view", "web_search", "memory"])
 
     edges = detect_tool_overlap([a, b], threshold=0.4)
 
@@ -33,15 +33,15 @@ def test_tool_overlap_returns_edge_above_threshold() -> None:
 
 
 def test_tool_overlap_below_threshold_ignored() -> None:
-    a = _sess("A", ["read", "edit"])
-    b = _sess("B", ["bash"])
+    a = _sess("A", ["skill_view", "web_search"])
+    b = _sess("B", ["memory"])
 
     assert detect_tool_overlap([a, b], threshold=0.4) == []
 
 
 def test_tool_overlap_undirected_no_duplicates() -> None:
-    a = _sess("A", ["read"])
-    b = _sess("B", ["read"])
+    a = _sess("A", ["skill_view", "memory"])
+    b = _sess("B", ["skill_view", "memory"])
 
     edges = detect_tool_overlap([a, b], threshold=0.4)
 

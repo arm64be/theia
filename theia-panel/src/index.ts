@@ -35,6 +35,7 @@ export async function mount(
   element.style.position ||= "relative";
   element.style.overflow = "hidden";
   const ctx = createScene(element);
+  ctx.setZoom(0.5);
   const nodes = createNodes(graph);
   const edges = createEdges();
   const post = createPost(ctx.renderer, ctx.scene, ctx.camera, element);

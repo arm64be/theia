@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("sessions_dir", type=Path)
     parser.add_argument("-o", "--out", type=Path, default=Path("graph.json"))
     parser.add_argument("--projection", choices=["pca", "umap", "tool-vector"], default="umap")
-    parser.add_argument("--tool-overlap-threshold", type=float, default=0.4)
+    parser.add_argument("--tool-overlap-threshold", type=float, default=0.8)
     parser.add_argument("--include-features", action="store_true")
     parser.add_argument("--disable-tool-overlap", action="store_true")
     args = parser.parse_args(argv)

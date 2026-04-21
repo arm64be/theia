@@ -39,12 +39,15 @@ function forceAnchor(strength = 0.15) {
 }
 
 export function createSimulation(graph: TheiaGraph) {
+  // Spread projected positions outward so clusters have breathing room
+  const spread = 3.0;
+
   const nodes: PhysicsNode[] = graph.nodes.map((n) => ({
     id: n.id,
-    x: n.position.x,
-    y: n.position.y,
-    anchorX: n.position.x,
-    anchorY: n.position.y,
+    x: n.position.x * spread,
+    y: n.position.y * spread,
+    anchorX: n.position.x * spread,
+    anchorY: n.position.y * spread,
   }));
   const links: PhysicsLink[] = graph.edges.map((e) => ({
     source: e.source,
@@ -53,17 +56,12 @@ export function createSimulation(graph: TheiaGraph) {
   }));
 
   const sim: Simulation<PhysicsNode, PhysicsLink> = forceSimulation(nodes, 2)
-    .force(
-      "link",
-      forceLink<PhysicsNode, PhysicsLink>(links)
-        .id((n) => n.id)
-        .strength(0.05),
-    )
-    .force("charge", forceManyBody<PhysicsNode>().strength(-0.02))
-    .force("anchor", forceAnchor(0.25))
-    .force("center", forceCenter(0, 0))
+    .force("link", forceLink<PhysicsNode, PhysicsLink>(links).id((n) => n.id).strength(0.03))
+    .force("charge", forceManyBody<PhysicsNode>().strength(-0.15))
+    .force("anchor", forceAnchor(0.2))
+    .force("center", forceCenter(0, 0).strength(0.05))
     .alphaDecay(0.03)
-    .alphaTarget(0.02); // keep a low-level breathing motion
+    .alphaTarget(0); // let simulation settle
 
   return { simulation: sim, nodes };
 }
