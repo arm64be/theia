@@ -1,0 +1,22 @@
+name: preview
+on:
+  pull_request:
+    paths: ["theia-panel/**", "schemas/**", "examples/**"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: npm ci
+        working-directory: theia-panel
+      - run: npm run generate-types && npm run build
+        working-directory: theia-panel
+      - uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: theia-panel
