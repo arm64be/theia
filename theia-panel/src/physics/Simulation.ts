@@ -39,8 +39,14 @@ function forceAnchor(strength = 0.15) {
 }
 
 export function createSimulation(graph: TheiaGraph) {
-  // Spread projected positions outward so clusters have breathing room
-  const spread = 3.0;
+  // Moderate spread so clusters have breathing room but stay grouped
+  const spread = 1.5;
+
+  const nodeIds = new Set(graph.nodes.map((n) => n.id));
+  // Runtime safety: drop edges that reference missing nodes
+  const safeEdges = graph.edges.filter(
+    (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
+  );
 
   const nodes: PhysicsNode[] = graph.nodes.map((n) => ({
     id: n.id,
@@ -49,19 +55,19 @@ export function createSimulation(graph: TheiaGraph) {
     anchorX: n.position.x * spread,
     anchorY: n.position.y * spread,
   }));
-  const links: PhysicsLink[] = graph.edges.map((e) => ({
+  const links: PhysicsLink[] = safeEdges.map((e) => ({
     source: e.source,
     target: e.target,
     weight: e.weight,
   }));
 
   const sim: Simulation<PhysicsNode, PhysicsLink> = forceSimulation(nodes, 2)
-    .force("link", forceLink<PhysicsNode, PhysicsLink>(links).id((n) => n.id).strength(0.03))
-    .force("charge", forceManyBody<PhysicsNode>().strength(-0.15))
-    .force("anchor", forceAnchor(0.2))
-    .force("center", forceCenter(0, 0).strength(0.05))
+    .force("link", forceLink<PhysicsNode, PhysicsLink>(links).id((n) => n.id).strength(0.05))
+    .force("charge", forceManyBody<PhysicsNode>().strength(-0.06))
+    .force("anchor", forceAnchor(0.35))
+    .force("center", forceCenter(0, 0))
     .alphaDecay(0.03)
-    .alphaTarget(0); // let simulation settle
+    .alphaTarget(0.02); // subtle ambient breathing motion
 
   return { simulation: sim, nodes };
 }
