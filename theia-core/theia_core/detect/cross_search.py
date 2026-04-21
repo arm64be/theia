@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from theia_core.detect import Edge
 from theia_core.ingest import Session
 
 
 def detect_cross_search(sessions: Iterable[Session]) -> list[Edge]:
-    by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    by_pair: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for sess in sessions:
         for hit in sess.search_hits:
             if hit.source_session_id == sess.id:

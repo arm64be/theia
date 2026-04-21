@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 
@@ -8,9 +8,12 @@ from theia_core.ingest import MemoryEvent, Session, ToolCall
 
 def _sess(id: str, tools: list[str], memories: list[str]) -> Session:
     return Session(
-        id=id, title=id,
-        started_at=datetime(2026, 4, 20, tzinfo=timezone.utc),
-        duration_sec=60, model="t", message_count=1,
+        id=id,
+        title=id,
+        started_at=datetime(2026, 4, 20, tzinfo=UTC),
+        duration_sec=60,
+        model="t",
+        message_count=1,
         tool_calls=tuple(ToolCall(name=t) for t in tools),
         memory_events=tuple(MemoryEvent(kind="write", memory_id=m) for m in memories),
         search_hits=(),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from itertools import combinations
-from typing import Iterable
 
 from theia_core.detect import Edge
 from theia_core.ingest import Session
@@ -9,9 +9,7 @@ from theia_core.ingest import Session
 
 def detect_tool_overlap(sessions: Iterable[Session], threshold: float = 0.4) -> list[Edge]:
     sessions = list(sessions)
-    tool_sets: dict[str, set[str]] = {
-        s.id: {t.name for t in s.tool_calls} for s in sessions
-    }
+    tool_sets: dict[str, set[str]] = {s.id: {t.name for t in s.tool_calls} for s in sessions}
     edges: list[Edge] = []
     for a, b in combinations(sorted(tool_sets), 2):
         ts_a = tool_sets[a]

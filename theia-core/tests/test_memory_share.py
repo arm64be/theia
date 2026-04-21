@@ -1,6 +1,4 @@
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from theia_core.detect.memory_share import detect_memory_share
 from theia_core.ingest import MemoryEvent, Session
@@ -10,7 +8,7 @@ def _sess(id: str, events: list[MemoryEvent], minute: int) -> Session:
     return Session(
         id=id,
         title=id,
-        started_at=datetime(2026, 4, 20, 12, minute, tzinfo=timezone.utc),
+        started_at=datetime(2026, 4, 20, 12, minute, tzinfo=UTC),
         duration_sec=60.0,
         model="test",
         message_count=1,
@@ -52,10 +50,14 @@ def test_memory_share_weight_scales_with_salience_and_read_count() -> None:
     a = _sess("A", [MemoryEvent(kind="write", memory_id="m1", salience=0.1)], minute=0)
     b1 = _sess("B", [MemoryEvent(kind="read", memory_id="m1")], minute=5)
     a2 = _sess("A2", [MemoryEvent(kind="write", memory_id="m2", salience=1.0)], minute=0)
-    b2 = _sess("B2", [
-        MemoryEvent(kind="read", memory_id="m2"),
-        MemoryEvent(kind="read", memory_id="m2"),
-    ], minute=5)
+    b2 = _sess(
+        "B2",
+        [
+            MemoryEvent(kind="read", memory_id="m2"),
+            MemoryEvent(kind="read", memory_id="m2"),
+        ],
+        minute=5,
+    )
 
     low = detect_memory_share([a, b1])[0]
     high = detect_memory_share([a2, b2])[0]

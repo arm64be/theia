@@ -10,7 +10,9 @@ def test_cli_produces_valid_graph(tmp_path: Path) -> None:
     out = tmp_path / "graph.json"
     result = subprocess.run(
         [sys.executable, "-m", "theia_core", str(FIXTURE), "-o", str(out)],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     )
     assert "wrote" in result.stdout
 

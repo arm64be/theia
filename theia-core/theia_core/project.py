@@ -15,6 +15,7 @@ def project_to_2d(matrix: np.ndarray, method: Projection = "pca", seed: int = 42
     if matrix.shape[0] == 1:
         return np.zeros((1, 2))
 
+    coords: np.ndarray
     if method == "pca":
         n_components = min(2, matrix.shape[1], matrix.shape[0] - 1)
         if n_components < 2:
@@ -25,7 +26,9 @@ def project_to_2d(matrix: np.ndarray, method: Projection = "pca", seed: int = 42
             coords = PCA(n_components=2, random_state=seed).fit_transform(matrix)
     elif method == "umap":
         import umap  # lazy import
-        reducer = umap.UMAP(n_components=2, random_state=seed, n_neighbors=min(15, matrix.shape[0] - 1))
+
+        n_neighbors = min(15, matrix.shape[0] - 1)
+        reducer = umap.UMAP(n_components=2, random_state=seed, n_neighbors=n_neighbors)
         coords = reducer.fit_transform(matrix)
     elif method == "tool-vector":
         # Pick the two highest-variance features; fallback to first two.

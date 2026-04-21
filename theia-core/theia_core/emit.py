@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,20 +29,22 @@ def build_graph(
     assert positions.shape == (len(sessions), 2)
     nodes = []
     for sess, (x, y) in zip(sessions, positions, strict=True):
-        nodes.append({
-            "id": sess.id,
-            "title": sess.title,
-            "started_at": sess.started_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "duration_sec": sess.duration_sec,
-            "tool_count": len(sess.tool_calls),
-            "message_count": sess.message_count,
-            "model": sess.model,
-            "position": {"x": float(x), "y": float(y)},
-            "features": None,
-        })
+        nodes.append(
+            {
+                "id": sess.id,
+                "title": sess.title,
+                "started_at": sess.started_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+                "duration_sec": sess.duration_sec,
+                "tool_count": len(sess.tool_calls),
+                "message_count": sess.message_count,
+                "model": sess.model,
+                "position": {"x": float(x), "y": float(y)},
+                "features": None,
+            }
+        )
     return {
         "meta": {
-            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "source_count": len(sessions),
             "projection": projection,
             "feature_dim": feature_dim,

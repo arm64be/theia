@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
-from theia_core.ingest import parse_session, Session
-
+from theia_core.ingest import Session, parse_session
 
 FIXTURE_JSON = """
 {
@@ -35,7 +34,7 @@ def test_parse_session_happy_path(tmp_path: Path) -> None:
     assert isinstance(sess, Session)
     assert sess.id == "sess_aaa"
     assert sess.title == "Refactor auth"
-    assert sess.started_at == datetime(2026, 4, 18, 9, 14, tzinfo=timezone.utc)
+    assert sess.started_at == datetime(2026, 4, 18, 9, 14, tzinfo=UTC)
     assert sess.duration_sec == pytest.approx(3421)
     assert len(sess.tool_calls) == 2
     assert sess.tool_calls[0].name == "bash"

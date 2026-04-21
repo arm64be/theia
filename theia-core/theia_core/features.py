@@ -21,10 +21,9 @@ def build_feature_matrix(sessions: list[Session]) -> tuple[np.ndarray, list[str]
     for s in sessions:
         tool_counts = Counter(t.name for t in s.tool_calls)
         mem_touched = {m.memory_id for m in s.memory_events}
-        row = (
-            [float(tool_counts.get(t, 0)) for t in tool_vocab]
-            + [1.0 if m in mem_touched else 0.0 for m in memory_vocab]
-        )
+        row = [float(tool_counts.get(t, 0)) for t in tool_vocab] + [
+            1.0 if m in mem_touched else 0.0 for m in memory_vocab
+        ]
         rows.append(row)
 
     matrix = np.asarray(rows, dtype=float)

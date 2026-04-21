@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -11,10 +11,15 @@ from theia_core.ingest import Session
 
 def _sess(id: str) -> Session:
     return Session(
-        id=id, title=id,
-        started_at=datetime(2026, 4, 20, tzinfo=timezone.utc),
-        duration_sec=60.0, model="t", message_count=1,
-        tool_calls=(), memory_events=(), search_hits=(),
+        id=id,
+        title=id,
+        started_at=datetime(2026, 4, 20, tzinfo=UTC),
+        duration_sec=60.0,
+        model="t",
+        message_count=1,
+        tool_calls=(),
+        memory_events=(),
+        search_hits=(),
     )
 
 

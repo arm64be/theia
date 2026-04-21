@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from theia_core.detect.tool_overlap import detect_tool_overlap
 from theia_core.ingest import Session, ToolCall
@@ -6,11 +6,15 @@ from theia_core.ingest import Session, ToolCall
 
 def _sess(id: str, tools: list[str]) -> Session:
     return Session(
-        id=id, title=id,
-        started_at=datetime(2026, 4, 20, tzinfo=timezone.utc),
-        duration_sec=60, model="t", message_count=1,
+        id=id,
+        title=id,
+        started_at=datetime(2026, 4, 20, tzinfo=UTC),
+        duration_sec=60,
+        model="t",
+        message_count=1,
         tool_calls=tuple(ToolCall(name=t) for t in tools),
-        memory_events=(), search_hits=(),
+        memory_events=(),
+        search_hits=(),
     )
 
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from theia_core.detect.cross_search import detect_cross_search
 from theia_core.ingest import SearchHit, Session
@@ -6,10 +6,15 @@ from theia_core.ingest import SearchHit, Session
 
 def _sess(id: str, hits: list[SearchHit]) -> Session:
     return Session(
-        id=id, title=id,
-        started_at=datetime(2026, 4, 20, tzinfo=timezone.utc),
-        duration_sec=60, model="t", message_count=1,
-        tool_calls=(), memory_events=(), search_hits=tuple(hits),
+        id=id,
+        title=id,
+        started_at=datetime(2026, 4, 20, tzinfo=UTC),
+        duration_sec=60,
+        model="t",
+        message_count=1,
+        tool_calls=(),
+        memory_events=(),
+        search_hits=tuple(hits),
     )
 
 

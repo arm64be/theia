@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 
 @dataclass(frozen=True)
 class MemoryEvent:
-    kind: str               # "write" | "read"
+    kind: str  # "write" | "read"
     memory_id: str
     salience: float = 0.5
     raw: dict[str, Any] = field(default_factory=dict)
@@ -22,7 +24,7 @@ class ToolCall:
 @dataclass(frozen=True)
 class SearchHit:
     query: str
-    source_session_id: str   # session whose artifact was hit
+    source_session_id: str  # session whose artifact was hit
     hit_rank: int
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -39,10 +41,6 @@ class Session:
     memory_events: tuple[MemoryEvent, ...]
     search_hits: tuple[SearchHit, ...]
     raw: dict[str, Any] = field(default_factory=dict)
-
-
-import json
-from pathlib import Path
 
 
 def _parse_iso(s: str) -> datetime:
