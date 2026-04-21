@@ -77,17 +77,18 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
   const dummy = new THREE.Object3D();
   const highlightColor = new THREE.Color(PALETTE.nodeHighlight);
 
-  // Precompute per-node size, color, and twinkle phase
+  // Precompute per-node size, color, and wave offset for spatial twinkling
   const nodeSizes = new Float32Array(n);
   const nodeColors: THREE.Color[] = new Array(n);
-  const nodePhases = new Float32Array(n);
+  const nodeWaveOffsets = new Float32Array(n);
 
   for (let i = 0; i < n; i++) {
     const node = graph.nodes[i]!;
     const turns = node.message_count ?? node.tool_count;
     nodeSizes[i] = Math.min(0.18, 0.05 + Math.log1p(turns) * 0.014);
     nodeColors[i] = modelTintColor(node.model);
-    nodePhases[i] = hashString(node.id) * Math.PI * 2;
+    // Spatial wave: coherent ripple across the constellation
+    nodeWaveOffsets[i] = node.position.x * 2.0 + node.position.y * 1.5;
   }
 
   for (let i = 0; i < n; i++) {
@@ -126,7 +127,8 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
           continue;
         }
         const tint = nodeColors[i]!;
-        const twinkle = 1.0 + 0.15 * Math.sin(t * 2.5 + nodePhases[i]!);
+        // Gentle wavy blink: slow traveling wave across the constellation
+        const twinkle = 1.0 + 0.12 * Math.sin(t * 1.5 + nodeWaveOffsets[i]!);
         colorAttr.setXYZ(
           i,
           Math.min(1, tint.r * twinkle),
