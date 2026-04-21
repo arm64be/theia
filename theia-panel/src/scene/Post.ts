@@ -37,13 +37,6 @@ uniform sampler2D tDiffuse;
 uniform float uTime;
 varying vec2 vUv;
 
-// Simple hash for dither noise
-float hash(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-
 // Sample the bloomed scene at offset points to gather ambient color
 vec3 gatherAmbient(vec2 uv, float radius) {
   vec3 sum = vec3(0.0);
@@ -62,22 +55,18 @@ void main() {
   // Dark base background
   vec3 bg = vec3(0.027, 0.031, 0.051); // 0x07080d
 
-  // Gather bloomed colors from surroundings — tighter radius for less blur
+  // Gather bloomed colors from surroundings
   float wave = sin(uTime * 0.3 + vUv.x * 4.0 + vUv.y * 3.0) * 0.5 + 0.5;
-  float radius = 0.025 + 0.015 * wave;
+  float radius = 0.04 + 0.03 * wave;
   vec3 ambient = gatherAmbient(vUv, radius);
 
-  // Second, mid-radius gather
+  // Second, larger-radius gather for broader atmosphere
   float wave2 = sin(uTime * 0.2 + vUv.x * 2.5 - vUv.y * 2.0) * 0.5 + 0.5;
-  vec3 broad = gatherAmbient(vUv, 0.06 + 0.04 * wave2);
+  vec3 broad = gatherAmbient(vUv, 0.12 + 0.06 * wave2);
 
-  // Mix: tinted but not washed out
-  float tintStrength = 0.25 + 0.10 * wave;
-  vec3 tinted = mix(bg, ambient * 0.7 + broad * 0.4, tintStrength);
-
-  // Dither: add subtle grain so the tint feels textured, not blurry
-  float noise = hash(vUv * vec2(137.0, 91.0) + uTime * 0.1);
-  tinted += (noise - 0.5) * 0.008;
+  // Mix: heavy tint from bloom, but keep it dark and atmospheric
+  float tintStrength = 0.35 + 0.15 * wave;
+  vec3 tinted = mix(bg, ambient * 0.8 + broad * 0.5, tintStrength);
 
   // Add the actual scene content on top
   vec4 scene = texture2D(tDiffuse, vUv);
