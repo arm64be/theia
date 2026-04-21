@@ -42,6 +42,8 @@ def build_graph(
                 "features": None,
             }
         )
+    session_ids = {sess.id for sess in sessions}
+    valid_edges = [e for e in edges if e.source in session_ids and e.target in session_ids]
     return {
         "meta": {
             "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
@@ -58,7 +60,7 @@ def build_graph(
                 "weight": e.weight,
                 "evidence": e.evidence,
             }
-            for e in edges
+            for e in valid_edges
         ],
     }
 
