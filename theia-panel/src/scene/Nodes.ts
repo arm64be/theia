@@ -71,7 +71,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
     map: NODE_GLOW_TEXTURE,
     transparent: true,
     depthWrite: false,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
   });
   const mesh = new THREE.InstancedMesh(geometry, material, n);
   const dummy = new THREE.Object3D();
