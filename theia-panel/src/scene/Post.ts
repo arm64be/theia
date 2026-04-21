@@ -15,7 +15,7 @@ export function createPost(
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(container.clientWidth, container.clientHeight),
     2.2, // strength: strong glow
-    0.8, // radius: tighter local glow
+    1.2, // radius: wide enough to bridge diagonal pixel gaps
     0.06, // threshold: catch faint edges but not the background
   );
   composer.addPass(bloom);
