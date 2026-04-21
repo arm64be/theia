@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { TheiaGraph } from "../data/types";
+import { PALETTE } from "../aesthetic";
 
 const NODE_GLOW_TEXTURE = makeGlowTexture();
 
@@ -39,7 +40,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
   });
   const mesh = new THREE.InstancedMesh(geometry, material, n);
   const dummy = new THREE.Object3D();
-  const baseColor = new THREE.Color(0xffc477); // warm default
+  const baseColor = new THREE.Color(PALETTE.nodeBase);
 
   for (let i = 0; i < n; i++) {
     const node = graph.nodes[i]!;
@@ -64,7 +65,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
       mesh.setMatrixAt(i, dummy.matrix);
     },
     setHighlight(i, on) {
-      const c = on ? new THREE.Color(0xffffff) : baseColor;
+      const c = on ? new THREE.Color(PALETTE.nodeHighlight) : baseColor;
       mesh.setColorAt(i, c);
     },
     flush() {

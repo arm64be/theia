@@ -1,25 +1,43 @@
 import * as THREE from "three";
 import type { TheiaGraph } from "../data/types";
+import { PALETTE, SIZES } from "../aesthetic";
 
 type GraphEdge = TheiaGraph["edges"][number];
 
-const COLORS: Record<GraphEdge["kind"], number> = {
-  "memory-share": 0xffb366,
-  "cross-search": 0x66d9ef,
-  "tool-overlap": 0xb089ff,
+const VERT = `
+attribute float aOpacity;
+varying float vOpacity;
+void main() {
+  vOpacity = aOpacity;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const FRAG = `
+varying float vOpacity;
+uniform vec3 color;
+void main() {
+  gl_FragColor = vec4(color, vOpacity);
+}
+`;
+
+const PALETTE_MAP: Record<GraphEdge["kind"], number> = {
+  "memory-share": PALETTE.edgeMemory,
+  "cross-search": PALETTE.edgeSearch,
+  "tool-overlap": PALETTE.edgeOverlap,
 };
 
 export interface EdgeLayer {
   group: THREE.Group;
   rebuild(graph: TheiaGraph, enabledKinds: Set<GraphEdge["kind"]>, nodeIndex: Map<string, number>): void;
-  updatePositions(positions: Float32Array): void;
+  setHoverNode(nodeId: string | null): void;
   dispose(): void;
 }
 
 export function createEdges(): EdgeLayer {
   const group = new THREE.Group();
-  const materials = new Map<GraphEdge["kind"], THREE.LineBasicMaterial>();
-  let lineSegmentsByKind = new Map<GraphEdge["kind"], { line: THREE.LineSegments; edgeIdx: number[] }>();
+  const materials = new Map<GraphEdge["kind"], THREE.ShaderMaterial>();
+  let lineSegmentsByKind = new Map<GraphEdge["kind"], { line: THREE.LineSegments; edgeList: GraphEdge[] }>();
 
   function rebuild(graph: TheiaGraph, enabledKinds: Set<GraphEdge["kind"]>, nodeIndex: Map<string, number>) {
     // Clear existing
@@ -33,7 +51,7 @@ export function createEdges(): EdgeLayer {
       const edges = graph.edges.filter((e) => e.kind === kind);
       if (edges.length === 0) continue;
       const positions = new Float32Array(edges.length * 6);
-      const edgeIdx: number[] = [];
+      const opacities = new Float32Array(edges.length * 2);
       for (let i = 0; i < edges.length; i++) {
         const e = edges[i]!;
         const si = nodeIndex.get(e.source);
@@ -47,16 +65,20 @@ export function createEdges(): EdgeLayer {
         positions[i * 6 + 3] = t.position.x;
         positions[i * 6 + 4] = t.position.y;
         positions[i * 6 + 5] = 0;
-        edgeIdx.push(i);
+        opacities[i * 2 + 0] = SIZES.edgeOpacity;
+        opacities[i * 2 + 1] = SIZES.edgeOpacity;
       }
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      geometry.setAttribute("aOpacity", new THREE.BufferAttribute(opacities, 1));
       let mat = materials.get(kind);
       if (!mat) {
-        mat = new THREE.LineBasicMaterial({
-          color: COLORS[kind],
+        const c = new THREE.Color(PALETTE_MAP[kind]);
+        mat = new THREE.ShaderMaterial({
+          vertexShader: VERT,
+          fragmentShader: FRAG,
+          uniforms: { color: { value: c } },
           transparent: true,
-          opacity: 0.6,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
         });
@@ -64,14 +86,24 @@ export function createEdges(): EdgeLayer {
       }
       const line = new THREE.LineSegments(geometry, mat);
       group.add(line);
-      lineSegmentsByKind.set(kind, { line, edgeIdx });
+      lineSegmentsByKind.set(kind, { line, edgeList: edges });
     }
   }
 
-  function updatePositions(nodePositions: Float32Array) {
-    // nodePositions is (n, 2). Recompute edge segment positions from current node positions.
-    // For now this is called externally with the node-index map; simpler to rebuild().
-    // Kept as a hook; used when physics updates nodes each tick.
+  function setHoverNode(nodeId: string | null) {
+    for (const { line, edgeList } of lineSegmentsByKind.values()) {
+      const geo = line.geometry;
+      const attr = geo.getAttribute("aOpacity") as THREE.BufferAttribute | undefined;
+      if (!attr) continue;
+      for (let i = 0; i < edgeList.length; i++) {
+        const e = edgeList[i]!;
+        const dim = nodeId !== null && e.source !== nodeId && e.target !== nodeId;
+        const opacity = dim ? 0.08 : SIZES.edgeOpacity;
+        attr.setX(i * 2 + 0, opacity);
+        attr.setX(i * 2 + 1, opacity);
+      }
+      attr.needsUpdate = true;
+    }
   }
 
   function dispose() {
@@ -81,5 +113,5 @@ export function createEdges(): EdgeLayer {
     materials.forEach((m) => m.dispose());
   }
 
-  return { group, rebuild, updatePositions, dispose };
+  return { group, rebuild, setHoverNode, dispose };
 }

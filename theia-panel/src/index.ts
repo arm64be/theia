@@ -34,6 +34,11 @@ export async function mount(
   const nodes = createNodes(graph);
   const edges = createEdges();
   const post = createPost(ctx.renderer, ctx.scene, ctx.camera, element);
+  const originalResize = ctx.resize;
+  ctx.resize = () => {
+    originalResize();
+    post.resize();
+  };
   const nodeIndex = new Map(graph.nodes.map((n, i) => [n.id, i]));
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
 
@@ -72,6 +77,8 @@ export async function mount(
     lastMouse = { x: e.clientX - r.left, y: e.clientY - r.top };
   });
   picker.onHover((idx) => {
+    const nodeId = idx === null ? null : graph.nodes[idx]!.id;
+    edges.setHoverNode(nodeId);
     if (idx === null) {
       tooltip.hide();
     } else {
@@ -80,7 +87,6 @@ export async function mount(
       tooltip.show(graph.nodes[idx]!, lastMouse.x, lastMouse.y);
     }
     // un-highlight previous
-    // (simplification: rebuild all colors each hover; acceptable for small graphs)
     for (let i = 0; i < nodes.count; i++) {
       if (i !== idx) nodes.setHighlight(i, false);
     }
