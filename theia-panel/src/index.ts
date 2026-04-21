@@ -72,6 +72,9 @@ export async function mount(
   function frame() {
     if (disposed) return;
     tick();
+    const t = performance.now() / 1000;
+    nodes.setTime(t);
+    edges.setTime(t);
     post.composer.render();
     requestAnimationFrame(frame);
   }

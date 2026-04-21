@@ -59,6 +59,7 @@ export interface NodeLayer {
   count: number;
   setPosition(i: number, x: number, y: number): void;
   setHighlight(i: number, on: boolean): void;
+  setTime(t: number): void;
   flush(): void;
   dispose(): void;
 }
@@ -76,15 +77,17 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
   const dummy = new THREE.Object3D();
   const highlightColor = new THREE.Color(PALETTE.nodeHighlight);
 
-  // Precompute per-node size and color
+  // Precompute per-node size, color, and twinkle phase
   const nodeSizes = new Float32Array(n);
   const nodeColors: THREE.Color[] = new Array(n);
+  const nodePhases = new Float32Array(n);
 
   for (let i = 0; i < n; i++) {
     const node = graph.nodes[i]!;
     const turns = node.message_count ?? node.tool_count;
     nodeSizes[i] = Math.min(0.18, 0.05 + Math.log1p(turns) * 0.014);
     nodeColors[i] = modelTintColor(node.model);
+    nodePhases[i] = hashString(node.id) * Math.PI * 2;
   }
 
   for (let i = 0; i < n; i++) {
@@ -99,6 +102,8 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
   mesh.instanceMatrix.needsUpdate = true;
   mesh.instanceColor!.needsUpdate = true;
 
+  const highlighted = new Set<number>();
+
   return {
     mesh,
     count: n,
@@ -110,7 +115,26 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
       mesh.setMatrixAt(i, dummy.matrix);
     },
     setHighlight(i, on) {
-      mesh.setColorAt(i, on ? highlightColor : nodeColors[i]!);
+      if (on) highlighted.add(i);
+      else highlighted.delete(i);
+    },
+    setTime(t: number) {
+      const colorAttr = mesh.instanceColor!;
+      for (let i = 0; i < n; i++) {
+        if (highlighted.has(i)) {
+          colorAttr.setXYZ(i, highlightColor.r, highlightColor.g, highlightColor.b);
+          continue;
+        }
+        const tint = nodeColors[i]!;
+        const twinkle = 1.0 + 0.15 * Math.sin(t * 2.5 + nodePhases[i]!);
+        colorAttr.setXYZ(
+          i,
+          Math.min(1, tint.r * twinkle),
+          Math.min(1, tint.g * twinkle),
+          Math.min(1, tint.b * twinkle),
+        );
+      }
+      colorAttr.needsUpdate = true;
     },
     flush() {
       mesh.instanceMatrix.needsUpdate = true;

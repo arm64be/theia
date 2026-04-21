@@ -6,18 +6,25 @@ type GraphEdge = TheiaGraph["edges"][number];
 
 const VERT = `
 attribute float aOpacity;
+attribute float aPhase;
 varying float vOpacity;
+varying float vPhase;
 void main() {
   vOpacity = aOpacity;
+  vPhase = aPhase;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
 
 const FRAG = `
 varying float vOpacity;
+varying float vPhase;
 uniform vec3 color;
+uniform float uTime;
 void main() {
-  gl_FragColor = vec4(color, vOpacity);
+  float pulse = 0.7 + 0.3 * sin(uTime * 3.0 + vPhase);
+  float alpha = vOpacity * pulse;
+  gl_FragColor = vec4(color, alpha);
 }
 `;
 
@@ -36,6 +43,7 @@ export interface EdgeLayer {
   ): void;
   updatePositions(nodePositions: Float32Array): void;
   setHoverNode(nodeId: string | null): void;
+  setTime(t: number): void;
   dispose(): void;
 }
 
@@ -66,6 +74,7 @@ export function createEdges(): EdgeLayer {
       if (edges.length === 0) continue;
       const positions = new Float32Array(edges.length * 6);
       const opacities = new Float32Array(edges.length * 2);
+      const phases = new Float32Array(edges.length * 2);
       const validIndices: number[] = [];
       for (let i = 0; i < edges.length; i++) {
         const e = edges[i]!;
@@ -83,6 +92,9 @@ export function createEdges(): EdgeLayer {
         const baseOpacity = (SIZES.edgeOpacityByKind as Record<string, number>)[kind] ?? SIZES.edgeOpacity;
         opacities[i * 2 + 0] = baseOpacity;
         opacities[i * 2 + 1] = baseOpacity;
+        const phase = ((i * 137.5) % 1000) / 1000 * Math.PI * 2;
+        phases[i * 2 + 0] = phase;
+        phases[i * 2 + 1] = phase;
         validIndices.push(i);
       }
       const geometry = new THREE.BufferGeometry();
@@ -94,13 +106,14 @@ export function createEdges(): EdgeLayer {
         "aOpacity",
         new THREE.BufferAttribute(opacities, 1),
       );
+      geometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
       let mat = materials.get(kind);
       if (!mat) {
         const c = new THREE.Color(PALETTE_MAP[kind]);
         mat = new THREE.ShaderMaterial({
           vertexShader: VERT,
           fragmentShader: FRAG,
-          uniforms: { color: { value: c } },
+          uniforms: { color: { value: c }, uTime: { value: 0 } },
           transparent: true,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
@@ -114,7 +127,6 @@ export function createEdges(): EdgeLayer {
   }
 
   function updatePositions(nodePositions: Float32Array) {
-    // nodePositions is flat array of (x, y) pairs for each node
     if (!currentNodeIndex) return;
     for (const {
       line,
@@ -165,6 +177,12 @@ export function createEdges(): EdgeLayer {
     }
   }
 
+  function setTime(t: number) {
+    for (const mat of materials.values()) {
+      (mat.uniforms.uTime as { value: number }).value = t;
+    }
+  }
+
   function dispose() {
     for (const { line } of lineSegmentsByKind.values()) {
       line.geometry.dispose();
@@ -172,5 +190,5 @@ export function createEdges(): EdgeLayer {
     materials.forEach((m) => m.dispose());
   }
 
-  return { group, rebuild, updatePositions, setHoverNode, dispose };
+  return { group, rebuild, updatePositions, setHoverNode, setTime, dispose };
 }
