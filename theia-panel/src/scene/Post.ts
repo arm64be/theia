@@ -78,6 +78,59 @@ export function createPost(
   );
   composer.addPass(bloom);
 
+  // Pass 4: Bayer dithering for retro digital feel
+  const DITHER_VERT = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+  const DITHER_FRAG = `
+uniform sampler2D tDiffuse;
+varying vec2 vUv;
+
+// 4x4 Bayer matrix
+float bayer(vec2 uv) {
+  int x = int(mod(uv.x * 800.0, 4.0));
+  int y = int(mod(uv.y * 600.0, 4.0));
+  int i = x + y * 4;
+  if (i == 0)  return 0.0 / 16.0;
+  if (i == 1)  return 8.0 / 16.0;
+  if (i == 2)  return 2.0 / 16.0;
+  if (i == 3)  return 10.0 / 16.0;
+  if (i == 4)  return 12.0 / 16.0;
+  if (i == 5)  return 4.0 / 16.0;
+  if (i == 6)  return 14.0 / 16.0;
+  if (i == 7)  return 6.0 / 16.0;
+  if (i == 8)  return 3.0 / 16.0;
+  if (i == 9)  return 11.0 / 16.0;
+  if (i == 10) return 1.0 / 16.0;
+  if (i == 11) return 9.0 / 16.0;
+  if (i == 12) return 15.0 / 16.0;
+  if (i == 13) return 7.0 / 16.0;
+  if (i == 14) return 13.0 / 16.0;
+  return 5.0 / 16.0;
+}
+
+void main() {
+  vec3 col = texture2D(tDiffuse, vUv).rgb;
+  // Add bayer noise before quantizing
+  float noise = bayer(vUv) - 0.5;
+  col += noise * 0.04;
+  // Quantize to 32 levels per channel for subtle banding
+  col = floor(col * 32.0 + 0.5) / 32.0;
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+  const ditherPass = new ShaderPass({
+    uniforms: { tDiffuse: { value: null } },
+    vertexShader: DITHER_VERT,
+    fragmentShader: DITHER_FRAG,
+  });
+  ditherPass.needsSwap = true;
+  composer.addPass(ditherPass);
+
   function renderEdges(edgesScene: THREE.Scene, edgesCamera: THREE.Camera) {
     const prevTarget = renderer.getRenderTarget();
     const prevClearColor = new THREE.Color();
