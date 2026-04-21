@@ -30,6 +30,7 @@ const PALETTE_MAP: Record<GraphEdge["kind"], number> = {
 export interface EdgeLayer {
   group: THREE.Group;
   rebuild(graph: TheiaGraph, enabledKinds: Set<GraphEdge["kind"]>, nodeIndex: Map<string, number>): void;
+  updatePositions(nodePositions: Float32Array): void;
   setHoverNode(nodeId: string | null): void;
   dispose(): void;
 }
@@ -37,9 +38,11 @@ export interface EdgeLayer {
 export function createEdges(): EdgeLayer {
   const group = new THREE.Group();
   const materials = new Map<GraphEdge["kind"], THREE.ShaderMaterial>();
-  let lineSegmentsByKind = new Map<GraphEdge["kind"], { line: THREE.LineSegments; edgeList: GraphEdge[] }>();
+  let lineSegmentsByKind = new Map<GraphEdge["kind"], { line: THREE.LineSegments; edgeList: GraphEdge[]; validIndices: number[] }>();
+  let currentNodeIndex: Map<string, number> | null = null;
 
   function rebuild(graph: TheiaGraph, enabledKinds: Set<GraphEdge["kind"]>, nodeIndex: Map<string, number>) {
+    currentNodeIndex = nodeIndex;
     // Clear existing
     for (const { line } of lineSegmentsByKind.values()) {
       group.remove(line);
@@ -52,6 +55,7 @@ export function createEdges(): EdgeLayer {
       if (edges.length === 0) continue;
       const positions = new Float32Array(edges.length * 6);
       const opacities = new Float32Array(edges.length * 2);
+      const validIndices: number[] = [];
       for (let i = 0; i < edges.length; i++) {
         const e = edges[i]!;
         const si = nodeIndex.get(e.source);
@@ -67,6 +71,7 @@ export function createEdges(): EdgeLayer {
         positions[i * 6 + 5] = 0;
         opacities[i * 2 + 0] = SIZES.edgeOpacity;
         opacities[i * 2 + 1] = SIZES.edgeOpacity;
+        validIndices.push(i);
       }
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -86,16 +91,38 @@ export function createEdges(): EdgeLayer {
       }
       const line = new THREE.LineSegments(geometry, mat);
       group.add(line);
-      lineSegmentsByKind.set(kind, { line, edgeList: edges });
+      lineSegmentsByKind.set(kind, { line, edgeList: edges, validIndices });
+    }
+  }
+
+  function updatePositions(nodePositions: Float32Array) {
+    // nodePositions is flat array of (x, y) pairs for each node
+    if (!currentNodeIndex) return;
+    for (const { line, edgeList, validIndices } of lineSegmentsByKind.values()) {
+      const posAttr = line.geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
+      if (!posAttr) continue;
+      for (const i of validIndices) {
+        const e = edgeList[i]!;
+        const si = currentNodeIndex.get(e.source);
+        const ti = currentNodeIndex.get(e.target);
+        if (si === undefined || ti === undefined) continue;
+        const sx = nodePositions[si * 2 + 0]!;
+        const sy = nodePositions[si * 2 + 1]!;
+        const tx = nodePositions[ti * 2 + 0]!;
+        const ty = nodePositions[ti * 2 + 1]!;
+        posAttr.setXYZ(i * 2 + 0, sx, sy, 0);
+        posAttr.setXYZ(i * 2 + 1, tx, ty, 0);
+      }
+      posAttr.needsUpdate = true;
     }
   }
 
   function setHoverNode(nodeId: string | null) {
-    for (const { line, edgeList } of lineSegmentsByKind.values()) {
+    for (const { line, edgeList, validIndices } of lineSegmentsByKind.values()) {
       const geo = line.geometry;
       const attr = geo.getAttribute("aOpacity") as THREE.BufferAttribute | undefined;
       if (!attr) continue;
-      for (let i = 0; i < edgeList.length; i++) {
+      for (const i of validIndices) {
         const e = edgeList[i]!;
         const dim = nodeId !== null && e.source !== nodeId && e.target !== nodeId;
         const opacity = dim ? 0.08 : SIZES.edgeOpacity;
@@ -113,5 +140,5 @@ export function createEdges(): EdgeLayer {
     materials.forEach((m) => m.dispose());
   }
 
-  return { group, rebuild, setHoverNode, dispose };
+  return { group, rebuild, updatePositions, setHoverNode, dispose };
 }

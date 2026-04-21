@@ -49,14 +49,18 @@ export async function mount(
   const { simulation, nodes: simNodes } = createSimulation(graph);
   simulation.stop();
 
+  const nodePositions = new Float32Array(simNodes.length * 2);
+
   function tick() {
     simulation.tick(1);
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i]!;
       nodes.setPosition(i, sn.x, sn.y);
+      nodePositions[i * 2 + 0] = sn.x;
+      nodePositions[i * 2 + 1] = sn.y;
     }
     nodes.flush();
-    edges.rebuild(graph, kinds, nodeIndex);
+    edges.updatePositions(nodePositions);
   }
 
   let disposed = false;
