@@ -22,7 +22,7 @@ varying float vPhase;
 uniform vec3 color;
 uniform float uTime;
 void main() {
-  float pulse = 0.7 + 0.3 * sin(uTime * 3.0 + vPhase);
+  float pulse = 0.85 + 0.15 * sin(uTime * 3.0 + vPhase);
   float alpha = vOpacity * pulse;
   gl_FragColor = vec4(color, alpha);
 }

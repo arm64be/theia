@@ -14,8 +14,8 @@ export function createPost(
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(container.clientWidth, container.clientHeight),
-    1.8, // strength: strong but controlled glow
-    1.0, // radius: wide bleed
+    2.2, // strength: stronger glow
+    1.8, // radius: wide color bleed
     0.06, // threshold: catch faint edges but not the background
   );
   composer.addPass(bloom);
