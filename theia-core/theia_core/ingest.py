@@ -292,11 +292,13 @@ def parse_session(path: Path) -> Session:
 def load_sessions(directory: Path) -> list[Session]:
     directory = Path(directory)
     # Collect known session file patterns; explicitly skip request dumps
-    paths = (
-        sorted(directory.glob("session_*.json"))
-        + sorted(directory.glob("session_cron_*.json"))
-        + sorted(directory.glob("*.jsonl"))
-        + sorted(directory.glob("*.json"))
+    paths = sorted(
+        set(
+            list(directory.glob("session_*.json"))
+            + list(directory.glob("session_cron_*.json"))
+            + list(directory.glob("*.jsonl"))
+            + list(directory.glob("*.json"))
+        )
     )
     sessions: list[Session] = []
     for p in paths:
