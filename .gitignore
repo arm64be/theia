@@ -15,7 +15,6 @@ theia-panel/dist/
 *.tsbuildinfo
 
 # Generated
-examples/graph.json
 
 # Superpowers (brainstorming/plans sessions)
 .superpowers/
