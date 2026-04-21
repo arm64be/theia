@@ -30,6 +30,7 @@ export async function mount(
   const graph: TheiaGraph = await loadGraph(graphUrl);
 
   element.style.position ||= "relative";
+  element.style.overflow = "hidden";
   const ctx = createScene(element);
   const nodes = createNodes(graph);
   const edges = createEdges();
@@ -90,24 +91,63 @@ export async function mount(
       nodes.flush();
       tooltip.show(graph.nodes[idx]!, lastMouse.x, lastMouse.y);
     }
-    // un-highlight previous
     for (let i = 0; i < nodes.count; i++) {
       if (i !== idx) nodes.setHighlight(i, false);
     }
     nodes.flush();
   });
 
-  // Click → side panel
+  // Click / drag handling
   const sidePanel = createSidePanel(element);
-  element.addEventListener("click", () => {
-    const idx = picker.currentHovered();
-    if (idx !== null) {
-      const n = graph.nodes[idx]!;
-      const related = graph.edges.filter((e) => e.source === n.id || e.target === n.id);
-      sidePanel.show(n, related);
-      emit("node-click", n.id);
+  let isMouseDown = false;
+  let hasDragged = false;
+  let mouseDownPos = { x: 0, y: 0 };
+
+  element.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return; // only left click
+    isMouseDown = true;
+    hasDragged = false;
+    mouseDownPos = { x: e.clientX, y: e.clientY };
+  });
+
+  element.addEventListener("mousemove", (e) => {
+    if (!isMouseDown) return;
+    const dx = e.clientX - mouseDownPos.x;
+    const dy = e.clientY - mouseDownPos.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      hasDragged = true;
+    }
+    if (hasDragged) {
+      const rect = element.getBoundingClientRect();
+      const worldW = ctx.camera.right - ctx.camera.left;
+      const worldH = ctx.camera.top - ctx.camera.bottom;
+      const panX = -(dx / rect.width) * worldW;
+      const panY = (dy / rect.height) * worldH;
+      ctx.pan(panX, panY);
+      mouseDownPos = { x: e.clientX, y: e.clientY };
     }
   });
+
+  element.addEventListener("mouseup", () => {
+    if (isMouseDown && !hasDragged) {
+      const idx = picker.currentHovered();
+      if (idx !== null) {
+        const n = graph.nodes[idx]!;
+        const related = graph.edges.filter((e) => e.source === n.id || e.target === n.id);
+        sidePanel.show(n, related);
+        emit("node-click", n.id);
+      }
+    }
+    isMouseDown = false;
+    hasDragged = false;
+  });
+
+  // Wheel zoom
+  element.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 1.1 : 0.9;
+    ctx.setZoom(ctx.getZoom() * delta);
+  }, { passive: false });
 
   // Filter bar
   const filterBar = createFilterBar(element, kinds, (newKinds) => {

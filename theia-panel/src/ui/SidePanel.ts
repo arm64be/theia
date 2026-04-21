@@ -7,7 +7,8 @@ export function createSidePanel(container: HTMLElement) {
     background: rgba(10,12,20,0.92); border-left: 1px solid rgba(255,255,255,0.1);
     color: #cfd6e4; font: 13px/1.5 ui-monospace, monospace;
     transform: translateX(100%); transition: transform 200ms ease-out;
-    padding: 20px 22px; overflow-y: auto; box-sizing: border-box;
+    padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
+    box-sizing: border-box;
   `;
   container.appendChild(el);
 
