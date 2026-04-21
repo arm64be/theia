@@ -22,7 +22,6 @@ varying vec2 vUv;
 void main() {
   vec4 mainColor = texture2D(tDiffuse, vUv);
   vec4 edgeColor = texture2D(tEdges, vUv);
-  // edges FBO has transparent background, so just add them
   gl_FragColor = mainColor + edgeColor;
 }
 `;
@@ -40,7 +39,6 @@ uniform sampler2D tDiffuse;
 uniform vec3 bgColor;
 varying vec2 vUv;
 
-// 4x4 Bayer matrix
 float bayer(vec2 uv) {
   int x = int(mod(uv.x * 800.0, 4.0));
   int y = int(mod(uv.y * 600.0, 4.0));
@@ -65,13 +63,10 @@ float bayer(vec2 uv) {
 
 void main() {
   vec4 tex = texture2D(tDiffuse, vUv);
-  // Composite FBO over background then dither
   vec3 col = mix(bgColor, tex.rgb, tex.a);
   float noise = bayer(vUv) - 0.5;
   col += noise * 0.04;
-  // Quantize to 32 levels per channel for subtle banding
   col = floor(col * 32.0 + 0.5) / 32.0;
-  // Greyscale the dithered layer
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   col = vec3(lum);
   gl_FragColor = vec4(col, 1.0);
@@ -88,6 +83,8 @@ void main() {
   gl_FragColor = vec4(tex.rgb, tex.a * uOpacity);
 }
 `;
+
+// ---------- save pass ----------
 
 class SavePass extends Pass {
   private material: THREE.ShaderMaterial;
@@ -112,16 +109,18 @@ class SavePass extends Pass {
     _writeBuffer: THREE.WebGLRenderTarget,
     readBuffer: THREE.WebGLRenderTarget,
   ) {
-    (this.material.uniforms.tDiffuse as { value: THREE.Texture }).value = readBuffer.texture;
+    (this.material.uniforms.tDiffuse as { value: THREE.Texture }).value =
+      readBuffer.texture;
     renderer.setRenderTarget(this.renderTarget);
     if (this.clear) renderer.clear();
     this.fsQuad.render(renderer);
   }
 }
 
+// ---------- public API ----------
+
 export interface PostContext {
   composer: EffectComposer;
-  bloom: UnrealBloomPass;
   edgesTarget: THREE.WebGLRenderTarget;
   preBloomTarget: THREE.WebGLRenderTarget;
   sceneTarget: THREE.WebGLRenderTarget;
@@ -140,7 +139,6 @@ export function createPost(
   const h = container.clientHeight;
   const dpr = renderer.getPixelRatio();
 
-  // High-res render target for edges (2x resolution for smooth diagonals)
   const edgesTarget = new THREE.WebGLRenderTarget(w * 2, h * 2, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
@@ -148,7 +146,6 @@ export function createPost(
     type: THREE.UnsignedByteType,
   });
 
-  // Target that holds the scene (nodes + edges) BEFORE bloom
   const preBloomTarget = new THREE.WebGLRenderTarget(w * dpr, h * dpr, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
@@ -156,7 +153,6 @@ export function createPost(
     type: THREE.UnsignedByteType,
   });
 
-  // Target that holds the scene AFTER full bloom
   const sceneTarget = new THREE.WebGLRenderTarget(w * dpr, h * dpr, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
@@ -167,7 +163,6 @@ export function createPost(
   const composer = new EffectComposer(renderer);
   composer.setSize(w, h);
 
-  // Pass 1: render main scene (without edges), transparent clear
   const renderPass = new RenderPass(
     scene,
     camera,
@@ -177,7 +172,6 @@ export function createPost(
   );
   composer.addPass(renderPass);
 
-  // Pass 2: composite high-res edges onto main scene
   const compositePass = new ShaderPass({
     uniforms: {
       tDiffuse: { value: null },
@@ -191,11 +185,9 @@ export function createPost(
   compositePass.needsSwap = true;
   composer.addPass(compositePass);
 
-  // Pass 3: save pre-bloom result for the dithered layer
   const preBloomSave = new SavePass(preBloomTarget);
   composer.addPass(preBloomSave);
 
-  // Pass 4: bloom on combined result
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(w, h),
     2.2, // strength
@@ -204,16 +196,13 @@ export function createPost(
   );
   composer.addPass(bloom);
 
-  // Pass 5: copy bloomed result to sceneTarget for the overlay layer
   const savePass = new SavePass(sceneTarget);
   composer.addPass(savePass);
 
-  // Ensure nothing in the composer writes directly to screen
   for (const pass of composer.passes) {
     pass.renderToScreen = false;
   }
 
-  // Fullscreen quad: dithered composite over background
   const ditherMaterial = new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: null },
@@ -226,7 +215,6 @@ export function createPost(
   });
   const ditherQuad = new FullScreenQuad(ditherMaterial);
 
-  // Fullscreen quad: overlay non-dithered elements at full opacity
   const overlayMaterial = new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: null },
@@ -248,7 +236,7 @@ export function createPost(
     renderer.getClearColor(prevClearColor);
 
     renderer.setRenderTarget(edgesTarget);
-    renderer.setClearColor(0x000000, 0); // transparent clear
+    renderer.setClearColor(0x000000, 0);
     renderer.clear();
     renderer.render(edgesScene, edgesCamera);
 
@@ -262,11 +250,9 @@ export function createPost(
     renderer.getClearColor(prevClearColor);
     const prevAutoClear = renderer.autoClear;
 
-    // Render scene -> composite -> bloom to sceneTarget (transparent bg)
     renderer.setClearColor(0, 0);
     composer.render();
 
-    // Render to screen: clear to background, then dither quad + overlay quad
     renderer.setRenderTarget(null);
     renderer.setClearColor(PALETTE.background, 1);
     renderer.clear();
@@ -292,7 +278,8 @@ export function createPost(
     preBloomTarget.setSize(w2 * dpr2, h2 * dpr2);
     sceneTarget.setSize(w2 * dpr2, h2 * dpr2);
     composer.setSize(w2, h2);
+    bloom.setSize(w2, h2);
   }
 
-  return { composer, bloom, edgesTarget, preBloomTarget, sceneTarget, resize, renderEdges, render };
+  return { composer, edgesTarget, preBloomTarget, sceneTarget, resize, renderEdges, render };
 }
