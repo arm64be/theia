@@ -41,33 +41,29 @@ function forceAnchor(strength = 0.15) {
 }
 
 /**
- * Custom force: pushes low-degree nodes outward and pulls high-degree nodes
- * toward the center. Creates a natural hub-spoke / branch structure.
+ * Custom force: extra repulsion between leaf-like nodes (degree <= 2)
+ * so they spread out within their branch area instead of clumping.
  */
-function forceRadialDegree(
-  maxRadius: number,
-  strength = 0.12,
-  minRadius = 0.3,
-) {
+function forceLeafSpread(strength = -0.06, degreeThreshold = 2) {
   let nodes: PhysicsNode[] = [];
   function force(alpha: number) {
-    for (const n of nodes) {
-      const r = Math.sqrt(n.x * n.x + n.y * n.y);
-      if (r === 0) continue;
-
-      // Target radius: high degree -> small radius (center), low degree -> large radius (periphery)
-      // Use log scale so the drop-off isn't too extreme
-      const targetR =
-        minRadius +
-        (maxRadius - minRadius) /
-          (1 + 0.6 * Math.log1p(n.degree));
-
-      const delta = targetR - r;
-      const f = delta * strength * alpha;
-      const nx = n.x / r;
-      const ny = n.y / r;
-      n.vx = (n.vx ?? 0) + nx * f;
-      n.vy = (n.vy ?? 0) + ny * f;
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i]!;
+      if (a.degree > degreeThreshold) continue;
+      for (let j = i + 1; j < nodes.length; j++) {
+        const b = nodes[j]!;
+        if (b.degree > degreeThreshold) continue;
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq === 0) continue;
+        const dist = Math.sqrt(distSq);
+        const f = (strength * alpha) / dist;
+        a.vx = (a.vx ?? 0) + dx * f;
+        a.vy = (a.vy ?? 0) + dy * f;
+        b.vx = (b.vx ?? 0) - dx * f;
+        b.vy = (b.vy ?? 0) - dy * f;
+      }
     }
   }
   force.initialize = (n: PhysicsNode[]) => {
@@ -110,16 +106,16 @@ export function createSimulation(graph: TheiaGraph) {
 
   // Per-kind link strengths and distances
   // Strong + short = tight clusters (memory-share, cross-search)
-  // Weak + long = loose connections spanning clusters (tool-overlap)
+  // Weak + long = loose tree branches spanning clusters (tool-overlap)
   const kindStrength: Record<string, number> = {
-    "cross-search": 0.25,
-    "memory-share": 0.10,
-    "tool-overlap": 0.04,
+    "cross-search": 0.22,
+    "memory-share": 0.25,
+    "tool-overlap": 0.015,
   };
   const kindDistance: Record<string, number> = {
     "cross-search": 1.0,
-    "memory-share": 0.8,
-    "tool-overlap": 2.5,
+    "memory-share": 0.5,
+    "tool-overlap": 5.0,
   };
 
   const linkForce = forceLink<PhysicsNode, PhysicsLink>(links)
@@ -129,9 +125,9 @@ export function createSimulation(graph: TheiaGraph) {
 
   const sim: Simulation<PhysicsNode, PhysicsLink> = forceSimulation(nodes, 2)
     .force("link", linkForce)
-    .force("charge", forceManyBody<PhysicsNode>().strength(-0.08))
-    .force("anchor", forceAnchor(0.25))
-    .force("radial", forceRadialDegree(6.0, 0.10))
+    .force("charge", forceManyBody<PhysicsNode>().strength(-0.12))
+    .force("leafSpread", forceLeafSpread(-0.04))
+    .force("anchor", forceAnchor(0.15))
     .force("center", forceCenter(0, 0))
     .alphaDecay(0.02)
     .alphaTarget(0.015);

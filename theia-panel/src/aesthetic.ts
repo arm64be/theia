@@ -12,4 +12,9 @@ export const SIZES = {
   nodeBase: 0.04,
   nodeToolScale: 0.01, // per log1p(tool_count)
   edgeOpacity: 0.6,
+  edgeOpacityByKind: {
+    "memory-share": 0.55,
+    "cross-search": 0.50,
+    "tool-overlap": 0.12,
+  },
 } as const;
