@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from collections.abc import Iterable
-from itertools import combinations
 
 from theia_core.detect import Edge
 from theia_core.ingest import Session
@@ -45,69 +44,62 @@ def _extract_web_keys(tc: dict[str, object]) -> list[str]:
 
 
 def detect_tool_overlap(sessions: Iterable[Session]) -> list[Edge]:
-    sessions = list(sessions)
+    sessions = sorted(sessions, key=lambda s: s.started_at)
 
-    # Skill name -> {session_ids that viewed it}, {session_ids that managed it}
-    skill_views: dict[str, set[str]] = defaultdict(set)
-    skill_manages: dict[str, set[str]] = defaultdict(set)
+    # Skill name -> last (session_id, managed?) that touched it
+    skill_last: dict[str, tuple[str, bool]] = {}
 
-    # Web key -> session_ids
-    web_sessions: dict[str, set[str]] = defaultdict(set)
+    # Web key -> last session_id that touched it
+    web_last: dict[str, str] = {}
+
+    edges: list[Edge] = []
 
     for sess in sessions:
         for tc in sess.tool_calls:
             if tc.name == "skill_view":
                 name = _extract_skill_name(tc.raw)
-                if name:
-                    skill_views[name].add(sess.id)
+                if name and name in skill_last:
+                    last_id, last_managed = skill_last[name]
+                    # Only link if at least one session managed it
+                    if last_managed or False:  # current is view, so need last to have managed
+                        edges.append(
+                            Edge(
+                                source=last_id,
+                                target=sess.id,
+                                kind="tool-overlap",
+                                weight=1.0,
+                                evidence={"skill_name": name, "link_type": "view_after"},
+                            )
+                        )
+                skill_last[name] = (sess.id, False)
+
             elif tc.name == "skill_manage":
                 name = _extract_skill_name(tc.raw)
-                if name:
-                    skill_manages[name].add(sess.id)
+                if name and name in skill_last:
+                    last_id, _last_managed = skill_last[name]
+                    edges.append(
+                        Edge(
+                            source=last_id,
+                            target=sess.id,
+                            kind="tool-overlap",
+                            weight=1.0,
+                            evidence={"skill_name": name, "link_type": "manage_after"},
+                        )
+                    )
+                skill_last[name] = (sess.id, True)
+
             elif tc.name in ("web_search", "web_extract"):
                 for key in _extract_web_keys(tc.raw):
-                    web_sessions[key].add(sess.id)
-
-    edges: list[Edge] = []
-
-    # Skill edges: same skill, at least one session managed it
-    for skill_name, managed_by in skill_manages.items():
-        viewed_by = skill_views.get(skill_name, set())
-        # All sessions involved with this skill
-        all_involved = managed_by | viewed_by
-        if len(all_involved) < 2:
-            continue
-        # Only pairs where at least one session managed it
-        # (i.e., exclude pairs where both only viewed)
-        for a, b in combinations(sorted(all_involved), 2):
-            if a in managed_by or b in managed_by:
-                edges.append(
-                    Edge(
-                        source=a,
-                        target=b,
-                        kind="tool-overlap",
-                        weight=1.0,
-                        evidence={
-                            "skill_name": skill_name,
-                            "managed": sorted(managed_by & {a, b}),
-                            "viewed": sorted(viewed_by & {a, b}),
-                        },
-                    )
-                )
-
-    # Web edges: same query or same URL
-    for key, sess_ids in web_sessions.items():
-        if len(sess_ids) < 2:
-            continue
-        for a, b in combinations(sorted(sess_ids), 2):
-            edges.append(
-                Edge(
-                    source=a,
-                    target=b,
-                    kind="tool-overlap",
-                    weight=1.0,
-                    evidence={"web_key": key},
-                )
-            )
+                    if key in web_last:
+                        edges.append(
+                            Edge(
+                                source=web_last[key],
+                                target=sess.id,
+                                kind="tool-overlap",
+                                weight=1.0,
+                                evidence={"web_key": key},
+                            )
+                        )
+                    web_last[key] = sess.id
 
     return edges
