@@ -1,3 +1,137 @@
-export async function mount(element: HTMLElement, graphUrl: string): Promise<void> {
-  throw new Error("mount() not implemented yet — see Day 4");
+import { loadGraph } from "./data/load";
+import type { TheiaGraph } from "./data/types";
+import { createScene } from "./scene/Scene";
+import { createNodes } from "./scene/Nodes";
+import { createEdges } from "./scene/Edges";
+import { createPost } from "./scene/Post";
+import { createSimulation } from "./physics/Simulation";
+import { createPicker } from "./scene/Picker";
+import { createTooltip } from "./ui/Tooltip";
+import { createFilterBar } from "./ui/FilterBar";
+import { createSidePanel } from "./ui/SidePanel";
+
+export interface PanelOptions {
+  edgeKinds?: TheiaGraph["edges"][number]["kind"][];
+}
+
+export interface Controller {
+  destroy(): void;
+  on(event: "node-click", handler: (nodeId: string) => void): void;
+  on(event: "node-hover", handler: (nodeId: string | null) => void): void;
+}
+
+const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = ["memory-share", "cross-search"];
+
+export async function mount(
+  element: HTMLElement,
+  graphUrl: string,
+  options: PanelOptions = {},
+): Promise<Controller> {
+  const graph: TheiaGraph = await loadGraph(graphUrl);
+
+  element.style.position ||= "relative";
+  const ctx = createScene(element);
+  const nodes = createNodes(graph);
+  const edges = createEdges();
+  const post = createPost(ctx.renderer, ctx.scene, ctx.camera, element);
+  const nodeIndex = new Map(graph.nodes.map((n, i) => [n.id, i]));
+  let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
+
+  ctx.scene.add(nodes.mesh);
+  ctx.scene.add(edges.group);
+  edges.rebuild(graph, kinds, nodeIndex);
+
+  const { simulation, nodes: simNodes } = createSimulation(graph);
+  simulation.stop();
+
+  function tick() {
+    simulation.tick(1);
+    for (let i = 0; i < simNodes.length; i++) {
+      const sn = simNodes[i]!;
+      nodes.setPosition(i, sn.x, sn.y);
+    }
+    nodes.flush();
+    edges.rebuild(graph, kinds, nodeIndex);
+  }
+
+  let disposed = false;
+  function frame() {
+    if (disposed) return;
+    tick();
+    post.composer.render();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // Tooltip + hover
+  const tooltip = createTooltip(element);
+  const picker = createPicker(element, ctx.camera, nodes);
+  let lastMouse = { x: 0, y: 0 };
+  element.addEventListener("mousemove", (e) => {
+    const r = element.getBoundingClientRect();
+    lastMouse = { x: e.clientX - r.left, y: e.clientY - r.top };
+  });
+  picker.onHover((idx) => {
+    if (idx === null) {
+      tooltip.hide();
+    } else {
+      nodes.setHighlight(idx, true);
+      nodes.flush();
+      tooltip.show(graph.nodes[idx]!, lastMouse.x, lastMouse.y);
+    }
+    // un-highlight previous
+    // (simplification: rebuild all colors each hover; acceptable for small graphs)
+    for (let i = 0; i < nodes.count; i++) {
+      if (i !== idx) nodes.setHighlight(i, false);
+    }
+    nodes.flush();
+  });
+
+  // Click → side panel
+  const sidePanel = createSidePanel(element);
+  element.addEventListener("click", () => {
+    const idx = picker.currentHovered();
+    if (idx !== null) {
+      const n = graph.nodes[idx]!;
+      const related = graph.edges.filter((e) => e.source === n.id || e.target === n.id);
+      sidePanel.show(n, related);
+      emit("node-click", n.id);
+    }
+  });
+
+  // Filter bar
+  const filterBar = createFilterBar(element, kinds, (newKinds) => {
+    kinds = newKinds;
+    edges.rebuild(graph, kinds, nodeIndex);
+  });
+
+  const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
+    "node-click": [],
+    "node-hover": [],
+  };
+  function emit(event: string, ...args: unknown[]) {
+    (listeners[event] ?? []).forEach((fn) => fn(...args));
+  }
+
+  picker.onHover((idx) => {
+    emit("node-hover", idx === null ? null : graph.nodes[idx]!.id);
+  });
+
+  return {
+    destroy() {
+      disposed = true;
+      simulation.stop();
+      nodes.dispose();
+      edges.dispose();
+      post.composer.dispose();
+      ctx.dispose();
+      tooltip.dispose();
+      picker.dispose();
+      sidePanel.dispose();
+      filterBar.dispose();
+    },
+    on(event, handler) {
+      (listeners[event] ??= []).push(handler as never);
+    },
+  };
 }
