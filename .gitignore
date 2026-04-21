@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+dist/
+build/
+
+# TypeScript / Node
+node_modules/
+theia-panel/dist/
+*.tsbuildinfo
+
+# Generated (remove this line when examples/graph.json is intentionally committed)
+# examples/graph.json
+
+# Superpowers
+.superpowers/
+
+# OS
+.DS_Store
+Thumbs.db
