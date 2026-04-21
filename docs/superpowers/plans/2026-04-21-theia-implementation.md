@@ -15,7 +15,7 @@
 - `panel/*` — changes under `theia-panel/`
 - `joint/*` — schema changes, CI, integration, demo, this plan itself
 
-Both devs work across the monorepo. No task is tied to a specific person.
+Tasks are not pre-assigned. Whoever picks up a branch owns it through merge.
 
 ---
 
@@ -2959,7 +2959,7 @@ Once in the morning, once in the evening. If something breaks, fix and rehearse 
 **Acceptance for end of Day 11:**
 - [ ] Tag `v1.0.0-demo` on main.
 - [ ] Backup video confirmed playable.
-- [ ] Both devs can run the demo from muscle memory.
+- [ ] The demo can be driven from muscle memory.
 
 ---
 

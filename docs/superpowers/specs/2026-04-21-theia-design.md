@@ -1,7 +1,6 @@
 # theia — Design Spec
 
 **Date:** 2026-04-21
-**Authors:** zeke, arm64be (aka NOUS), with Claude
 **Hackathon deadline:** 2026-05-02
 **Status:** Design — awaiting review
 
@@ -347,9 +346,9 @@ Lock aesthetic decisions by **day 4** (2026-04-24). Do not revisit after **day 8
 
 ---
 
-## 12. Team
+## 12. Ownership
 
-Two devs, both using AI assistants. No half of the codebase is formally "owned" — either dev touches either package. Branch prefixes (§13.2) indicate the *area* being touched, not the author. Pair on the seam (`graph.json` contract, dashboard integration, demo prep).
+No half of the codebase is formally "owned". Tasks are not pre-assigned; whoever picks up a branch owns it through merge. Branch prefixes (§13.2) indicate the *area* being touched, not the author. Cross-seam work (`graph.json` contract, dashboard integration, demo prep) gets extra care regardless of who does it.
 
 ---
 
@@ -383,7 +382,7 @@ Monorepo because the contract is tight and the team is small — no cost-benefit
   - `joint/<slug>` — anything that crosses the seam (schema, dashboard integration, demo prep)
   The prefix drives CI path filtering.
 - **Same-day PR lifecycle.** No branches live overnight except emergencies. Hackathon budget.
-- Squash-merge via PR. Review from the other dev is "nice to have", not blocking.
+- Squash-merge via PR. Peer review is "nice to have", not blocking.
 - No release branches. No long-lived develop/staging. Tag `v1.0.0-demo` on 2026-05-02.
 
 ### 13.3 CI (GitHub Actions)
@@ -405,7 +404,7 @@ Four workflows, path-filtered:
 
 - Python `emit.py` validates every `graph.json` against `schemas/graph.schema.json` before writing.
 - TS types are **generated** from the schema at build time via `json-schema-to-typescript` (no manual sync; types and schema cannot drift).
-- Changing the schema is **always** a `joint/*` PR by convention — signals "both devs check this".
+- Changing the schema is **always** a `joint/*` PR by convention — signals "cross-seam, review carefully".
 
 ### 13.5 Committed fixtures
 
