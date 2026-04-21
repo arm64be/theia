@@ -198,9 +198,9 @@ export function createPost(
   // Pass 4: bloom on combined result
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(w, h),
-    1.1, // strength
-    0.5, // radius
-    0.12, // threshold
+    2.2, // strength
+    0.8, // radius
+    0.06, // threshold
   );
   composer.addPass(bloom);
 
