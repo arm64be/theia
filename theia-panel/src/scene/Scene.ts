@@ -14,7 +14,6 @@ export interface SceneContext {
 
 export function createScene(container: HTMLElement): SceneContext {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x07080d);
 
   const { clientWidth: w, clientHeight: h } = container;
   const aspect = w / h;

@@ -78,7 +78,7 @@ export async function mount(
     nodes.setTime(t);
     edges.setTime(t);
     post.renderEdges(edgesScene, ctx.camera);
-    post.composer.render();
+    post.render();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -190,6 +190,8 @@ export async function mount(
       nodes.dispose();
       edges.dispose();
       post.edgesTarget.dispose();
+      post.preBloomTarget.dispose();
+      post.sceneTarget.dispose();
       post.composer.dispose();
       ctx.dispose();
       tooltip.dispose();
