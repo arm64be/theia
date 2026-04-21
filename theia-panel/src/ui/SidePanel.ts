@@ -14,7 +14,10 @@ export function createSidePanel(container: HTMLElement) {
 
   let currentId: string | null = null;
 
-  function show(node: TheiaGraph["nodes"][number], relatedEdges: TheiaGraph["edges"]) {
+  function show(
+    node: TheiaGraph["nodes"][number],
+    relatedEdges: TheiaGraph["edges"],
+  ) {
     currentId = node.id;
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
@@ -42,12 +45,19 @@ export function createSidePanel(container: HTMLElement) {
     el.style.transform = "translateX(100%)";
   }
 
-  function currentNodeId() { return currentId; }
-  function dispose() { container.removeChild(el); }
+  function currentNodeId() {
+    return currentId;
+  }
+  function dispose() {
+    container.removeChild(el);
+  }
 
   return { show, hide, currentNodeId, dispose };
 }
 
 function escape(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+  return s.replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!,
+  );
 }

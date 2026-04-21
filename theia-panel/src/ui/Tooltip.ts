@@ -24,12 +24,19 @@ export function createTooltip(container: HTMLElement) {
     el.style.opacity = "1";
   }
 
-  function hide() { el.style.opacity = "0"; }
-  function dispose() { container.removeChild(el); }
+  function hide() {
+    el.style.opacity = "0";
+  }
+  function dispose() {
+    container.removeChild(el);
+  }
 
   return { show, hide, dispose };
 }
 
 function escape(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+  return s.replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!,
+  );
 }

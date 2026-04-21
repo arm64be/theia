@@ -20,7 +20,10 @@ export interface Controller {
   on(event: "node-hover", handler: (nodeId: string | null) => void): void;
 }
 
-const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = ["memory-share", "cross-search"];
+const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = [
+  "memory-share",
+  "cross-search",
+];
 
 export async function mount(
   element: HTMLElement,
@@ -133,7 +136,9 @@ export async function mount(
       const idx = picker.currentHovered();
       if (idx !== null) {
         const n = graph.nodes[idx]!;
-        const related = graph.edges.filter((e) => e.source === n.id || e.target === n.id);
+        const related = graph.edges.filter(
+          (e) => e.source === n.id || e.target === n.id,
+        );
         sidePanel.show(n, related);
         emit("node-click", n.id);
       }
@@ -143,11 +148,15 @@ export async function mount(
   });
 
   // Wheel zoom
-  element.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 1.1 : 0.9;
-    ctx.setZoom(ctx.getZoom() * delta);
-  }, { passive: false });
+  element.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 1.1 : 0.9;
+      ctx.setZoom(ctx.getZoom() * delta);
+    },
+    { passive: false },
+  );
 
   // Filter bar
   const filterBar = createFilterBar(element, kinds, (newKinds) => {

@@ -32,7 +32,9 @@ function forceAnchor(strength = 0.15) {
       n.vy = (n.vy ?? 0) + (n.anchorY - n.y) * strength * alpha;
     }
   }
-  force.initialize = (n: PhysicsNode[]) => { nodes = n; };
+  force.initialize = (n: PhysicsNode[]) => {
+    nodes = n;
+  };
   return force;
 }
 
@@ -51,7 +53,12 @@ export function createSimulation(graph: TheiaGraph) {
   }));
 
   const sim: Simulation<PhysicsNode, PhysicsLink> = forceSimulation(nodes, 2)
-    .force("link", forceLink<PhysicsNode, PhysicsLink>(links).id((n) => n.id).strength(0.05))
+    .force(
+      "link",
+      forceLink<PhysicsNode, PhysicsLink>(links)
+        .id((n) => n.id)
+        .strength(0.05),
+    )
     .force("charge", forceManyBody<PhysicsNode>().strength(-0.02))
     .force("anchor", forceAnchor(0.25))
     .force("center", forceCenter(0, 0))

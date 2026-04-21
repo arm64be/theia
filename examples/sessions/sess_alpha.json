@@ -1,0 +1,13 @@
+{
+  "id": "sess_alpha",
+  "title": "Alpha — writes auth memory",
+  "started_at": "2026-04-18T09:00:00Z",
+  "duration_sec": 1000,
+  "model": "claude-opus-4-7",
+  "message_count": 50,
+  "tool_calls": [{"name": "read"}, {"name": "edit"}, {"name": "bash"}],
+  "memory_events": [
+    {"kind": "write", "memory_id": "mem_auth_design", "salience": 0.9}
+  ],
+  "search_hits": []
+}
