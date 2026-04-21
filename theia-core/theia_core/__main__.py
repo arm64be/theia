@@ -16,7 +16,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="theia-core")
     parser.add_argument("sessions_dir", type=Path)
     parser.add_argument("-o", "--out", type=Path, default=Path("graph.json"))
-    parser.add_argument("--projection", choices=["pca", "umap", "tool-vector"], default="pca")
+    parser.add_argument("--projection", choices=["pca", "umap", "tool-vector"], default="umap")
     parser.add_argument("--tool-overlap-threshold", type=float, default=0.4)
     parser.add_argument("--include-features", action="store_true")
     parser.add_argument("--disable-tool-overlap", action="store_true")

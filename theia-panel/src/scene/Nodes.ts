@@ -51,7 +51,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
 
   for (let i = 0; i < n; i++) {
     const node = graph.nodes[i]!;
-    const size = 0.04 + Math.log1p(node.tool_count) * 0.01;
+    const size = Math.min(0.08, 0.03 + Math.log1p(node.tool_count) * 0.005);
     dummy.position.set(node.position.x, node.position.y, 0);
     dummy.scale.set(size, size, size);
     dummy.updateMatrix();

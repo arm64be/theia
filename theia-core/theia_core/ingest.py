@@ -52,7 +52,7 @@ def _parse_iso(s: str) -> datetime:
 
 
 def _extract_tool_calls_from_messages(messages: list[dict[str, Any]]) -> list[ToolCall]:
-    """Pull tool calls out of assistant messages in Hermes JSONL format."""
+    """Pull tool calls out of assistant messages."""
     calls: list[ToolCall] = []
     for msg in messages:
         if msg.get("role") != "assistant":
@@ -109,7 +109,8 @@ def _infer_search_hits(tool_calls: list[ToolCall], session_id: str) -> list[Sear
     return hits
 
 
-def _parse_json(path: Path) -> Session:
+def _parse_fixture_json(path: Path) -> Session:
+    """Parse the hand-crafted fixture format (sess_*.json)."""
     data = json.loads(path.read_text())
     return Session(
         id=data["id"],
@@ -137,6 +138,35 @@ def _parse_json(path: Path) -> Session:
             )
             for s in data.get("search_hits", [])
         ),
+        raw=data,
+    )
+
+
+def _parse_session_json(path: Path) -> Session:
+    """Parse Hermes session archive format (session_*.json, session_cron_*.json)."""
+    data = json.loads(path.read_text())
+    session_id = str(data.get("session_id", path.stem))
+    model = data.get("model") or "unknown"
+    messages = data.get("messages", [])
+
+    started_at = _parse_iso(data["session_start"]) if data.get("session_start") else datetime.now(UTC)
+    ended_at = _parse_iso(data["last_updated"]) if data.get("last_updated") else started_at
+    duration_sec = max(0.0, (ended_at - started_at).total_seconds())
+
+    tool_calls = _extract_tool_calls_from_messages(messages)
+    memory_events = _infer_memory_events(tool_calls)
+    search_hits = _infer_search_hits(tool_calls, session_id)
+
+    return Session(
+        id=session_id,
+        title=session_id,
+        started_at=started_at,
+        duration_sec=duration_sec,
+        model=model,
+        message_count=len(messages),
+        tool_calls=tuple(tool_calls),
+        memory_events=tuple(memory_events),
+        search_hits=tuple(search_hits),
         raw=data,
     )
 
@@ -183,18 +213,44 @@ def _parse_jsonl(path: Path) -> Session:
     )
 
 
+def _is_fixture_format(data: dict[str, Any]) -> bool:
+    """Detect if JSON data matches the hand-crafted fixture schema."""
+    return "id" in data and "started_at" in data and "tool_calls" in data
+
+
+def _is_session_archive_format(data: dict[str, Any]) -> bool:
+    """Detect if JSON data matches the Hermes session archive schema."""
+    return "session_id" in data and "messages" in data
+
+
 def parse_session(path: Path) -> Session:
     path = Path(path)
     if path.suffix == ".jsonl":
         return _parse_jsonl(path)
-    return _parse_json(path)
+
+    # For .json files, peek at content to decide format
+    data = json.loads(path.read_text())
+    if _is_fixture_format(data):
+        return _parse_fixture_json(path)
+    if _is_session_archive_format(data):
+        return _parse_session_json(path)
+
+    raise ValueError(f"unrecognized JSON format in {path}")
 
 
 def load_sessions(directory: Path) -> list[Session]:
     directory = Path(directory)
-    paths = sorted(directory.glob("*.json")) + sorted(directory.glob("*.jsonl"))
+    # Collect known session file patterns; explicitly skip request dumps
+    paths = (
+        sorted(directory.glob("session_*.json"))
+        + sorted(directory.glob("session_cron_*.json"))
+        + sorted(directory.glob("*.jsonl"))
+        + sorted(directory.glob("*.json"))
+    )
     sessions: list[Session] = []
     for p in paths:
+        if p.name.startswith("request_dump_"):
+            continue
         try:
             sessions.append(parse_session(p))
         except (KeyError, ValueError, json.JSONDecodeError) as exc:
