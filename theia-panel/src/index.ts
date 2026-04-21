@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { loadGraph } from "./data/load";
 import type { TheiaGraph } from "./data/types";
 import { createScene } from "./scene/Scene";
@@ -47,9 +48,10 @@ export async function mount(
   const nodeIndex = new Map(graph.nodes.map((n, i) => [n.id, i]));
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
 
-  ctx.scene.add(nodes.mesh);
-  ctx.scene.add(edges.group);
+  const edgesScene = new THREE.Scene();
+  edgesScene.add(edges.group);
   edges.rebuild(graph, kinds, nodeIndex);
+  ctx.scene.add(nodes.mesh);
 
   const { simulation, nodes: simNodes } = createSimulation(graph);
   simulation.stop();
@@ -75,6 +77,7 @@ export async function mount(
     const t = performance.now() / 1000;
     nodes.setTime(t);
     edges.setTime(t);
+    post.renderEdges(edgesScene, ctx.camera);
     post.composer.render();
     requestAnimationFrame(frame);
   }
@@ -186,6 +189,7 @@ export async function mount(
       simulation.stop();
       nodes.dispose();
       edges.dispose();
+      post.edgesTarget.dispose();
       post.composer.dispose();
       ctx.dispose();
       tooltip.dispose();
