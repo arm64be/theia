@@ -77,6 +77,7 @@ export async function mount(
     const t = performance.now() / 1000;
     nodes.setTime(t);
     edges.setTime(t);
+    post.setTime(t);
     post.renderEdges(edgesScene, ctx.camera);
     post.composer.render();
     requestAnimationFrame(frame);
