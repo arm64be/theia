@@ -83,8 +83,8 @@ def test_different_skills_no_link() -> None:
 
 
 def test_generic_tools_ignored() -> None:
-    a = _sess("A", [_tc("terminal", '{}'), _tc("read_file", '{}')])
-    b = _sess("B", [_tc("terminal", '{}'), _tc("read_file", '{}')])
+    a = _sess("A", [_tc("terminal", "{}"), _tc("read_file", "{}")])
+    b = _sess("B", [_tc("terminal", "{}"), _tc("read_file", "{}")])
 
     edges = detect_tool_overlap([a, b])
 
