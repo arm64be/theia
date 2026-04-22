@@ -39,48 +39,49 @@ uniform sampler2D tDiffuse;
 uniform vec3 bgColor;
 varying vec2 vUv;
 
-float bayer(vec2 uv) {
-  int x = int(mod(gl_FragCoord.x, 8.0));
-  int y = int(mod(gl_FragCoord.y, 8.0));
-  int i = (x + y) * 2;
-  if (i == 0)  return 0.0 / 16.0;
-  if (i == 1)  return 8.0 / 16.0;
-  if (i == 2)  return 2.0 / 16.0;
-  if (i == 3)  return 10.0 / 16.0;
-  if (i == 4)  return 12.0 / 16.0;
-  if (i == 5)  return 4.0 / 16.0;
-  if (i == 6)  return 14.0 / 16.0;
-  if (i == 7)  return 6.0 / 16.0;
-  if (i == 8)  return 3.0 / 16.0;
-  if (i == 9)  return 11.0 / 16.0;
-  if (i == 10) return 1.0 / 16.0;
-  if (i == 11) return 9.0 / 16.0;
-  if (i == 12) return 15.0 / 16.0;
-  if (i == 13) return 7.0 / 16.0;
-  if (i == 14) return 13.0 / 16.0;
-  return 5.0 / 16.0;
+// A standard 4x4 Bayer Matrix for consistent dithering
+float bayer4x4(vec2 uv) {
+  ivec2 p = ivec2(mod(gl_FragCoord.xy, 4.0));
+  int index = p.x + p.y * 4;
+  if (index == 0) return 0.0625;  if (index == 1) return 0.5625;
+  if (index == 2) return 0.1875;  if (index == 3) return 0.6875;
+  if (index == 4) return 0.8125;  if (index == 5) return 0.3125;
+  if (index == 6) return 0.9375;  if (index == 7) return 0.4375;
+  if (index == 8) return 0.25;    if (index == 9) return 0.75;
+  if (index == 10) return 0.125;  if (index == 11) return 0.625;
+  if (index == 12) return 1.0;    if (index == 13) return 0.5;
+  if (index == 14) return 0.875;  return 0.375;
 }
 
 void main() {
   vec4 tex = texture2D(tDiffuse, vUv);
-  vec3 col = mix(bgColor, tex.rgb, tex.a);
-  float noise = (bayer(vUv) - 0.5) * 0.1;
-  col += noise * 0.04;
-  col = floor(col * 32.0 + 0.5) / 32.0;
-  float lum = dot(col, vec3(0.299, 0.587, 0.114));
-  col = vec3(lum);
-  gl_FragColor = vec4(col, 1.0);
+  vec3 color = tex.rgb;
+  color = color / (1.0 + color);
+  color = pow(color, vec3(1.0 / 2.2));
+  float sceneLum = dot(color, vec3(0.299, 0.587, 0.114));
+  float mask = clamp(tex.a * smoothstep(0.0, 0.05, sceneLum), 0.0, 1.0);
+  vec3 finalCol = mix(bgColor, color, mask);
+  float b = bayer4x4(vUv);
+  finalCol += (b - 0.5) * (1.0 / 32.0);
+  finalCol = floor(finalCol * 32.0 + 0.5) / 32.0;
+  float lum = dot(finalCol, vec3(0.299, 0.587, 0.114));
+  gl_FragColor = vec4(vec3(lum), 1.0);
 }
 `;
 
 const OVERLAY_FRAG = `
-uniform sampler2D tDiffuse;
+uniform sampler2D tDiffuse; // Original Scene (Bloom)
+uniform sampler2D tDither;  // Dithered Scene
 uniform float uOpacity;
 varying vec2 vUv;
 
 void main() {
-  vec4 tex = texture2D(tDiffuse, vUv);
-  gl_FragColor = vec4(tex.rgb, tex.a * uOpacity);
+  vec4 dither = texture2D(tDither, vUv);
+  vec4 bloom = texture2D(tDiffuse, vUv);
+  bloom = min(bloom, 1.5);
+  vec3 bloomMapped = bloom.rgb / (1.0 + bloom.rgb);
+  vec3 finalColor = dither.rgb + (bloomMapped * uOpacity);
+  gl_FragColor = vec4(finalColor, 1.0);
 }
 `;
 
@@ -160,6 +161,13 @@ export function createPost(
     type: THREE.HalfFloatType,
   });
 
+  const ditherTarget = new THREE.WebGLRenderTarget(w * dpr, h * dpr, {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    format: THREE.RGBAFormat,
+    type: THREE.HalfFloatType,
+  });
+
   const composer = new EffectComposer(renderer);
   composer.setSize(w, h);
 
@@ -218,6 +226,7 @@ export function createPost(
 
   const overlayMaterial = new THREE.ShaderMaterial({
     uniforms: {
+      tDither: { value: null },
       tDiffuse: { value: null },
       uOpacity: { value: 1.0 },
     },
@@ -254,7 +263,7 @@ export function createPost(
     renderer.setClearColor(0, 0);
     composer.render();
 
-    renderer.setRenderTarget(null);
+    renderer.setRenderTarget(ditherTarget);
     renderer.setClearColor(PALETTE.background, 1);
     renderer.clear();
     renderer.autoClear = false;
@@ -263,8 +272,13 @@ export function createPost(
       sceneTarget.texture;
     ditherQuad.render(renderer);
 
+    renderer.setRenderTarget(null);
+    renderer.clear();
+
     (overlayMaterial.uniforms.tDiffuse as { value: THREE.Texture | null }).value =
       sceneTarget.texture;
+    (overlayMaterial.uniforms.tDither as { value: THREE.Texture | null }).value =
+      ditherTarget.texture;
     overlayQuad.render(renderer);
 
     renderer.autoClear = prevAutoClear;
