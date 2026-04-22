@@ -1,7 +1,7 @@
 name: panel
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths: ["theia-panel/**", "schemas/**", ".github/workflows/panel.yml"]
   pull_request:
     paths: ["theia-panel/**", "schemas/**", ".github/workflows/panel.yml"]
