@@ -131,7 +131,7 @@ export function createSimulation(graph: TheiaGraph) {
   const nodes: PhysicsNode[] = graph.nodes.map((n) => {
     const degree = degreeMap.get(n.id) ?? 0;
     // Larger radius for visibility: base 0.08, up to 0.18 for hubs
-    const radius = 0.08 + Math.min(0.10, degree * 0.008);
+    const radius = 0.08 + Math.min(0.1, degree * 0.008);
     return {
       id: n.id,
       x: n.position.x * spread,
@@ -153,7 +153,7 @@ export function createSimulation(graph: TheiaGraph) {
   // loose branches for tool-overlap
   const kindStrength: Record<string, number> = {
     "cross-search": 0.25,
-    "memory-share": 0.30,
+    "memory-share": 0.3,
     "tool-overlap": 0.04,
   };
   const kindDistance: Record<string, number> = {

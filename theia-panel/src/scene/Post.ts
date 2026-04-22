@@ -3,7 +3,10 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { Pass, FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
+import {
+  Pass,
+  FullScreenQuad,
+} from "three/examples/jsm/postprocessing/Pass.js";
 import { CopyShader } from "three/examples/jsm/shaders/CopyShader.js";
 import { PALETTE } from "../aesthetic";
 
@@ -268,17 +271,20 @@ export function createPost(
     renderer.clear();
     renderer.autoClear = false;
 
-    (ditherMaterial.uniforms.tDiffuse as { value: THREE.Texture | null }).value =
-      sceneTarget.texture;
+    (
+      ditherMaterial.uniforms.tDiffuse as { value: THREE.Texture | null }
+    ).value = sceneTarget.texture;
     ditherQuad.render(renderer);
 
     renderer.setRenderTarget(null);
     renderer.clear();
 
-    (overlayMaterial.uniforms.tDiffuse as { value: THREE.Texture | null }).value =
-      sceneTarget.texture;
-    (overlayMaterial.uniforms.tDither as { value: THREE.Texture | null }).value =
-      ditherTarget.texture;
+    (
+      overlayMaterial.uniforms.tDiffuse as { value: THREE.Texture | null }
+    ).value = sceneTarget.texture;
+    (
+      overlayMaterial.uniforms.tDither as { value: THREE.Texture | null }
+    ).value = ditherTarget.texture;
     overlayQuad.render(renderer);
 
     renderer.autoClear = prevAutoClear;
@@ -296,5 +302,13 @@ export function createPost(
     bloom.setSize(w2, h2);
   }
 
-  return { composer, edgesTarget, preBloomTarget, sceneTarget, resize, renderEdges, render };
+  return {
+    composer,
+    edgesTarget,
+    preBloomTarget,
+    sceneTarget,
+    resize,
+    renderEdges,
+    render,
+  };
 }

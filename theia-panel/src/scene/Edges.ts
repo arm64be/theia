@@ -89,10 +89,12 @@ export function createEdges(): EdgeLayer {
         positions[i * 6 + 3] = t.position.x;
         positions[i * 6 + 4] = t.position.y;
         positions[i * 6 + 5] = 0;
-        const baseOpacity = (SIZES.edgeOpacityByKind as Record<string, number>)[kind] ?? SIZES.edgeOpacity;
+        const baseOpacity =
+          (SIZES.edgeOpacityByKind as Record<string, number>)[kind] ??
+          SIZES.edgeOpacity;
         opacities[i * 2 + 0] = baseOpacity;
         opacities[i * 2 + 1] = baseOpacity;
-        const phase = ((i * 137.5) % 1000) / 1000 * Math.PI * 2;
+        const phase = (((i * 137.5) % 1000) / 1000) * Math.PI * 2;
         phases[i * 2 + 0] = phase;
         phases[i * 2 + 1] = phase;
         validIndices.push(i);
@@ -154,17 +156,18 @@ export function createEdges(): EdgeLayer {
   }
 
   function setHoverNode(nodeId: string | null) {
-    for (const [kind, {
-      line,
-      edgeList,
-      validIndices,
-    }] of lineSegmentsByKind.entries()) {
+    for (const [
+      kind,
+      { line, edgeList, validIndices },
+    ] of lineSegmentsByKind.entries()) {
       const geo = line.geometry;
       const attr = geo.getAttribute("aOpacity") as
         | THREE.BufferAttribute
         | undefined;
       if (!attr) continue;
-      const baseOpacity = (SIZES.edgeOpacityByKind as Record<string, number>)[kind] ?? SIZES.edgeOpacity;
+      const baseOpacity =
+        (SIZES.edgeOpacityByKind as Record<string, number>)[kind] ??
+        SIZES.edgeOpacity;
       for (const i of validIndices) {
         const e = edgeList[i]!;
         const dim =

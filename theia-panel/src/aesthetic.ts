@@ -14,7 +14,7 @@ export const SIZES = {
   edgeOpacity: 0.6,
   edgeOpacityByKind: {
     "memory-share": 0.55,
-    "cross-search": 0.50,
+    "cross-search": 0.5,
     "tool-overlap": 0.12,
   },
 } as const;

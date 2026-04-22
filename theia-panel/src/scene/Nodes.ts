@@ -123,7 +123,12 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
       const colorAttr = mesh.instanceColor!;
       for (let i = 0; i < n; i++) {
         if (highlighted.has(i)) {
-          colorAttr.setXYZ(i, highlightColor.r, highlightColor.g, highlightColor.b);
+          colorAttr.setXYZ(
+            i,
+            highlightColor.r,
+            highlightColor.g,
+            highlightColor.b,
+          );
           continue;
         }
         const tint = nodeColors[i]!;

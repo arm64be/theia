@@ -90,15 +90,16 @@ def _infer_memory_events(tool_calls: list[ToolCall]) -> list[MemoryEvent]:
                 content = str(args["content"])
             elif action in ("replace", "remove") and "old_text" in args:
                 content = str(args["old_text"])
-            if content:
-                mem_id = hashlib.sha256(content.encode()).hexdigest()[:16]
-            else:
-                mem_id = "unknown"
+            mem_id = hashlib.sha256(content.encode()).hexdigest()[:16] if content else "unknown"
         events.append(MemoryEvent(kind=kind, memory_id=mem_id, raw=tc.raw))
     return events
 
 
-def _infer_search_hits(tool_calls: list[ToolCall], session_id: str, messages: list[dict[str, Any]]) -> list[SearchHit]:
+def _infer_search_hits(
+    tool_calls: list[ToolCall],
+    session_id: str,
+    messages: list[dict[str, Any]],
+) -> list[SearchHit]:
     """Heuristic: treat cross-session search tool calls as search hits.
 
     Parses tool responses to extract the actual searched session_ids.
@@ -200,7 +201,9 @@ def _parse_session_json(path: Path) -> Session:
     model = data.get("model") or "unknown"
     messages = data.get("messages", [])
 
-    started_at = _parse_iso(data["session_start"]) if data.get("session_start") else datetime.now(UTC)
+    started_at = (
+        _parse_iso(data["session_start"]) if data.get("session_start") else datetime.now(UTC)
+    )
     ended_at = _parse_iso(data["last_updated"]) if data.get("last_updated") else started_at
     duration_sec = max(0.0, (ended_at - started_at).total_seconds())
 

@@ -1,6 +1,12 @@
 import { defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  ...(command === "serve"
+    ? {
+        publicDir: "../examples",
+        server: { fs: { allow: [".."] } },
+      }
+    : {}),
   build: {
     lib: {
       entry: "src/index.ts",
@@ -10,4 +16,4 @@ export default defineConfig({
     },
     rollupOptions: { external: ["three", "d3-force-3d"] },
   },
-});
+}));
