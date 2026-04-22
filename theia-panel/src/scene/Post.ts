@@ -40,9 +40,9 @@ uniform vec3 bgColor;
 varying vec2 vUv;
 
 float bayer(vec2 uv) {
-  int x = int(mod(uv.x * 800.0, 4.0));
-  int y = int(mod(uv.y * 600.0, 4.0));
-  int i = x + y * 4;
+  int x = int(mod(gl_FragCoord.x, 8.0));
+  int y = int(mod(gl_FragCoord.y, 8.0));
+  int i = (x + y) * 2;
   if (i == 0)  return 0.0 / 16.0;
   if (i == 1)  return 8.0 / 16.0;
   if (i == 2)  return 2.0 / 16.0;
@@ -64,7 +64,7 @@ float bayer(vec2 uv) {
 void main() {
   vec4 tex = texture2D(tDiffuse, vUv);
   vec3 col = mix(bgColor, tex.rgb, tex.a);
-  float noise = bayer(vUv) - 0.5;
+  float noise = (bayer(vUv) - 0.5) * 0.1;
   col += noise * 0.04;
   col = floor(col * 32.0 + 0.5) / 32.0;
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
@@ -139,25 +139,25 @@ export function createPost(
   const h = container.clientHeight;
   const dpr = renderer.getPixelRatio();
 
-  const edgesTarget = new THREE.WebGLRenderTarget(w * 2, h * 2, {
+  const edgesTarget = new THREE.WebGLRenderTarget(w * dpr, h * dpr, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     format: THREE.RGBAFormat,
-    type: THREE.UnsignedByteType,
+    type: THREE.HalfFloatType,
   });
 
   const preBloomTarget = new THREE.WebGLRenderTarget(w * dpr, h * dpr, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     format: THREE.RGBAFormat,
-    type: THREE.UnsignedByteType,
+    type: THREE.HalfFloatType,
   });
 
   const sceneTarget = new THREE.WebGLRenderTarget(w * dpr, h * dpr, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     format: THREE.RGBAFormat,
-    type: THREE.UnsignedByteType,
+    type: THREE.HalfFloatType,
   });
 
   const composer = new EffectComposer(renderer);
@@ -190,9 +190,9 @@ export function createPost(
 
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(w, h),
-    2.2, // strength
+    1.0, // strength
     0.8, // radius
-    0.06, // threshold
+    0.1, // threshold
   );
   composer.addPass(bloom);
 
@@ -212,6 +212,7 @@ export function createPost(
     fragmentShader: DITHER_FRAG,
     depthTest: false,
     depthWrite: false,
+    blending: THREE.NormalBlending,
   });
   const ditherQuad = new FullScreenQuad(ditherMaterial);
 
@@ -259,7 +260,7 @@ export function createPost(
     renderer.autoClear = false;
 
     (ditherMaterial.uniforms.tDiffuse as { value: THREE.Texture | null }).value =
-      preBloomTarget.texture;
+      sceneTarget.texture;
     ditherQuad.render(renderer);
 
     (overlayMaterial.uniforms.tDiffuse as { value: THREE.Texture | null }).value =
@@ -274,7 +275,7 @@ export function createPost(
     const w2 = container.clientWidth;
     const h2 = container.clientHeight;
     const dpr2 = renderer.getPixelRatio();
-    edgesTarget.setSize(w2 * 2, h2 * 2);
+    edgesTarget.setSize(w2 * dpr2, h2 * dpr2);
     preBloomTarget.setSize(w2 * dpr2, h2 * dpr2);
     sceneTarget.setSize(w2 * dpr2, h2 * dpr2);
     composer.setSize(w2, h2);
