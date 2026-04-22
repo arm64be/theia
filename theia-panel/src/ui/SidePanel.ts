@@ -7,13 +7,17 @@ export function createSidePanel(container: HTMLElement) {
     background: rgba(10,12,20,0.92); border-left: 1px solid rgba(255,255,255,0.1);
     color: #cfd6e4; font: 13px/1.5 ui-monospace, monospace;
     transform: translateX(100%); transition: transform 200ms ease-out;
-    padding: 20px 22px; overflow-y: auto; box-sizing: border-box;
+    padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
+    box-sizing: border-box;
   `;
   container.appendChild(el);
 
   let currentId: string | null = null;
 
-  function show(node: TheiaGraph["nodes"][number], relatedEdges: TheiaGraph["edges"]) {
+  function show(
+    node: TheiaGraph["nodes"][number],
+    relatedEdges: TheiaGraph["edges"],
+  ) {
     currentId = node.id;
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
@@ -41,12 +45,19 @@ export function createSidePanel(container: HTMLElement) {
     el.style.transform = "translateX(100%)";
   }
 
-  function currentNodeId() { return currentId; }
-  function dispose() { container.removeChild(el); }
+  function currentNodeId() {
+    return currentId;
+  }
+  function dispose() {
+    container.removeChild(el);
+  }
 
   return { show, hide, currentNodeId, dispose };
 }
 
 function escape(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+  return s.replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!,
+  );
 }

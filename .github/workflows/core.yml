@@ -1,0 +1,25 @@
+name: core
+on:
+  push:
+    branches: [main]
+    paths: ["theia-core/**", "schemas/**", ".github/workflows/core.yml"]
+  pull_request:
+    paths: ["theia-core/**", "schemas/**", ".github/workflows/core.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: theia-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy theia_core
+      - run: pytest -q

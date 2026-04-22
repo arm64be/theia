@@ -25,11 +25,20 @@ def project_to_2d(matrix: np.ndarray, method: Projection = "pca", seed: int = 42
         else:
             coords = PCA(n_components=2, random_state=seed).fit_transform(matrix)
     elif method == "umap":
-        import umap  # lazy import
+        # UMAP is unstable with very few samples; fall back to PCA
+        if matrix.shape[0] < 5:
+            n_components = min(2, matrix.shape[1], matrix.shape[0] - 1)
+            if n_components < 2:
+                coords = PCA(n_components=n_components, random_state=seed).fit_transform(matrix)
+                coords = np.pad(coords, ((0, 0), (0, 2 - n_components)))
+            else:
+                coords = PCA(n_components=2, random_state=seed).fit_transform(matrix)
+        else:
+            import umap  # lazy import
 
-        n_neighbors = min(15, matrix.shape[0] - 1)
-        reducer = umap.UMAP(n_components=2, random_state=seed, n_neighbors=n_neighbors)
-        coords = reducer.fit_transform(matrix)
+            n_neighbors = min(15, matrix.shape[0] - 1)
+            reducer = umap.UMAP(n_components=2, random_state=seed, n_neighbors=n_neighbors)
+            coords = reducer.fit_transform(matrix)
     elif method == "tool-vector":
         # Pick the two highest-variance features; fallback to first two.
         variances = matrix.var(axis=0)

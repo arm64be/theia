@@ -1,7 +1,11 @@
 import * as THREE from "three";
 import type { NodeLayer } from "./Nodes";
 
-export function createPicker(container: HTMLElement, camera: THREE.Camera, nodes: NodeLayer) {
+export function createPicker(
+  container: HTMLElement,
+  camera: THREE.Camera,
+  nodes: NodeLayer,
+) {
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   let hovered: number | null = null;
@@ -23,8 +27,14 @@ export function createPicker(container: HTMLElement, camera: THREE.Camera, nodes
   container.addEventListener("mousemove", onMove);
 
   return {
-    onHover(fn: (i: number | null) => void) { listeners.push(fn); },
-    currentHovered() { return hovered; },
-    dispose() { container.removeEventListener("mousemove", onMove); },
+    onHover(fn: (i: number | null) => void) {
+      listeners.push(fn);
+    },
+    currentHovered() {
+      return hovered;
+    },
+    dispose() {
+      container.removeEventListener("mousemove", onMove);
+    },
   };
 }

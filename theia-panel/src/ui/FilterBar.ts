@@ -14,12 +14,17 @@ export function createFilterBar(
     font: 12px/1.4 ui-monospace, monospace; color: #cfd6e4;
     user-select: none;
   `;
-  const kinds: TheiaGraph["edges"][number]["kind"][] = ["memory-share", "cross-search", "tool-overlap"];
+  const kinds: TheiaGraph["edges"][number]["kind"][] = [
+    "memory-share",
+    "cross-search",
+    "tool-overlap",
+  ];
   const state = new Set(initial);
 
   for (const kind of kinds) {
     const label = document.createElement("label");
-    label.style.cssText = "display:flex;gap:6px;align-items:center;cursor:pointer";
+    label.style.cssText =
+      "display:flex;gap:6px;align-items:center;cursor:pointer";
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.checked = state.has(kind);

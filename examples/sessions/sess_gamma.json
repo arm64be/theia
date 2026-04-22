@@ -1,0 +1,11 @@
+{
+  "id": "sess_gamma",
+  "title": "Gamma — overlaps tools only",
+  "started_at": "2026-04-18T14:00:00Z",
+  "duration_sec": 600,
+  "model": "claude-opus-4-7",
+  "message_count": 20,
+  "tool_calls": [{"name": "read"}, {"name": "edit"}, {"name": "bash"}],
+  "memory_events": [],
+  "search_hits": []
+}

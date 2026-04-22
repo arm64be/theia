@@ -18,48 +18,42 @@ def _sess(id: str, events: list[MemoryEvent], minute: int) -> Session:
     )
 
 
-def test_memory_share_writer_before_reader_yields_edge() -> None:
+def test_memory_share_co_write_yields_edge() -> None:
+    a = _sess("A", [MemoryEvent(kind="write", memory_id="m1", salience=0.9)], minute=0)
+    b = _sess("B", [MemoryEvent(kind="write", memory_id="m1", salience=0.5)], minute=5)
+
+    edges = detect_memory_share([a, b])
+
+    assert len(edges) == 1
+    e = edges[0]
+    assert e.kind == "memory-share"
+    assert e.evidence["memory_id"] == "m1"
+
+
+def test_memory_share_ignores_reads() -> None:
+    """Read-based linking is disabled; only writes create edges."""
     writer = _sess("A", [MemoryEvent(kind="write", memory_id="m1", salience=0.9)], minute=0)
     reader = _sess("B", [MemoryEvent(kind="read", memory_id="m1")], minute=5)
 
     edges = detect_memory_share([writer, reader])
 
-    assert len(edges) == 1
-    e = edges[0]
-    assert e.source == "A" and e.target == "B"
-    assert e.kind == "memory-share"
-    assert 0 < e.weight <= 1
-    assert e.evidence["memory_id"] == "m1"
-
-
-def test_memory_share_ignores_when_reader_before_writer() -> None:
-    reader = _sess("B", [MemoryEvent(kind="read", memory_id="m1")], minute=0)
-    writer = _sess("A", [MemoryEvent(kind="write", memory_id="m1")], minute=5)
-
-    assert detect_memory_share([reader, writer]) == []
+    assert edges == []
 
 
 def test_memory_share_no_edge_without_match() -> None:
     a = _sess("A", [MemoryEvent(kind="write", memory_id="m1")], minute=0)
-    b = _sess("B", [MemoryEvent(kind="read", memory_id="m99")], minute=5)
+    b = _sess("B", [MemoryEvent(kind="write", memory_id="m99")], minute=5)
 
     assert detect_memory_share([a, b]) == []
 
 
-def test_memory_share_weight_scales_with_salience_and_read_count() -> None:
-    a = _sess("A", [MemoryEvent(kind="write", memory_id="m1", salience=0.1)], minute=0)
-    b1 = _sess("B", [MemoryEvent(kind="read", memory_id="m1")], minute=5)
-    a2 = _sess("A2", [MemoryEvent(kind="write", memory_id="m2", salience=1.0)], minute=0)
-    b2 = _sess(
-        "B2",
-        [
-            MemoryEvent(kind="read", memory_id="m2"),
-            MemoryEvent(kind="read", memory_id="m2"),
-        ],
-        minute=5,
-    )
+def test_memory_share_weight_uses_salience() -> None:
+    low_a = _sess("A", [MemoryEvent(kind="write", memory_id="m1", salience=0.1)], minute=0)
+    low_b = _sess("B", [MemoryEvent(kind="write", memory_id="m1", salience=0.1)], minute=5)
+    high_a = _sess("A2", [MemoryEvent(kind="write", memory_id="m2", salience=1.0)], minute=0)
+    high_b = _sess("B2", [MemoryEvent(kind="write", memory_id="m2", salience=1.0)], minute=5)
 
-    low = detect_memory_share([a, b1])[0]
-    high = detect_memory_share([a2, b2])[0]
+    low = detect_memory_share([low_a, low_b])[0]
+    high = detect_memory_share([high_a, high_b])[0]
 
     assert high.weight > low.weight
