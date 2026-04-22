@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
+from typing import Any
 
 from theia_core.detect import Edge
 from theia_core.ingest import Session
 
 
-def _extract_skill_name(tc: dict[str, object]) -> str | None:
-    fn = tc.get("function", {})
+def _extract_skill_name(tc: dict[str, Any]) -> str | None:
+    fn = tc.get("function") or {}
     args_str = fn.get("arguments", "{}")
     try:
         args = json.loads(args_str) if isinstance(args_str, str) else args_str
@@ -17,9 +18,9 @@ def _extract_skill_name(tc: dict[str, object]) -> str | None:
     return str(args.get("name", "")) or None
 
 
-def _extract_web_keys(tc: dict[str, object]) -> list[str]:
+def _extract_web_keys(tc: dict[str, Any]) -> list[str]:
     """Return URL keys for web_search (query) and web_extract (urls)."""
-    fn = tc.get("function", {})
+    fn = tc.get("function") or {}
     name = fn.get("name", "")
     args_str = fn.get("arguments", "{}")
     try:
@@ -57,10 +58,12 @@ def detect_tool_overlap(sessions: Iterable[Session]) -> list[Edge]:
         for tc in sess.tool_calls:
             if tc.name == "skill_view":
                 name = _extract_skill_name(tc.raw)
-                if name and name in skill_last:
+                if name is None:
+                    continue
+                if name in skill_last:
                     last_id, last_managed = skill_last[name]
-                    # Only link if at least one session managed it
-                    if last_managed or False:  # current is view, so need last to have managed
+                    # Only link if the prior session managed the skill
+                    if last_managed:
                         edges.append(
                             Edge(
                                 source=last_id,
@@ -74,7 +77,9 @@ def detect_tool_overlap(sessions: Iterable[Session]) -> list[Edge]:
 
             elif tc.name == "skill_manage":
                 name = _extract_skill_name(tc.raw)
-                if name and name in skill_last:
+                if name is None:
+                    continue
+                if name in skill_last:
                     last_id, _last_managed = skill_last[name]
                     edges.append(
                         Edge(
