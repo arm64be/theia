@@ -1,7 +1,7 @@
 name: contract
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths: ["theia-core/**", "theia-panel/**", "schemas/**", "examples/**"]
   pull_request:
     paths: ["theia-core/**", "theia-panel/**", "schemas/**", "examples/**"]
