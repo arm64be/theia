@@ -87,10 +87,14 @@ export function createEdges(): EdgeLayer {
         const t = graph.nodes[ti]!;
         positions[i * 6 + 0] = s.position.x;
         positions[i * 6 + 1] = s.position.y;
-        positions[i * 6 + 2] = nodePositions ? (nodePositions[si * 3 + 2] ?? 0) : 0;
+        positions[i * 6 + 2] = nodePositions
+          ? (nodePositions[si * 3 + 2] ?? 0)
+          : 0;
         positions[i * 6 + 3] = t.position.x;
         positions[i * 6 + 4] = t.position.y;
-        positions[i * 6 + 5] = nodePositions ? (nodePositions[ti * 3 + 2] ?? 0) : 0;
+        positions[i * 6 + 5] = nodePositions
+          ? (nodePositions[ti * 3 + 2] ?? 0)
+          : 0;
         const baseOpacity =
           (SIZES.edgeOpacityByKind as Record<string, number>)[kind] ??
           SIZES.edgeOpacity;

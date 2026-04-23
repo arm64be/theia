@@ -128,7 +128,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
     nodeSizes[i] = Math.min(0.18, 0.05 + Math.log1p(turns) * 0.014);
     nodeColors[i] = modelTintColor(node.model);
     // Spatial wave: coherent ripple across the constellation
-      nodeWaveOffsets[i] =
+    nodeWaveOffsets[i] =
       node.position.x * 2.0 + node.position.y * 1.5 + hash01(node.id) * 3.0;
   }
 
