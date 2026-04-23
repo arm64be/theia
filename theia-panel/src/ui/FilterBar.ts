@@ -1,17 +1,20 @@
 import type { TheiaGraph } from "../data/types";
+import type { ThemeTokens } from "./Theme";
+import { themeBgAlpha } from "./Theme";
 
 export function createFilterBar(
   container: HTMLElement,
   initial: Set<TheiaGraph["edges"][number]["kind"]>,
   onChange: (kinds: Set<TheiaGraph["edges"][number]["kind"]>) => void,
+  theme: ThemeTokens,
 ) {
   const bar = document.createElement("div");
   bar.style.cssText = `
     position: absolute; top: 12px; left: 12px;
     display: flex; gap: 12px;
-    padding: 8px 12px; background: rgba(10,12,20,0.7);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
-    font: 12px/1.4 ui-monospace, monospace; color: #cfd6e4;
+    padding: 8px 12px; background: ${themeBgAlpha(theme, 0.75)};
+    border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
+    font: 12px/1.4 var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
     user-select: none;
   `;
   const kinds: TheiaGraph["edges"][number]["kind"][] = [

@@ -1,11 +1,13 @@
 import type { TheiaGraph } from "../data/types";
+import type { ThemeTokens } from "./Theme";
+import { themeBgAlpha } from "./Theme";
 
-export function createSidePanel(container: HTMLElement) {
+export function createSidePanel(container: HTMLElement, theme: ThemeTokens) {
   const el = document.createElement("aside");
   el.style.cssText = `
     position: absolute; top: 0; right: 0; bottom: 0; width: min(380px, 40vw);
-    background: rgba(10,12,20,0.92); border-left: 1px solid rgba(255,255,255,0.1);
-    color: #cfd6e4; font: 13px/1.5 ui-monospace, monospace;
+    background: ${themeBgAlpha(theme, 0.94)}; border-left: 1px solid #${theme.border};
+    color: #${theme.fg}; font: 13px/1.5 var(--theia-font, ui-monospace, monospace);
     transform: translateX(100%); transition: transform 200ms ease-out;
     padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
     box-sizing: border-box;
@@ -21,15 +23,15 @@ export function createSidePanel(container: HTMLElement) {
     currentId = node.id;
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
-        style="position:absolute;top:10px;right:14px;background:none;border:none;color:#cfd6e4;font-size:18px;cursor:pointer">×</button>
-      <h3 style="margin:0 0 4px;color:#ffc477;font-size:15px">${escape(node.title)}</h3>
-      <div style="opacity:0.6;margin-bottom:14px">${node.id}</div>
+        style="position:absolute;top:10px;right:14px;background:none;border:none;color:#${theme.fg};font-size:18px;cursor:pointer">×</button>
+      <h3 style="margin:0 0 4px;color:#${theme.accent};font-size:15px">${escape(node.title)}</h3>
+      <div style="opacity:0.6;color:#${theme.fg2};margin-bottom:14px">${node.id}</div>
       <dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px">
-        <dt style="opacity:0.6">Started</dt><dd style="margin:0">${new Date(node.started_at).toLocaleString()}</dd>
-        <dt style="opacity:0.6">Duration</dt><dd style="margin:0">${Math.round(node.duration_sec)}s</dd>
-        <dt style="opacity:0.6">Model</dt><dd style="margin:0">${escape(node.model ?? "-")}</dd>
-        <dt style="opacity:0.6">Tools</dt><dd style="margin:0">${node.tool_count}</dd>
-        <dt style="opacity:0.6">Messages</dt><dd style="margin:0">${node.message_count ?? "-"}</dd>
+        <dt style="opacity:0.6;color:#${theme.fg2}">Started</dt><dd style="margin:0">${new Date(node.started_at).toLocaleString()}</dd>
+        <dt style="opacity:0.6;color:#${theme.fg2}">Duration</dt><dd style="margin:0">${Math.round(node.duration_sec)}s</dd>
+        <dt style="opacity:0.6;color:#${theme.fg2}">Model</dt><dd style="margin:0">${escape(node.model ?? "-")}</dd>
+        <dt style="opacity:0.6;color:#${theme.fg2}">Tools</dt><dd style="margin:0">${node.tool_count}</dd>
+        <dt style="opacity:0.6;color:#${theme.fg2}">Messages</dt><dd style="margin:0">${node.message_count ?? "-"}</dd>
       </dl>
       <h4 style="margin:18px 0 6px;font-size:12px;letter-spacing:0.5px;opacity:0.7">CONNECTIONS</h4>
       <ul style="margin:0;padding-left:18px">

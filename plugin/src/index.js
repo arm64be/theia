@@ -37,6 +37,58 @@
   var CONFIG_API = "/api/plugins/theia-constellation/config";
 
   // -------------------------------------------------------------------
+  // Theme extraction — reads the dashboard's CSS custom properties and
+  // builds query params the panel can consume to match the host theme.
+  // -------------------------------------------------------------------
+  function extractDashboardTheme() {
+    var root = getComputedStyle(document.documentElement);
+    function cssVar(name) {
+      return (root.getPropertyValue(name) || "").trim();
+    }
+    // Resolve a CSS color to a 6-digit hex (no #). Falls back to the
+    // provided default if the variable is empty or unsupported.
+    function toHex(color, fallback) {
+      if (!color) return fallback;
+      // If it's already a hex
+      if (/^#[0-9a-f]{6,8}$/i.test(color)) return color.replace(/^#/, "");
+      // Use a canvas to resolve computed colors (handles color-mix, rgb, etc.)
+      try {
+        var canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        var ctx2d = canvas.getContext("2d");
+        ctx2d.fillStyle = color;
+        ctx2d.fillRect(0, 0, 1, 1);
+        var d = ctx2d.getImageData(0, 0, 1, 1).data;
+        var hex = ((1 << 24) + (d[0] << 16) + (d[1] << 8) + d[2]).toString(16).slice(1);
+        if (d[3] < 255) hex += ("0" + d[3].toString(16)).slice(-2);
+        return hex;
+      } catch (_) {
+        return fallback;
+      }
+    }
+    var bg = toHex(cssVar("--background-base"), "07080d");
+    var fg = toHex(cssVar("--midground-base"), "cfd6e4");
+    var fg2 = toHex(cssVar("--color-muted-foreground") || cssVar("--midground"), "9ca3af");
+    var accent = toHex(cssVar("--color-warning") || cssVar("--midground-base"), "ffc477");
+    var border = toHex(cssVar("--color-border"), "ffffff26");
+    // Font — grab the body's computed font-family
+    var font = root.getPropertyValue("font-family").trim()
+      || "ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace";
+    return { bg: bg, fg: fg, fg2: fg2, accent: accent, border: border, font: font };
+  }
+
+  function buildThemeQuery(theme) {
+    var parts = [];
+    parts.push("bg=" + encodeURIComponent(theme.bg));
+    parts.push("fg=" + encodeURIComponent(theme.fg));
+    parts.push("fg2=" + encodeURIComponent(theme.fg2));
+    parts.push("accent=" + encodeURIComponent(theme.accent));
+    parts.push("border=" + encodeURIComponent(theme.border));
+    parts.push("font=" + encodeURIComponent(theme.font));
+    return parts.join("&");
+  }
+
+  // -------------------------------------------------------------------
   // Styles (inline — matches dashboard theme)
   // -------------------------------------------------------------------
   var btnClass = cn(
@@ -130,14 +182,19 @@
     }, []);
 
     var handlePopout = useCallback(function () {
+      var popTheme = extractDashboardTheme();
+      var popQuery = buildThemeQuery(popTheme);
       window.open(
-        panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API),
+        panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API) + "&" + popQuery,
         "theia-constellation",
         "width=1200,height=800"
       );
     }, [panelInfo.url]);
 
-    var iframeSrc = panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API);
+    // Build iframe URL with graph endpoint + theme params from dashboard
+    var theme = extractDashboardTheme();
+    var themeQuery = buildThemeQuery(theme);
+    var iframeSrc = panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API) + "&" + themeQuery;
 
     // Environment badge
     var envBadge = panelInfo.env !== "production"

@@ -10,6 +10,8 @@ import { createPicker } from "./scene/Picker";
 import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSidePanel } from "./ui/SidePanel";
+import { readTheme, applyTheme } from "./ui/Theme";
+import type { ThemeTokens } from "./ui/Theme";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -31,6 +33,10 @@ export async function mount(
   graphUrl: string,
   options: PanelOptions = {},
 ): Promise<Controller> {
+  // Read and apply theme from query params (or use defaults)
+  const theme: ThemeTokens = readTheme();
+  applyTheme(theme);
+
   const graph: TheiaGraph = await loadGraph(graphUrl);
 
   element.style.position ||= "relative";
@@ -84,7 +90,7 @@ export async function mount(
   requestAnimationFrame(frame);
 
   // Tooltip + hover
-  const tooltip = createTooltip(element);
+  const tooltip = createTooltip(element, theme);
   const picker = createPicker(element, ctx.camera, nodes);
   let lastMouse = { x: 0, y: 0 };
   element.addEventListener("mousemove", (e) => {
@@ -108,7 +114,7 @@ export async function mount(
   });
 
   // Click / drag handling
-  const sidePanel = createSidePanel(element);
+  const sidePanel = createSidePanel(element, theme);
   let isMouseDown = false;
   let hasDragged = false;
   let mouseDownPos = { x: 0, y: 0 };
@@ -169,7 +175,7 @@ export async function mount(
   const filterBar = createFilterBar(element, kinds, (newKinds) => {
     kinds = newKinds;
     edges.rebuild(graph, kinds, nodeIndex);
-  });
+  }, theme);
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
     "node-click": [],

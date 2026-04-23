@@ -1,12 +1,14 @@
 import type { TheiaGraph } from "../data/types";
+import type { ThemeTokens } from "./Theme";
+import { themeBgAlpha } from "./Theme";
 
-export function createTooltip(container: HTMLElement) {
+export function createTooltip(container: HTMLElement, theme: ThemeTokens) {
   const el = document.createElement("div");
   el.style.cssText = `
     position: absolute; pointer-events: none;
-    padding: 8px 12px; background: rgba(10,12,20,0.9);
-    border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
-    font: 12px/1.4 ui-monospace, monospace; color: #cfd6e4;
+    padding: 8px 12px; background: ${themeBgAlpha(theme, 0.92)};
+    border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
+    font: 12px/1.4 var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
     transform: translate(8px, 8px); opacity: 0; transition: opacity 120ms;
     max-width: 280px;
   `;
@@ -14,8 +16,8 @@ export function createTooltip(container: HTMLElement) {
 
   function show(node: TheiaGraph["nodes"][number], x: number, y: number) {
     el.innerHTML = `
-      <div style="font-weight:600;color:#ffc477">${escape(node.title)}</div>
-      <div style="opacity:0.7">${node.id}</div>
+      <div style="font-weight:600;color:#${theme.accent}">${escape(node.title)}</div>
+      <div style="opacity:0.7;color:#${theme.fg2}">${node.id}</div>
       <div style="margin-top:4px">${new Date(node.started_at).toLocaleString()}</div>
       <div>${Math.round(node.duration_sec)}s · ${node.tool_count} tools</div>
     `;
