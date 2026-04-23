@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from theia_core.ingest import Session, parse_session
+from theia_core.ingest import Session, load_sessions, parse_session
 
 FIXTURE_JSON = """
 {
@@ -45,13 +45,19 @@ def test_parse_session_happy_path(tmp_path: Path) -> None:
     assert len(sess.search_hits) == 1
 
 
-def test_load_sessions_reads_all(tmp_path: Path) -> None:
-    from theia_core.ingest import load_sessions
+def test_load_sessions_reads_db(tmp_path: Path) -> None:
+    from tests.db_helpers import seed_test_db
 
-    (tmp_path / "a.json").write_text(FIXTURE_JSON)
-    (tmp_path / "b.json").write_text(FIXTURE_JSON.replace("sess_aaa", "sess_bbb"))
-    (tmp_path / "ignore.txt").write_text("not a session")
+    fixture_dir = tmp_path / "fixtures"
+    fixture_dir.mkdir()
+    (fixture_dir / "a.json").write_text(FIXTURE_JSON)
+    (fixture_dir / "b.json").write_text(FIXTURE_JSON.replace("sess_aaa", "sess_bbb"))
 
-    sessions = load_sessions(tmp_path)
+    db = tmp_path / "state.db"
+    seed_test_db(db, fixture_dir)
+
+    sessions = load_sessions(db)
 
     assert {s.id for s in sessions} == {"sess_aaa", "sess_bbb"}
+    for s in sessions:
+        assert s.title == "Refactor auth"

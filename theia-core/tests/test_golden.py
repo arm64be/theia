@@ -1,13 +1,16 @@
 from pathlib import Path
 
+from tests.db_helpers import seed_test_db
 from theia_core.detect.memory_share import detect_memory_share
 from theia_core.ingest import load_sessions
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "golden_sessions"
 
 
-def test_golden_memory_share_alpha_to_beta() -> None:
-    sessions = load_sessions(FIXTURE_DIR)
+def test_golden_memory_share_alpha_to_beta(tmp_path: Path) -> None:
+    db = tmp_path / "state.db"
+    seed_test_db(db, FIXTURE_DIR)
+    sessions = load_sessions(db)
     edges = detect_memory_share(sessions)
 
     memory_edges = [e for e in edges if e.kind == "memory-share"]

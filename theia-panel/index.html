@@ -18,7 +18,9 @@
     <div id="app"></div>
     <script type="module">
       import { mount } from "/src/index.ts";
-      mount(document.getElementById("app"), "/graph.json").catch(console.error);
+      mount(document.getElementById("app"), "/theia-graph.json").catch(
+        console.error,
+      );
     </script>
   </body>
 </html>

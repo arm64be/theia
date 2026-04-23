@@ -142,7 +142,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
     mesh.setColorAt(i, nodeColors[i]!);
   }
   mesh.instanceMatrix.needsUpdate = true;
-  mesh.instanceColor!.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
   const highlighted = new Set<number>();
 
