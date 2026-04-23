@@ -20,7 +20,7 @@ SHELL := /bin/bash
 
 VERSION       := $(shell python3 -c "import json; print(json.load(open('plugin/manifest.json'))['version'])")
 PLUGIN_NAME   := theia-constellation
-DIST_DIR      := dist/plugin
+DIST_DIR      := dist/plugin/dashboard
 PACKAGE_NAME  := $(PLUGIN_NAME)-v$(VERSION).tar.gz
 HERMES_PLUGINS := $(HOME)/.hermes/plugins
 DEV_PORT      := 5173
@@ -71,8 +71,8 @@ dev-link: ## Symlink plugin source into ~/.hermes/plugins for dev
 	@cp plugin/src/index.js $(DIST_DIR)/dist/index.js
 	@cp plugin/src/style.css $(DIST_DIR)/dist/style.css
 	@cp plugin/api/plugin_api.py $(DIST_DIR)/plugin_api.py
-	@ln -sfn $(CURDIR)/$(DIST_DIR) $(HERMES_PLUGINS)/$(PLUGIN_NAME)
-	@echo "  Linked: $(HERMES_PLUGINS)/$(PLUGIN_NAME) -> $(CURDIR)/$(DIST_DIR)"
+	@ln -sfn $(CURDIR)/dist/plugin $(HERMES_PLUGINS)/$(PLUGIN_NAME)
+	@echo "  Linked: $(HERMES_PLUGINS)/$(PLUGIN_NAME) -> $(CURDIR)/dist/plugin"
 
 # ---------------------------------------------------------------------------
 # Build
@@ -111,8 +111,9 @@ staging: build ## Build and deploy to local hermes for staging
 staging-deploy: ## Deploy built plugin to ~/.hermes/plugins (staging mode)
 	@mkdir -p $(HERMES_PLUGINS)
 	@rm -rf $(HERMES_PLUGINS)/$(PLUGIN_NAME)
-	@cp -r $(DIST_DIR) $(HERMES_PLUGINS)/$(PLUGIN_NAME)
-	@echo "  Deployed: $(HERMES_PLUGINS)/$(PLUGIN_NAME)"
+	@mkdir -p $(HERMES_PLUGINS)/$(PLUGIN_NAME)
+	@cp -r $(DIST_DIR) $(HERMES_PLUGINS)/$(PLUGIN_NAME)/dashboard
+	@echo "  Deployed: $(HERMES_PLUGINS)/$(PLUGIN_NAME)/dashboard/"
 	@echo "  Start with: THEIA_ENV=staging hermes dashboard"
 
 # ---------------------------------------------------------------------------
@@ -122,7 +123,7 @@ staging-deploy: ## Deploy built plugin to ~/.hermes/plugins (staging mode)
 .PHONY: release package
 package: build ## Create distributable tarball
 	@mkdir -p dist
-	cd $(DIST_DIR) && tar -czf ../../dist/$(PACKAGE_NAME) .
+	cd dist/plugin && tar -czf ../$(PACKAGE_NAME) .
 	@echo "  Package: dist/$(PACKAGE_NAME)"
 	@echo "  Size: $$(du -h dist/$(PACKAGE_NAME) | cut -f1)"
 
