@@ -66,6 +66,10 @@ export async function mount(
   const sidePanel = createSidePanel(element);
 
   let lastMouse = { x: 0, y: 0 };
+  let lastWheelAt = 0;
+
+  const isInteracting = () =>
+    isMouseDown || performance.now() - lastWheelAt < 200;
 
   function setupGraph(g: TheiaGraph) {
     simulation?.stop();
@@ -102,7 +106,9 @@ export async function mount(
     post.resize();
 
     picker?.dispose();
-    picker = createPicker(element, ctx.camera, nodes, nodePositions);
+    picker = createPicker(element, ctx.camera, nodes, nodePositions, {
+      shouldBlock: isInteracting,
+    });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
       edges.setHoverNode(nodeId);
@@ -201,9 +207,9 @@ export async function mount(
     }
   });
 
-  element.addEventListener("mouseup", () => {
-    if (isMouseDown && !hasDragged) {
-      const idx = picker.currentHovered();
+  element.addEventListener("mouseup", (e) => {
+    if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
+      const idx = picker.pickAt(e.clientX, e.clientY, 0.35);
       if (idx !== null) {
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
@@ -226,6 +232,7 @@ export async function mount(
   element.addEventListener(
     "wheel",
     (e) => {
+      lastWheelAt = performance.now();
       e.preventDefault();
       const delta = e.deltaY > 0 ? 1.1 : 0.9;
       ctx.setZoom(ctx.getZoom() * delta);
