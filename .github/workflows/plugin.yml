@@ -1,0 +1,79 @@
+name: plugin
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugin/**"
+      - "theia-panel/**"
+      - "schemas/**"
+      - "Makefile"
+      - ".github/workflows/plugin.yml"
+  pull_request:
+    paths:
+      - "plugin/**"
+      - "theia-panel/**"
+      - "schemas/**"
+      - "Makefile"
+      - ".github/workflows/plugin.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: theia-panel/package-lock.json
+
+      # Install dependencies
+      - name: Install theia-core
+        working-directory: theia-core
+        run: pip install -e ".[dev]"
+
+      - name: Install theia-panel
+        working-directory: theia-panel
+        run: npm ci
+
+      - name: Install plugin linter deps
+        run: pip install ruff
+
+      # Validate plugin structure
+      - name: Validate plugin manifest
+        run: make test-plugin
+
+      # Lint plugin
+      - name: Lint plugin API
+        run: make lint-plugin
+
+      # Build
+      - name: Generate types from schema
+        working-directory: theia-panel
+        run: npm run generate-types
+
+      - name: Build graph from fixtures
+        run: python -m theia_core examples/sessions -o examples/graph.json
+
+      - name: Build embedded panel
+        run: make build-panel-embed
+
+      - name: Assemble plugin
+        run: make build-plugin
+
+      # Package
+      - name: Create plugin package
+        run: make package
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: theia-constellation-plugin
+          path: dist/theia-constellation-v*.tar.gz
+          retention-days: 30

@@ -1,8 +1,8 @@
 {
   "meta": {
-    "generated_at": "2026-04-21T15:12:16.314028Z",
+    "generated_at": "2026-04-23T16:55:08.564452Z",
     "source_count": 3,
-    "projection": "pca",
+    "projection": "umap",
     "feature_dim": 4
   },
   "nodes": [
@@ -15,8 +15,8 @@
       "message_count": 50,
       "model": "claude-opus-4-7",
       "position": {
-        "x": 5.263409943150801e-16,
-        "y": 0.5029945449101046
+        "x": 3.0080345491008233e-16,
+        "y": 0.5029945449101049
       },
       "features": null
     },
@@ -30,7 +30,7 @@
       "model": "claude-opus-4-7",
       "position": {
         "x": -0.9678580071207084,
-        "y": -0.25149727245505216
+        "y": -0.2514972724550523
       },
       "features": null
     },
@@ -43,7 +43,7 @@
       "message_count": 20,
       "model": "claude-opus-4-7",
       "position": {
-        "x": 0.9678580071207077,
+        "x": 0.9678580071207081,
         "y": -0.25149727245505255
       },
       "features": null
@@ -53,63 +53,12 @@
     {
       "source": "sess_alpha",
       "target": "sess_beta",
-      "kind": "memory-share",
-      "weight": 1.0,
-      "evidence": {
-        "memory_id": "mem_auth_design",
-        "read_count": 2,
-        "salience": 0.9
-      }
-    },
-    {
-      "source": "sess_alpha",
-      "target": "sess_beta",
       "kind": "cross-search",
       "weight": 1.0,
       "evidence": {
         "query": "auth middleware",
         "hit_rank": 1,
         "hits": 1
-      }
-    },
-    {
-      "source": "sess_alpha",
-      "target": "sess_beta",
-      "kind": "tool-overlap",
-      "weight": 0.6666666666666666,
-      "evidence": {
-        "jaccard": 0.6666666666666666,
-        "shared_tools": [
-          "edit",
-          "read"
-        ]
-      }
-    },
-    {
-      "source": "sess_alpha",
-      "target": "sess_gamma",
-      "kind": "tool-overlap",
-      "weight": 1.0,
-      "evidence": {
-        "jaccard": 1.0,
-        "shared_tools": [
-          "bash",
-          "edit",
-          "read"
-        ]
-      }
-    },
-    {
-      "source": "sess_beta",
-      "target": "sess_gamma",
-      "kind": "tool-overlap",
-      "weight": 0.6666666666666666,
-      "evidence": {
-        "jaccard": 0.6666666666666666,
-        "shared_tools": [
-          "edit",
-          "read"
-        ]
       }
     }
   ]
