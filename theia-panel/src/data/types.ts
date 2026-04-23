@@ -20,6 +20,8 @@ export interface TheiaGraph {
     tool_count: number;
     message_count?: number;
     model?: string;
+    summary?: string | null;
+    initial_prompt?: string | null;
     position: {
       x: number;
       y: number;

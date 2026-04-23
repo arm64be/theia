@@ -14,6 +14,32 @@ from theia_core.ingest import Session
 SCHEMA_PATH = Path(__file__).resolve().parents[2] / "schemas" / "graph.schema.json"
 
 
+def _extract_summary(sess: Session) -> str | None:
+    raw = sess.raw
+    if not raw:
+        return None
+    if "summary" in raw and isinstance(raw["summary"], str):
+        return raw["summary"]
+    return None
+
+
+def _extract_initial_prompt(sess: Session) -> str | None:
+    raw = sess.raw
+    if not raw:
+        return None
+    # Check explicit field first
+    if "initial_prompt" in raw and isinstance(raw["initial_prompt"], str):
+        return raw["initial_prompt"]
+    # Fallback: first user message content in messages array
+    messages = raw.get("messages", [])
+    for msg in messages:
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            content = msg.get("content", "")
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+    return None
+
+
 def _load_validator() -> Draft202012Validator:
     schema = json.loads(SCHEMA_PATH.read_text())
     return Draft202012Validator(schema)
@@ -38,6 +64,8 @@ def build_graph(
                 "tool_count": len(sess.tool_calls),
                 "message_count": sess.message_count,
                 "model": sess.model,
+                "summary": _extract_summary(sess),
+                "initial_prompt": _extract_initial_prompt(sess),
                 "position": {"x": float(x), "y": float(y)},
                 "features": None,
             }

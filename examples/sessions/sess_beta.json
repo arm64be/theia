@@ -1,14 +1,14 @@
 {
   "id": "sess_beta",
   "title": "Beta — reads auth memory",
+  "initial_prompt": "I need to implement auth middleware for our API. Can you help me understand the best approach for JWT validation and refresh token handling?",
   "started_at": "2026-04-18T11:00:00Z",
   "duration_sec": 800,
   "model": "claude-opus-4-7",
   "message_count": 32,
   "tool_calls": [{"name": "read"}, {"name": "edit"}],
   "memory_events": [
-    {"kind": "read", "memory_id": "mem_auth_design"},
-    {"kind": "read", "memory_id": "mem_auth_design"}
+    {"kind": "write", "memory_id": "mem_auth_design", "salience": 0.7}
   ],
   "search_hits": [
     {"query": "auth middleware", "source_session_id": "sess_alpha", "hit_rank": 1}

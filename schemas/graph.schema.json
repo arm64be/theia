@@ -31,6 +31,8 @@
           "tool_count": { "type": "integer", "minimum": 0 },
           "message_count": { "type": "integer", "minimum": 0 },
           "model": { "type": "string" },
+          "summary": { "type": ["string", "null"] },
+          "initial_prompt": { "type": ["string", "null"] },
           "position": {
             "type": "object",
             "required": ["x", "y"],
