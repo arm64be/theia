@@ -50,8 +50,6 @@ export async function mount(
 
   const edgesScene = new THREE.Scene();
   edgesScene.add(edges.group);
-  edges.rebuild(graph, kinds, nodeIndex);
-  ctx.scene.add(nodes.mesh);
 
   const { simulation, nodes: simNodes } = createSimulation(graph);
   simulation.stop();
@@ -71,6 +69,12 @@ export async function mount(
     edges.updatePositions(nodePositions);
   }
 
+  // Pre-warm simulation so edge z-positions are 3D on first build
+  tick();
+
+  edges.rebuild(graph, kinds, nodeIndex, nodePositions);
+  ctx.scene.add(nodes.mesh);
+
   let disposed = false;
   function frame() {
     if (disposed) return;
@@ -78,7 +82,7 @@ export async function mount(
     const t = performance.now() / 1000;
     nodes.setTime(t);
     edges.setTime(t);
-    nodes.material.uniforms.uCameraPos.value.copy(ctx.camera.position);
+    nodes.setCameraPosition(ctx.camera.position);
     post.renderEdges(edgesScene, ctx.camera);
     post.render();
     requestAnimationFrame(frame);
@@ -87,7 +91,7 @@ export async function mount(
 
   // Tooltip + hover
   const tooltip = createTooltip(element);
-  const picker = createPicker(element, ctx.camera, nodes);
+  const picker = createPicker(element, ctx.camera, nodes, nodePositions);
   let lastMouse = { x: 0, y: 0 };
   element.addEventListener("mousemove", (e) => {
     const r = element.getBoundingClientRect();
@@ -177,7 +181,7 @@ export async function mount(
   // Filter bar
   const filterBar = createFilterBar(element, kinds, (newKinds) => {
     kinds = newKinds;
-    edges.rebuild(graph, kinds, nodeIndex);
+    edges.rebuild(graph, kinds, nodeIndex, nodePositions);
   });
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {

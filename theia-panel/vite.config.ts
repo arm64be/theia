@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 
 export default defineConfig(({ command }) => ({
   server: {
-    port: 5179,
     ...(command === "serve" ? { fs: { allow: [".."] } } : {}),
   },
   ...(command === "serve" ? { publicDir: "../examples" } : {}),

@@ -6,6 +6,7 @@ import {
   type Simulation,
 } from "d3-force-3d";
 import type { TheiaGraph } from "../data/types";
+import { hashN11 } from "../util/hash";
 
 interface PhysicsNode {
   id: string;
@@ -52,7 +53,11 @@ function forceCluster(links: PhysicsLink[], strength = 0.03) {
   let nodes: PhysicsNode[] = [];
   function force(alpha: number) {
     const adj = new Map<string, Set<string>>();
-    for (const n of nodes) adj.set(n.id, new Set());
+    const nodeMap = new Map<string, PhysicsNode>();
+    for (const n of nodes) {
+      adj.set(n.id, new Set());
+      nodeMap.set(n.id, n);
+    }
     for (const l of links) {
       adj.get(l.source)?.add(l.target);
       adj.get(l.target)?.add(l.source);
@@ -66,7 +71,7 @@ function forceCluster(links: PhysicsLink[], strength = 0.03) {
       let cz = 0;
       let count = 0;
       for (const nid of neighbors) {
-        const neighbor = nodes.find((x) => x.id === nid);
+        const neighbor = nodeMap.get(nid);
         if (neighbor) {
           cx += neighbor.x;
           cy += neighbor.y;
@@ -124,16 +129,6 @@ function forceCollide(strength = 0.5) {
   return force;
 }
 
-/** Deterministic hash of a node id to [-1, 1]. */
-function hashId(id: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
-  }
-  return (((h >>> 0) % 1000) / 1000) * 2 - 1;
-}
-
 export function createSimulation(graph: TheiaGraph) {
   const spread = 1.8;
 
@@ -155,7 +150,7 @@ export function createSimulation(graph: TheiaGraph) {
     // Larger radius for visibility: base 0.08, up to 0.18 for hubs
     const radius = 0.08 + Math.min(0.1, degree * 0.008);
     const zSpread = 1.5;
-    const z = hashId(n.id) * zSpread;
+    const z = hashN11(n.id) * zSpread;
     return {
       id: n.id,
       x: n.position.x * spread,

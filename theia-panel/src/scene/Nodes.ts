@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { TheiaGraph } from "../data/types";
 import { PALETTE } from "../aesthetic";
+import { hash01 } from "../util/hash";
 
 const NODE_GLOW_TEXTURE = makeGlowTexture();
 
@@ -27,21 +28,11 @@ function makeGlowTexture(): THREE.Texture {
   return tex;
 }
 
-/** Simple string hash to a number in [0, 1). */
-function hashString(str: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
-  }
-  return ((h >>> 0) % 1000) / 1000;
-}
-
 /** Derive a slight tint from the model name, keeping the base amber feel. */
 function modelTintColor(model: string | undefined): THREE.Color {
   const base = new THREE.Color(PALETTE.nodeBase);
   if (!model) return base;
-  const hash = hashString(model);
+  const hash = hash01(model);
   const hsl = { h: 0, s: 0, l: 0 };
   base.getHSL(hsl);
   // Shift hue +/- 25 degrees for visible but tasteful model distinction
@@ -103,9 +94,9 @@ export interface NodeLayer {
   setPosition(i: number, x: number, y: number, z: number): void;
   setHighlight(i: number, on: boolean): void;
   setTime(t: number): void;
+  setCameraPosition(pos: THREE.Vector3): void;
   flush(): void;
   dispose(): void;
-  material: THREE.ShaderMaterial;
 }
 
 export function createNodes(graph: TheiaGraph): NodeLayer {
@@ -137,8 +128,8 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
     nodeSizes[i] = Math.min(0.18, 0.05 + Math.log1p(turns) * 0.014);
     nodeColors[i] = modelTintColor(node.model);
     // Spatial wave: coherent ripple across the constellation
-    nodeWaveOffsets[i] =
-      node.position.x * 2.0 + node.position.y * 1.5 + hashString(node.id) * 3.0;
+      nodeWaveOffsets[i] =
+      node.position.x * 2.0 + node.position.y * 1.5 + hash01(node.id) * 3.0;
   }
 
   for (let i = 0; i < n; i++) {
@@ -158,7 +149,6 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
   return {
     mesh,
     count: n,
-    material,
     setPosition(i, x, y, z) {
       mesh.getMatrixAt(i, dummy.matrix);
       dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
@@ -193,6 +183,9 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
         );
       }
       colorAttr.needsUpdate = true;
+    },
+    setCameraPosition(pos) {
+      material.uniforms.uCameraPos!.value.copy(pos);
     },
     flush() {
       mesh.instanceMatrix.needsUpdate = true;

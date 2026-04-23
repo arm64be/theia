@@ -34,6 +34,9 @@ export function createScene(container: HTMLElement): SceneContext {
   let theta = 0;
   let phi = Math.PI / 2;
 
+  const right = new THREE.Vector3();
+  const up = new THREE.Vector3();
+
   function updateCamera() {
     camera.position.x = target.x + radius * Math.sin(phi) * Math.sin(theta);
     camera.position.y = target.y + radius * Math.cos(phi);
@@ -60,10 +63,11 @@ export function createScene(container: HTMLElement): SceneContext {
     container,
     pan(dxPixel, dyPixel) {
       const panSpeed = radius * 0.0015;
-      const m = camera.matrixWorld.elements;
-      target.x += (-m[0] * dxPixel + m[4] * dyPixel) * panSpeed;
-      target.y += (-m[1] * dxPixel + m[5] * dyPixel) * panSpeed;
-      target.z += (-m[2] * dxPixel + m[6] * dyPixel) * panSpeed;
+      right.setFromMatrixColumn(camera.matrixWorld, 0);
+      up.setFromMatrixColumn(camera.matrixWorld, 1);
+      target.x += (-right.x * dxPixel + up.x * dyPixel) * panSpeed;
+      target.y += (-right.y * dxPixel + up.y * dyPixel) * panSpeed;
+      target.z += (-right.z * dxPixel + up.z * dyPixel) * panSpeed;
       updateCamera();
     },
     rotate(dxPixel, dyPixel) {

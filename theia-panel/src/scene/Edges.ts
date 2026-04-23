@@ -40,6 +40,7 @@ export interface EdgeLayer {
     graph: TheiaGraph,
     enabledKinds: Set<GraphEdge["kind"]>,
     nodeIndex: Map<string, number>,
+    nodePositions?: Float32Array,
   ): void;
   updatePositions(nodePositions: Float32Array): void;
   setHoverNode(nodeId: string | null): void;
@@ -60,6 +61,7 @@ export function createEdges(): EdgeLayer {
     graph: TheiaGraph,
     enabledKinds: Set<GraphEdge["kind"]>,
     nodeIndex: Map<string, number>,
+    nodePositions?: Float32Array,
   ) {
     currentNodeIndex = nodeIndex;
     // Clear existing
@@ -85,10 +87,10 @@ export function createEdges(): EdgeLayer {
         const t = graph.nodes[ti]!;
         positions[i * 6 + 0] = s.position.x;
         positions[i * 6 + 1] = s.position.y;
-        positions[i * 6 + 2] = 0;
+        positions[i * 6 + 2] = nodePositions ? (nodePositions[si * 3 + 2] ?? 0) : 0;
         positions[i * 6 + 3] = t.position.x;
         positions[i * 6 + 4] = t.position.y;
-        positions[i * 6 + 5] = 0;
+        positions[i * 6 + 5] = nodePositions ? (nodePositions[ti * 3 + 2] ?? 0) : 0;
         const baseOpacity =
           (SIZES.edgeOpacityByKind as Record<string, number>)[kind] ??
           SIZES.edgeOpacity;
