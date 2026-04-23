@@ -16,6 +16,7 @@ theia-panel/dist/
 
 # Generated
 theia-panel/public/graph.json
+examples/graph.json
 
 # Superpowers (brainstorming/plans sessions)
 .superpowers/

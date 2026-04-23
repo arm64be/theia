@@ -18,7 +18,11 @@
     <div id="app"></div>
     <script type="module">
       import { mount } from "/src/index.ts";
-      mount(document.getElementById("app"), "/graph.json").catch(console.error);
+      const ctrl = await mount(document.getElementById("app"), "/graph.json", {
+        pollIntervalMs: 5000,
+      });
+      // expose for debugging
+      window.theia = ctrl;
     </script>
   </body>
 </html>

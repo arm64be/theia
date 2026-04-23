@@ -7,7 +7,7 @@ import {
 } from "d3-force-3d";
 import type { TheiaGraph } from "../data/types";
 
-interface PhysicsNode {
+export interface PhysicsNode {
   id: string;
   x: number;
   y: number;
@@ -18,7 +18,7 @@ interface PhysicsNode {
   radius: number;
 }
 
-interface PhysicsLink {
+export interface PhysicsLink {
   source: string;
   target: string;
   weight: number;
