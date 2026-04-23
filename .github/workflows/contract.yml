@@ -20,7 +20,7 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Generate graph.json from example fixtures
         run: |
-          python -c "
+          PYTHONPATH=theia-core python -c "
           from pathlib import Path
           from tests.db_helpers import seed_test_db
           db = Path('/tmp/theia_example.db')
