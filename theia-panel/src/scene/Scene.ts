@@ -121,7 +121,12 @@ export function createScene(container: HTMLElement): SceneContext {
       return zoom;
     },
     getCameraState() {
-      return { target: { x: target.x, y: target.y, z: target.z }, theta, phi, zoom };
+      return {
+        target: { x: target.x, y: target.y, z: target.z },
+        theta,
+        phi,
+        zoom,
+      };
     },
     setCameraState(state) {
       if (rafId !== null) {

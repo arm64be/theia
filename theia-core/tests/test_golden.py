@@ -1,8 +1,8 @@
 from pathlib import Path
 
+from tests.db_helpers import seed_test_db
 from theia_core.detect.memory_share import detect_memory_share
 from theia_core.ingest import load_sessions
-from tests.db_helpers import seed_test_db
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "golden_sessions"
 

@@ -31,7 +31,9 @@ def _build(
         edges += detect_tool_overlap(sessions)
 
     matrix, feature_names = build_feature_matrix(sessions)
-    positions = project_to_2d(matrix, method=cast("Literal['pca', 'umap', 'tool-vector']", projection))
+    positions = project_to_2d(
+        matrix, method=cast("Literal['pca', 'umap', 'tool-vector']", projection)
+    )
     graph = build_graph(
         sessions=sessions,
         edges=edges,
@@ -65,8 +67,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--projection", choices=["pca", "umap", "tool-vector"], default="umap")
     parser.add_argument("--include-features", action="store_true")
     parser.add_argument("--disable-tool-overlap", action="store_true")
-    parser.add_argument("--watch", action="store_true", help="regenerate graph when the database changes")
-    parser.add_argument("--watch-interval", type=float, default=1.0, help="polling interval in seconds (default: 1.0)")
+    parser.add_argument(
+        "--watch", action="store_true", help="regenerate graph when the database changes"
+    )
+    parser.add_argument(
+        "--watch-interval",
+        type=float,
+        default=1.0,
+        help="polling interval in seconds (default: 1.0)",
+    )
     args = parser.parse_args(argv)
 
     def generate() -> None:

@@ -3,7 +3,7 @@ import type { NodeLayer } from "./Nodes";
 
 export interface PickerOptions {
   maxDistance?: number; // world units — nodes farther than this are ignored
-  sizeScale?: number;   // multiplier for projected node radius
+  sizeScale?: number; // multiplier for projected node radius
   shouldBlock?: () => boolean;
 }
 
@@ -21,7 +21,11 @@ export function createPicker(
   const listeners: Array<(i: number | null) => void> = [];
   const { maxDistance = 30, sizeScale = 1.1, shouldBlock } = options;
 
-  function pickNDC(ndcX: number, ndcY: number, radiusScale: number): number | null {
+  function pickNDC(
+    ndcX: number,
+    ndcY: number,
+    radiusScale: number,
+  ): number | null {
     let bestIdx: number | null = null;
     let bestScore = Infinity;
 

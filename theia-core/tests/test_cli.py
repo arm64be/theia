@@ -4,8 +4,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from theia_core.__main__ import main
 from tests.db_helpers import seed_test_db
+from theia_core.__main__ import main
 
 FIXTURE = Path(__file__).parent / "fixtures" / "golden_sessions"
 

@@ -77,7 +77,10 @@ export function createEdges(): EdgeLayer {
       // Deduplicate: only one edge per (source, target) pair, keep highest weight
       const seen = new Map<string, GraphEdge>();
       for (const e of edgesRaw) {
-        const key = e.source < e.target ? `${e.source}|${e.target}` : `${e.target}|${e.source}`;
+        const key =
+          e.source < e.target
+            ? `${e.source}|${e.target}`
+            : `${e.target}|${e.source}`;
         const existing = seen.get(key);
         if (!existing || e.weight > existing.weight) {
           seen.set(key, e);

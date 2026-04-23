@@ -261,6 +261,7 @@ def load_sessions(db_path: Path) -> list[Session]:
 # Legacy JSON/JSONL parsing (kept for tests and fixture consumption)
 # ---------------------------------------------------------------------------
 
+
 def _parse_fixture_json(path: Path) -> Session:
     """Parse the hand-crafted fixture format (sess_*.json)."""
     data = json.loads(path.read_text())
