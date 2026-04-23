@@ -26,6 +26,7 @@
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "title": { "type": "string" },
+          "preview": { "type": ["string", "null"] },
           "started_at": { "type": "string", "format": "date-time" },
           "duration_sec": { "type": "number", "minimum": 0 },
           "tool_count": { "type": "integer", "minimum": 0 },

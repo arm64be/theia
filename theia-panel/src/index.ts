@@ -2,15 +2,15 @@ import * as THREE from "three";
 import { loadGraph } from "./data/load";
 import type { TheiaGraph } from "./data/types";
 import { createScene } from "./scene/Scene";
-import { createNodes } from "./scene/Nodes";
+import { createNodes, type NodeLayer } from "./scene/Nodes";
 import { createEdges } from "./scene/Edges";
 import { createPost } from "./scene/Post";
 import { createSimulation } from "./physics/Simulation";
 import { createPicker } from "./scene/Picker";
 import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
-import { createSidePanel } from "./ui/SidePanel";
 import { createSearchBar } from "./ui/SearchBar";
+import { createSidePanel } from "./ui/SidePanel";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -20,6 +20,7 @@ export interface Controller {
   destroy(): void;
   on(event: "node-click", handler: (nodeId: string) => void): void;
   on(event: "node-hover", handler: (nodeId: string | null) => void): void;
+  reload(graphUrl?: string): Promise<void>;
 }
 
 const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = [
@@ -32,30 +33,109 @@ export async function mount(
   graphUrl: string,
   options: PanelOptions = {},
 ): Promise<Controller> {
-  const graph: TheiaGraph = await loadGraph(graphUrl);
-
   element.style.position ||= "relative";
   element.style.overflow = "hidden";
+
   const ctx = createScene(element);
   ctx.setZoom(0.5);
-  const nodes = createNodes(graph);
+
   const edges = createEdges();
+  const edgesScene = new THREE.Scene();
+  edgesScene.add(edges.group);
+
   const post = createPost(ctx.renderer, ctx.scene, ctx.camera, element);
   const originalResize = ctx.resize;
   ctx.resize = () => {
     originalResize();
     post.resize();
   };
-  const nodeIndex = new Map(graph.nodes.map((n, i) => [n.id, i]));
+
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
 
-  const edgesScene = new THREE.Scene();
-  edgesScene.add(edges.group);
+  // Mutable graph-specific state — closures capture the binding, not the value
+  let currentGraph: TheiaGraph;
+  let nodes: NodeLayer;
+  let nodeIndex = new Map<string, number>();
+  let nodePositions = new Float32Array(0);
+  let simNodes: ReturnType<typeof createSimulation>["nodes"] = [];
+  let simulation: ReturnType<typeof createSimulation>["simulation"];
+  let picker: ReturnType<typeof createPicker>;
+  let searchBar: ReturnType<typeof createSearchBar>;
 
-  const { simulation, nodes: simNodes } = createSimulation(graph);
-  simulation.stop();
+  const tooltip = createTooltip(element);
+  const sidePanel = createSidePanel(element);
 
-  const nodePositions = new Float32Array(simNodes.length * 3);
+  let lastMouse = { x: 0, y: 0 };
+
+  function setupGraph(g: TheiaGraph) {
+    simulation?.stop();
+
+    if (nodes) {
+      ctx.scene.remove(nodes.mesh);
+      nodes.dispose();
+    }
+
+    currentGraph = g;
+    nodes = createNodes(g);
+    ctx.scene.add(nodes.mesh);
+
+    const simResult = createSimulation(g);
+    simulation = simResult.simulation;
+    simNodes = simResult.nodes;
+    simulation.stop();
+
+    nodePositions = new Float32Array(simNodes.length * 3);
+    nodeIndex = new Map(g.nodes.map((n, i) => [n.id, i]));
+
+    // Pre-warm simulation so edge z-positions are 3D on first build
+    simulation.tick(1);
+    for (let i = 0; i < simNodes.length; i++) {
+      const sn = simNodes[i]!;
+      nodes.setPosition(i, sn.x, sn.y, sn.z);
+      nodePositions[i * 3 + 0] = sn.x;
+      nodePositions[i * 3 + 1] = sn.y;
+      nodePositions[i * 3 + 2] = sn.z;
+    }
+    nodes.flush();
+
+    edges.rebuild(g, kinds, nodeIndex, nodePositions);
+    post.resize();
+
+    picker?.dispose();
+    picker = createPicker(element, ctx.camera, nodes, nodePositions);
+    picker.onHover((idx) => {
+      const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
+      edges.setHoverNode(nodeId);
+      if (idx === null) {
+        tooltip.hide();
+      } else {
+        nodes.setHighlight(idx, true);
+        nodes.flush();
+        tooltip.show(currentGraph.nodes[idx]!, lastMouse.x, lastMouse.y);
+      }
+      for (let i = 0; i < nodes.count; i++) {
+        if (i !== idx) nodes.setHighlight(i, false);
+      }
+      nodes.flush();
+      emit("node-hover", idx === null ? null : currentGraph.nodes[idx]!.id);
+    });
+
+    searchBar?.dispose();
+    searchBar = createSearchBar(element, currentGraph, (result) => {
+      const idx = nodeIndex.get(result.node.id);
+      if (idx !== undefined) {
+        const sn = simNodes[idx]!;
+        ctx.focusOn(sn.x, sn.y, 1.5);
+      }
+      const related = currentGraph.edges.filter(
+        (e) => e.source === result.node.id || e.target === result.node.id,
+      );
+      sidePanel.show(result.node, related);
+    });
+  }
+
+  const initialGraph = await loadGraph(graphUrl);
+  setupGraph(initialGraph);
 
   function tick() {
     simulation.tick(1);
@@ -69,12 +149,6 @@ export async function mount(
     nodes.flush();
     edges.updatePositions(nodePositions);
   }
-
-  // Pre-warm simulation so edge z-positions are 3D on first build
-  tick();
-
-  edges.rebuild(graph, kinds, nodeIndex, nodePositions);
-  ctx.scene.add(nodes.mesh);
 
   let disposed = false;
   function frame() {
@@ -90,32 +164,12 @@ export async function mount(
   }
   requestAnimationFrame(frame);
 
-  // Tooltip + hover
-  const tooltip = createTooltip(element);
-  const picker = createPicker(element, ctx.camera, nodes, nodePositions);
-  let lastMouse = { x: 0, y: 0 };
   element.addEventListener("mousemove", (e) => {
     const r = element.getBoundingClientRect();
     lastMouse = { x: e.clientX - r.left, y: e.clientY - r.top };
   });
-  picker.onHover((idx) => {
-    const nodeId = idx === null ? null : graph.nodes[idx]!.id;
-    edges.setHoverNode(nodeId);
-    if (idx === null) {
-      tooltip.hide();
-    } else {
-      nodes.setHighlight(idx, true);
-      nodes.flush();
-      tooltip.show(graph.nodes[idx]!, lastMouse.x, lastMouse.y);
-    }
-    for (let i = 0; i < nodes.count; i++) {
-      if (i !== idx) nodes.setHighlight(i, false);
-    }
-    nodes.flush();
-  });
 
   // Click / drag handling
-  const sidePanel = createSidePanel(element);
   let isMouseDown = false;
   let hasDragged = false;
   let mouseDownPos = { x: 0, y: 0 };
@@ -151,8 +205,8 @@ export async function mount(
     if (isMouseDown && !hasDragged) {
       const idx = picker.currentHovered();
       if (idx !== null) {
-        const n = graph.nodes[idx]!;
-        const related = graph.edges.filter(
+        const n = currentGraph.nodes[idx]!;
+        const related = currentGraph.edges.filter(
           (e) => e.source === n.id || e.target === n.id,
         );
         sidePanel.show(n, related);
@@ -179,23 +233,10 @@ export async function mount(
     { passive: false },
   );
 
-  // Search bar
-  const searchBar = createSearchBar(element, graph, (result) => {
-    const idx = nodeIndex.get(result.node.id);
-    if (idx !== undefined) {
-      const sn = simNodes[idx]!;
-      ctx.focusOn(sn.x, sn.y, 1.5);
-    }
-    const related = graph.edges.filter(
-      (e) => e.source === result.node.id || e.target === result.node.id,
-    );
-    sidePanel.show(result.node, related);
-  });
-
   // Filter bar
   const filterBar = createFilterBar(element, kinds, (newKinds) => {
     kinds = newKinds;
-    edges.rebuild(graph, kinds, nodeIndex, nodePositions);
+    edges.rebuild(currentGraph, kinds, nodeIndex, nodePositions);
   });
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
@@ -205,10 +246,6 @@ export async function mount(
   function emit(event: string, ...args: unknown[]) {
     (listeners[event] ?? []).forEach((fn) => fn(...args));
   }
-
-  picker.onHover((idx) => {
-    emit("node-hover", idx === null ? null : graph.nodes[idx]!.id);
-  });
 
   return {
     destroy() {
@@ -229,6 +266,27 @@ export async function mount(
     },
     on(event, handler) {
       (listeners[event] ??= []).push(handler as never);
+    },
+    async reload(url?: string) {
+      const targetUrl = url ?? graphUrl;
+      const newGraph = await loadGraph(targetUrl);
+
+      const cameraState = ctx.getCameraState();
+      const selectedId = sidePanel.currentNodeId();
+
+      setupGraph(newGraph);
+
+      ctx.setCameraState(cameraState);
+      if (selectedId !== null) {
+        const idx = nodeIndex.get(selectedId);
+        if (idx !== undefined) {
+          const n = currentGraph.nodes[idx]!;
+          const related = currentGraph.edges.filter(
+            (e) => e.source === n.id || e.target === n.id,
+          );
+          sidePanel.show(n, related);
+        }
+      }
     },
   };
 }

@@ -60,8 +60,9 @@ export function createSearchBar(
   function matches(node: TheiaGraph["nodes"][number], query: string) {
     const q = normalize(query);
     return (
-      normalize(node.title).includes(q) ||
+      normalize(node.title || "").includes(q) ||
       normalize(node.id).includes(q) ||
+      (node.preview && normalize(node.preview).includes(q)) ||
       (node.summary && normalize(node.summary).includes(q)) ||
       (node.initial_prompt && normalize(node.initial_prompt).includes(q))
     );
@@ -94,8 +95,9 @@ export function createSearchBar(
         border-bottom: 1px solid rgba(255,255,255,0.05);
         transition: background 100ms;
       ">
-        <div style="font-weight:600;color:#ffc477">${escape(r.node.title)}</div>
+        <div style="font-weight:600;color:#ffc477">${escape(r.node.title || r.node.id)}</div>
         <div style="opacity:0.6;font-size:11px">${escape(r.node.id)} · ${Math.round(r.node.duration_sec)}s</div>
+        ${r.node.preview ? `<div style="opacity:0.5;font-size:10px;margin-top:2px">${escape(r.node.preview)}</div>` : ""}
       </div>
     `,
       )

@@ -15,6 +15,7 @@ export interface TheiaGraph {
   nodes: {
     id: string;
     title: string;
+    preview?: string | null;
     started_at: string;
     duration_sec: number;
     tool_count: number;

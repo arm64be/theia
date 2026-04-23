@@ -10,6 +10,9 @@ function renderSummaryBlock(node: TheiaGraph["nodes"][number]): string {
   if (node.initial_prompt) {
     return `<div style="margin-top:10px;padding:10px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#b8d4e3;font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, SUMMARY_MAX_CHARS))}</div>`;
   }
+  if (node.preview) {
+    return `<div style="margin-top:10px;padding:10px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#b8d4e3;font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">PREVIEW</div>${escape(truncate(node.preview, SUMMARY_MAX_CHARS))}</div>`;
+  }
   return "";
 }
 
@@ -38,7 +41,7 @@ export function createSidePanel(container: HTMLElement) {
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
         style="position:absolute;top:10px;right:14px;background:none;border:none;color:#cfd6e4;font-size:18px;cursor:pointer">×</button>
-      <h3 style="margin:0 0 2px;color:#ffc477;font-size:16px">${escape(node.title)}</h3>
+      <h3 style="margin:0 0 2px;color:#ffc477;font-size:16px">${escape(node.title || node.id)}</h3>
       <div style="opacity:0.55;margin-bottom:2px;font-size:11px">${node.id}</div>
       ${headerSummary}
       <dl style="margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px">

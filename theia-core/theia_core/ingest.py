@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,6 +41,7 @@ class Session:
     tool_calls: tuple[ToolCall, ...]
     memory_events: tuple[MemoryEvent, ...]
     search_hits: tuple[SearchHit, ...]
+    preview: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -49,6 +51,12 @@ def _parse_iso(s: str) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt
+
+
+def _datetime_from_timestamp(ts: float | None) -> datetime:
+    if ts is None:
+        return datetime.now(UTC)
+    return datetime.fromtimestamp(ts, tz=UTC)
 
 
 def _extract_tool_calls_from_messages(messages: list[dict[str, Any]]) -> list[ToolCall]:
@@ -81,8 +89,6 @@ def _infer_memory_events(tool_calls: list[ToolCall]) -> list[MemoryEvent]:
         write_actions = {"write", "store", "save", "add", "replace", "remove"}
         kind = "write" if action in write_actions else "read"
 
-        # Prefer explicit ids; fall back to a hash of the content being modified
-        # so that sessions touching the same text are linked.
         mem_id = str(args.get("memory_id", args.get("id", "")))
         if not mem_id:
             content = ""
@@ -100,11 +106,7 @@ def _infer_search_hits(
     session_id: str,
     messages: list[dict[str, Any]],
 ) -> list[SearchHit]:
-    """Heuristic: treat cross-session search tool calls as search hits.
-
-    Parses tool responses to extract the actual searched session_ids.
-    """
-    # Build map of tool_call_id -> response content dict
+    """Heuristic: treat cross-session search tool calls as search hits."""
     responses: dict[str, dict[str, Any]] = {}
     for msg in messages:
         if msg.get("role") != "tool":
@@ -132,7 +134,6 @@ def _infer_search_hits(
         except json.JSONDecodeError:
             args = {}
         query = str(args.get("query", ""))
-        # Try arguments first, then tool response results
         source = str(args.get("source_session_id", ""))
         if not source:
             resp = responses.get(tc.raw.get("id", tc.raw.get("call_id", "")), {})
@@ -160,6 +161,105 @@ def _infer_search_hits(
         )
     return hits
 
+
+def _build_preview(messages: list[dict[str, Any]]) -> str:
+    """Return first 60 chars of first user message content, with ellipsis if truncated."""
+    for msg in messages:
+        if msg.get("role") == "user":
+            content = msg.get("content", "")
+            if isinstance(content, str) and content.strip():
+                stripped = content.strip()
+                text = stripped[:60]
+                return text + ("..." if len(stripped) > 60 else "")
+    return ""
+
+
+def load_sessions(db_path: Path) -> list[Session]:
+    """Load top-level sessions from a Hermes SQLite database.
+
+    Queries ``sessions`` and ``messages`` tables, extracting tool calls,
+    memory events, search hits, and preview text.
+    """
+    db_path = Path(db_path)
+    if not db_path.exists():
+        raise FileNotFoundError(f"database not found: {db_path}")
+
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+
+    try:
+        cursor = conn.execute(
+            """
+            SELECT id, title, source, model, started_at, ended_at,
+                   message_count, tool_call_count, parent_session_id
+            FROM sessions
+            WHERE parent_session_id IS NULL
+            ORDER BY started_at
+            """
+        )
+
+        sessions: list[Session] = []
+        for row in cursor.fetchall():
+            session_id = row["id"]
+            title = row["title"] or session_id
+
+            msg_cursor = conn.execute(
+                """
+                SELECT role, content, tool_calls, tool_call_id, timestamp
+                FROM messages
+                WHERE session_id = ?
+                ORDER BY timestamp, id
+                """,
+                (session_id,),
+            )
+
+            messages: list[dict[str, Any]] = []
+            for msg_row in msg_cursor.fetchall():
+                msg: dict[str, Any] = {
+                    "role": msg_row["role"],
+                    "content": msg_row["content"],
+                    "tool_call_id": msg_row["tool_call_id"],
+                }
+                if msg_row["tool_calls"]:
+                    try:
+                        msg["tool_calls"] = json.loads(msg_row["tool_calls"])
+                    except json.JSONDecodeError:
+                        msg["tool_calls"] = []
+                messages.append(msg)
+
+            tool_calls = _extract_tool_calls_from_messages(messages)
+            memory_events = _infer_memory_events(tool_calls)
+            search_hits = _infer_search_hits(tool_calls, session_id, messages)
+            preview = _build_preview(messages)
+
+            started_at = _datetime_from_timestamp(row["started_at"])
+            ended_at = _datetime_from_timestamp(row["ended_at"])
+            duration_sec = max(0.0, (ended_at - started_at).total_seconds())
+
+            sessions.append(
+                Session(
+                    id=session_id,
+                    title=title,
+                    started_at=started_at,
+                    duration_sec=duration_sec,
+                    model=row["model"] or "unknown",
+                    message_count=row["message_count"] or 0,
+                    tool_calls=tuple(tool_calls),
+                    memory_events=tuple(memory_events),
+                    search_hits=tuple(search_hits),
+                    preview=preview,
+                    raw={"db_row": dict(row), "messages": messages},
+                )
+            )
+
+        return sessions
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Legacy JSON/JSONL parsing (kept for tests and fixture consumption)
+# ---------------------------------------------------------------------------
 
 def _parse_fixture_json(path: Path) -> Session:
     """Parse the hand-crafted fixture format (sess_*.json)."""
@@ -236,7 +336,6 @@ def _parse_jsonl(path: Path) -> Session:
     session_id = path.stem
     model = meta.get("model") or "unknown"
 
-    # Derive timing from message timestamps
     timestamps: list[datetime] = []
     for m in messages:
         ts = m.get("timestamp")
@@ -282,7 +381,6 @@ def parse_session(path: Path) -> Session:
     if path.suffix == ".jsonl":
         return _parse_jsonl(path)
 
-    # For .json files, peek at content to decide format
     data = json.loads(path.read_text())
     if _is_fixture_format(data):
         return _parse_fixture_json(path)
@@ -290,27 +388,3 @@ def parse_session(path: Path) -> Session:
         return _parse_session_json(path)
 
     raise ValueError(f"unrecognized JSON format in {path}")
-
-
-def load_sessions(directory: Path) -> list[Session]:
-    directory = Path(directory)
-    # Collect known session file patterns; explicitly skip request dumps
-    paths = sorted(
-        set(
-            list(directory.glob("session_*.json"))
-            + list(directory.glob("session_cron_*.json"))
-            + list(directory.glob("*.jsonl"))
-            + list(directory.glob("*.json"))
-        )
-    )
-    sessions: list[Session] = []
-    for p in paths:
-        if p.name.startswith("request_dump_"):
-            continue
-        try:
-            sessions.append(parse_session(p))
-        except (KeyError, ValueError, json.JSONDecodeError) as exc:
-            import warnings
-
-            warnings.warn(f"skipping {p.name}: {exc}", stacklevel=2)
-    return sessions

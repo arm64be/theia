@@ -72,8 +72,18 @@ export function createEdges(): EdgeLayer {
     lineSegmentsByKind.clear();
 
     for (const kind of enabledKinds) {
-      const edges = graph.edges.filter((e) => e.kind === kind);
-      if (edges.length === 0) continue;
+      const edgesRaw = graph.edges.filter((e) => e.kind === kind);
+      if (edgesRaw.length === 0) continue;
+      // Deduplicate: only one edge per (source, target) pair, keep highest weight
+      const seen = new Map<string, GraphEdge>();
+      for (const e of edgesRaw) {
+        const key = e.source < e.target ? `${e.source}|${e.target}` : `${e.target}|${e.source}`;
+        const existing = seen.get(key);
+        if (!existing || e.weight > existing.weight) {
+          seen.set(key, e);
+        }
+      }
+      const edges = Array.from(seen.values());
       const positions = new Float32Array(edges.length * 6);
       const opacities = new Float32Array(edges.length * 2);
       const phases = new Float32Array(edges.length * 2);

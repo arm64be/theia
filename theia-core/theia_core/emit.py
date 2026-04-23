@@ -24,13 +24,14 @@ def _extract_summary(sess: Session) -> str | None:
 
 
 def _extract_initial_prompt(sess: Session) -> str | None:
+    """Return the first user message content, or None."""
+    if sess.preview:
+        return sess.preview
     raw = sess.raw
     if not raw:
         return None
-    # Check explicit field first
     if "initial_prompt" in raw and isinstance(raw["initial_prompt"], str):
         return raw["initial_prompt"]
-    # Fallback: first user message content in messages array
     messages = raw.get("messages", [])
     for msg in messages:
         if isinstance(msg, dict) and msg.get("role") == "user":
@@ -59,6 +60,7 @@ def build_graph(
             {
                 "id": sess.id,
                 "title": sess.title,
+                "preview": sess.preview,
                 "started_at": sess.started_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
                 "duration_sec": sess.duration_sec,
                 "tool_count": len(sess.tool_calls),
