@@ -17,7 +17,7 @@ export function createScene(container: HTMLElement): SceneContext {
   const scene = new THREE.Scene();
 
   const { clientWidth: w, clientHeight: h } = container;
-  const aspect = w / h;
+  let aspect = w / h;
   const baseSize = 2.0; // visible window = larger to accommodate spread
   const camera = new THREE.OrthographicCamera(
     -baseSize * aspect,
@@ -51,14 +51,8 @@ export function createScene(container: HTMLElement): SceneContext {
 
   const resize = () => {
     const { clientWidth: w2, clientHeight: h2 } = container;
-    const a = w2 / h2;
-    // Update aspect ratio but keep current zoom/pan
-    const s = baseSize / zoom;
-    camera.left = -s * a + panX;
-    camera.right = s * a + panX;
-    camera.top = s + panY;
-    camera.bottom = -s + panY;
-    camera.updateProjectionMatrix();
+    aspect = w2 / h2;
+    apply();
     renderer.setSize(w2, h2, false);
   };
 
@@ -108,6 +102,7 @@ export function createScene(container: HTMLElement): SceneContext {
     },
     resize,
     dispose() {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       ro.disconnect();
       renderer.dispose();
       container.removeChild(renderer.domElement);

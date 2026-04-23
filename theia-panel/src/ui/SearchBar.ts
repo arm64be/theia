@@ -73,16 +73,14 @@ export function createSearchBar(
       dropdown.innerHTML = "";
       return;
     }
-    const results: SearchResult[] = [];
     const resultByIndex = new Map<number, SearchResult>();
     for (let i = 0; i < graph.nodes.length; i++) {
       const node = graph.nodes[i]!;
       if (matches(node, query)) {
-        const r = { node, index: i };
-        results.push(r);
-        resultByIndex.set(i, r);
+        resultByIndex.set(i, { node, index: i });
       }
     }
+    const results = Array.from(resultByIndex.values());
     if (results.length === 0) {
       dropdown.style.display = "none";
       dropdown.innerHTML = "";

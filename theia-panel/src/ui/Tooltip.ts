@@ -1,6 +1,18 @@
 import type { TheiaGraph } from "../data/types";
 import { escape, truncate } from "./utils";
 
+const TOOLTIP_MAX_CHARS = 180;
+
+function renderSummaryBlock(node: TheiaGraph["nodes"][number]): string {
+  if (node.summary) {
+    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(255,196,119,0.07);border-left:2px solid #ffc477;border-radius:0 4px 4px 0;color:#e8dcc8;font-size:11px;line-height:1.45">${escape(truncate(node.summary, TOOLTIP_MAX_CHARS))}</div>`;
+  }
+  if (node.initial_prompt) {
+    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#b8d4e3;font-size:11px;line-height:1.45"><div style="opacity:0.5;font-size:9px;letter-spacing:0.5px;margin-bottom:2px">PROMPT</div>${escape(truncate(node.initial_prompt, TOOLTIP_MAX_CHARS))}</div>`;
+  }
+  return "";
+}
+
 export function createTooltip(container: HTMLElement) {
   const el = document.createElement("div");
   el.style.cssText = `
@@ -14,11 +26,7 @@ export function createTooltip(container: HTMLElement) {
   container.appendChild(el);
 
   function show(node: TheiaGraph["nodes"][number], x: number, y: number) {
-    const identity = node.summary
-      ? `<div style="margin-top:6px;padding:6px 8px;background:rgba(255,196,119,0.07);border-left:2px solid #ffc477;border-radius:0 4px 4px 0;color:#e8dcc8;font-size:11px;line-height:1.45">${escape(truncate(node.summary, 180))}</div>`
-      : node.initial_prompt
-        ? `<div style="margin-top:6px;padding:6px 8px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#b8d4e3;font-size:11px;line-height:1.45"><div style="opacity:0.5;font-size:9px;letter-spacing:0.5px;margin-bottom:2px">PROMPT</div>${escape(truncate(node.initial_prompt, 180))}</div>`
-        : "";
+    const identity = renderSummaryBlock(node);
 
     el.innerHTML = `
       <div style="font-weight:600;color:#ffc477;font-size:13px">${escape(node.title)}</div>

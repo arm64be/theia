@@ -1,6 +1,18 @@
 import type { TheiaGraph } from "../data/types";
 import { escape, truncate } from "./utils";
 
+const SUMMARY_MAX_CHARS = 280;
+
+function renderSummaryBlock(node: TheiaGraph["nodes"][number]): string {
+  if (node.summary) {
+    return `<div style="margin-top:10px;padding:10px;background:rgba(255,196,119,0.08);border-left:2px solid #ffc477;border-radius:0 4px 4px 0;color:#e8dcc8;font-size:12px;line-height:1.5">${escape(node.summary)}</div>`;
+  }
+  if (node.initial_prompt) {
+    return `<div style="margin-top:10px;padding:10px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#b8d4e3;font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, SUMMARY_MAX_CHARS))}</div>`;
+  }
+  return "";
+}
+
 export function createSidePanel(container: HTMLElement) {
   const el = document.createElement("aside");
   el.style.cssText = `
@@ -21,11 +33,7 @@ export function createSidePanel(container: HTMLElement) {
   ) {
     currentId = node.id;
 
-    const headerSummary = node.summary
-      ? `<div style="margin-top:10px;padding:10px;background:rgba(255,196,119,0.08);border-left:2px solid #ffc477;border-radius:0 4px 4px 0;color:#e8dcc8;font-size:12px;line-height:1.5">${escape(node.summary)}</div>`
-      : node.initial_prompt
-        ? `<div style="margin-top:10px;padding:10px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#b8d4e3;font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, 280))}</div>`
-        : "";
+    const headerSummary = renderSummaryBlock(node);
 
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
@@ -72,33 +80,33 @@ function renderEdge(
   const isSource = e.source === node.id;
   const otherId = isSource ? e.target : e.source;
   const direction = isSource ? "→" : "←";
-  const evidence = e.evidence ?? {};
+  const ev = (e.evidence ?? {}) as Record<string, unknown>;
 
   let detail = "";
   if (e.kind === "memory-share") {
-    const memId = (evidence as Record<string, unknown>).memory_id;
-    const salience = (evidence as Record<string, unknown>).salience;
-    const readCount = (evidence as Record<string, unknown>).read_count;
+    const memId = ev.memory_id;
+    const salience = ev.salience;
+    const readCount = ev.read_count;
     detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
       memory: <span style="color:#ffc477">${escape(String(memId ?? "?"))}</span>
       ${salience !== undefined ? `· salience ${Number(salience).toFixed(2)}` : ""}
       ${readCount !== undefined ? `· reads ${readCount}` : ""}
     </div>`;
   } else if (e.kind === "cross-search") {
-    const query = (evidence as Record<string, unknown>).query;
-    const hitRank = (evidence as Record<string, unknown>).hit_rank;
-    const hits = (evidence as Record<string, unknown>).hits;
+    const query = ev.query;
+    const hitRank = ev.hit_rank;
+    const hits = ev.hits;
     detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
       query: <span style="color:#66d9ef">${escape(String(query ?? "?"))}</span>
       ${hitRank !== undefined ? `· rank #${hitRank}` : ""}
       ${hits !== undefined ? `· ${hits} hit${Number(hits) === 1 ? "" : "s"}` : ""}
     </div>`;
   } else if (e.kind === "tool-overlap") {
-    const sharedTools = (evidence as Record<string, unknown>).shared_tools;
-    const jaccard = (evidence as Record<string, unknown>).jaccard;
-    const skillName = (evidence as Record<string, unknown>).skill_name;
-    const linkType = (evidence as Record<string, unknown>).link_type;
-    const webKey = (evidence as Record<string, unknown>).web_key;
+    const sharedTools = ev.shared_tools;
+    const jaccard = ev.jaccard;
+    const skillName = ev.skill_name;
+    const linkType = ev.link_type;
+    const webKey = ev.web_key;
     if (sharedTools && Array.isArray(sharedTools)) {
       detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
         shared: ${sharedTools.map((t: string) => `<span style="color:#b089ff">${escape(t)}</span>`).join(" ")}
