@@ -24,9 +24,7 @@ def _extract_summary(sess: Session) -> str | None:
 
 
 def _extract_initial_prompt(sess: Session) -> str | None:
-    """Return the first user message content, or None."""
-    if sess.preview:
-        return sess.preview
+    """Return the full first user message content, or None."""
     raw = sess.raw
     if not raw:
         return None

@@ -84,7 +84,7 @@ All workflows live under `.github/workflows/`. Vercel preview deploys were
 removed; deployment now happens inside the Hermes dashboard.
 
 | Workflow       | Triggers (paths)                                                                 | What it runs                                                                                                        | PR job name |
-|----------------|----------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|-------------------|-------------|
+|----------------|----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|-------------|
 | `contract.yml` | push to `main` / PR touching `theia-core/**`, `theia-panel/**`, `schemas/**`, `examples/**` | Install core, regenerate `examples/graph.json` from `examples/sessions`, validate with `check-jsonschema`, then `npm ci`, `generate-types`, and `vitest run` in the panel. | `contract`  |
 | `core.yml`     | push to `main` / PR touching `theia-core/**`, `schemas/**`, `core.yml`           | In `theia-core`: `pip install -e ".[dev]"`, `ruff check .`, `ruff format --check .`, `mypy theia_core`, `pytest -q`. | `test`      |
 | `panel.yml`    | push to `main` / PR touching `theia-panel/**`, `schemas/**`, `panel.yml`         | In `theia-panel`: `npm ci`, `generate-types`, `typecheck`, `test`, `build`, `format:check`.                         | `build`     |

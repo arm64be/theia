@@ -40,6 +40,8 @@ export async function mount(
   ctx.setZoom(0.5);
 
   const edges = createEdges();
+  // Edges are rendered into a separate scene so the post-processing pipeline
+  // can apply bloom to them independently of the nodes.
   const edgesScene = new THREE.Scene();
   edgesScene.add(edges.group);
 

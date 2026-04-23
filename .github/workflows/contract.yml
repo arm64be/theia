@@ -18,6 +18,16 @@ jobs:
       - name: Install core
         working-directory: theia-core
         run: pip install -e ".[dev]"
+      - name: Generate graph.json from example fixtures
+        run: |
+          python -c "
+          from pathlib import Path
+          from tests.db_helpers import seed_test_db
+          db = Path('/tmp/theia_example.db')
+          seed_test_db(db, Path('examples/sessions'))
+          print(f'seeded {db}')
+          "
+          python -m theia_core --db-path /tmp/theia_example.db -o examples/graph.json
       - name: Validate example graph against schema
         run: |
           pip install check-jsonschema

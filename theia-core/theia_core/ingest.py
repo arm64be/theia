@@ -162,15 +162,18 @@ def _infer_search_hits(
     return hits
 
 
+PREVIEW_TRUNCATION = 60
+
+
 def _build_preview(messages: list[dict[str, Any]]) -> str:
-    """Return first 60 chars of first user message content, with ellipsis if truncated."""
+    """Return truncated first user message (see PREVIEW_TRUNCATION)."""
     for msg in messages:
         if msg.get("role") == "user":
             content = msg.get("content", "")
             if isinstance(content, str) and content.strip():
                 stripped = content.strip()
-                text = stripped[:60]
-                return text + ("..." if len(stripped) > 60 else "")
+                text = stripped[:PREVIEW_TRUNCATION]
+                return text + ("..." if len(stripped) > PREVIEW_TRUNCATION else "")
     return ""
 
 
@@ -186,6 +189,7 @@ def load_sessions(db_path: Path) -> list[Session]:
 
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
 
     try:
         cursor = conn.execute(
@@ -197,24 +201,24 @@ def load_sessions(db_path: Path) -> list[Session]:
             ORDER BY started_at
             """
         )
+        rows = cursor.fetchall()
+        session_ids = [row["id"] for row in rows]
 
-        sessions: list[Session] = []
-        for row in cursor.fetchall():
-            session_id = row["id"]
-            title = row["title"] or session_id
-
+        # Batch-load all messages for top-level sessions in one query
+        messages_by_session: dict[str, list[dict[str, Any]]] = {sid: [] for sid in session_ids}
+        if session_ids:
+            placeholders = ",".join("?" * len(session_ids))
             msg_cursor = conn.execute(
-                """
-                SELECT role, content, tool_calls, tool_call_id, timestamp
+                f"""
+                SELECT session_id, role, content, tool_calls, tool_call_id, timestamp
                 FROM messages
-                WHERE session_id = ?
-                ORDER BY timestamp, id
+                WHERE session_id IN ({placeholders})
+                ORDER BY session_id, timestamp, id
                 """,
-                (session_id,),
+                tuple(session_ids),
             )
-
-            messages: list[dict[str, Any]] = []
             for msg_row in msg_cursor.fetchall():
+                sid = msg_row["session_id"]
                 msg: dict[str, Any] = {
                     "role": msg_row["role"],
                     "content": msg_row["content"],
@@ -225,7 +229,13 @@ def load_sessions(db_path: Path) -> list[Session]:
                         msg["tool_calls"] = json.loads(msg_row["tool_calls"])
                     except json.JSONDecodeError:
                         msg["tool_calls"] = []
-                messages.append(msg)
+                messages_by_session[sid].append(msg)
+
+        sessions: list[Session] = []
+        for row in rows:
+            session_id = row["id"]
+            title = row["title"] or session_id
+            messages = messages_by_session[session_id]
 
             tool_calls = _extract_tool_calls_from_messages(messages)
             memory_events = _infer_memory_events(tool_calls)
