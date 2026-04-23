@@ -21,13 +21,13 @@
   var useEffect = SDK.hooks.useEffect;
   var useCallback = SDK.hooks.useCallback;
   var useRef = SDK.hooks.useRef;
+  var useMemo = SDK.hooks.useMemo;
   var Card = SDK.components.Card;
   var CardHeader = SDK.components.CardHeader;
   var CardTitle = SDK.components.CardTitle;
   var CardContent = SDK.components.CardContent;
   var Badge = SDK.components.Badge;
   var Button = SDK.components.Button;
-  var cn = SDK.utils.cn;
 
   // -------------------------------------------------------------------
   // Constants
@@ -39,66 +39,66 @@
   // -------------------------------------------------------------------
   // Theme extraction — reads the dashboard's CSS custom properties and
   // builds query params the panel can consume to match the host theme.
+  //
+  // Canvas-based colour resolution is cached per session to avoid
+  // creating throwaway <canvas> elements on every render.
   // -------------------------------------------------------------------
+  var _cachedCanvas = null;
+  var _cachedCtx = null;
+
+  function _getResolverContext() {
+    if (!_cachedCtx) {
+      _cachedCanvas = document.createElement("canvas");
+      _cachedCanvas.width = _cachedCanvas.height = 1;
+      _cachedCtx = _cachedCanvas.getContext("2d");
+    }
+    return _cachedCtx;
+  }
+
+  function toHex(color, fallback) {
+    if (!color) return fallback;
+    if (/^#[0-9a-f]{6,8}$/i.test(color)) return color.replace(/^#/, "");
+    try {
+      var ctx = _getResolverContext();
+      ctx.clearRect(0, 0, 1, 1);
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 1, 1);
+      var d = ctx.getImageData(0, 0, 1, 1).data;
+      var hex = ((1 << 24) + (d[0] << 16) + (d[1] << 8) + d[2]).toString(16).slice(1);
+      if (d[3] < 255) hex += ("0" + d[3].toString(16)).slice(-2);
+      return hex;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
   function extractDashboardTheme() {
     var root = getComputedStyle(document.documentElement);
     function cssVar(name) {
       return (root.getPropertyValue(name) || "").trim();
     }
-    // Resolve a CSS color to a 6-digit hex (no #). Falls back to the
-    // provided default if the variable is empty or unsupported.
-    function toHex(color, fallback) {
-      if (!color) return fallback;
-      // If it's already a hex
-      if (/^#[0-9a-f]{6,8}$/i.test(color)) return color.replace(/^#/, "");
-      // Use a canvas to resolve computed colors (handles color-mix, rgb, etc.)
-      try {
-        var canvas = document.createElement("canvas");
-        canvas.width = canvas.height = 1;
-        var ctx2d = canvas.getContext("2d");
-        ctx2d.fillStyle = color;
-        ctx2d.fillRect(0, 0, 1, 1);
-        var d = ctx2d.getImageData(0, 0, 1, 1).data;
-        var hex = ((1 << 24) + (d[0] << 16) + (d[1] << 8) + d[2]).toString(16).slice(1);
-        if (d[3] < 255) hex += ("0" + d[3].toString(16)).slice(-2);
-        return hex;
-      } catch (_) {
-        return fallback;
-      }
-    }
-    var bg = toHex(cssVar("--background-base"), "07080d");
-    var fg = toHex(cssVar("--midground-base"), "cfd6e4");
-    var fg2 = toHex(cssVar("--color-muted-foreground") || cssVar("--midground"), "9ca3af");
+    var bg     = toHex(cssVar("--background-base"), "07080d");
+    var fg     = toHex(cssVar("--midground-base"), "cfd6e4");
+    var fg2    = toHex(cssVar("--color-muted-foreground") || cssVar("--midground"), "9ca3af");
     var accent = toHex(cssVar("--color-warning") || cssVar("--midground-base"), "ffc477");
     var border = toHex(cssVar("--color-border"), "ffffff26");
-    // Font — grab the body's computed font-family
-    var font = root.getPropertyValue("font-family").trim()
+    var font   = root.getPropertyValue("font-family").trim()
       || "ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace";
     return { bg: bg, fg: fg, fg2: fg2, accent: accent, border: border, font: font };
   }
 
   function buildThemeQuery(theme) {
-    var parts = [];
-    parts.push("bg=" + encodeURIComponent(theme.bg));
-    parts.push("fg=" + encodeURIComponent(theme.fg));
-    parts.push("fg2=" + encodeURIComponent(theme.fg2));
-    parts.push("accent=" + encodeURIComponent(theme.accent));
-    parts.push("border=" + encodeURIComponent(theme.border));
-    parts.push("font=" + encodeURIComponent(theme.font));
-    return parts.join("&");
+    var keys = ["bg", "fg", "fg2", "accent", "border", "font"];
+    return keys.map(function (k) {
+      return k + "=" + encodeURIComponent(theme[k]);
+    }).join("&");
   }
 
   // -------------------------------------------------------------------
-  // Styles (inline — matches dashboard theme)
+  // Hooks
   // -------------------------------------------------------------------
-  var btnClass = cn(
-    "inline-flex items-center gap-1.5 border border-border bg-background/40 px-3 py-1.5",
-    "text-xs font-courier transition-colors hover:bg-foreground/10 cursor-pointer"
-  );
 
-  // -------------------------------------------------------------------
-  // Helper: resolve panel URL based on env
-  // -------------------------------------------------------------------
+  /** Resolve the panel iframe URL based on backend config. */
   function usePanelUrl() {
     var state = useState({ url: PANEL_URL_PROD, env: "production" });
     var panelInfo = state[0];
@@ -113,56 +113,42 @@
             setPanelInfo({ url: PANEL_URL_PROD, env: config.env || "production" });
           }
         })
-        .catch(function () {
-          // Config endpoint not available — use prod defaults
-        });
+        .catch(function () {});
     }, []);
 
     return panelInfo;
   }
 
-  // -------------------------------------------------------------------
-  // Main Page Component
-  // -------------------------------------------------------------------
-  function ConstellationPage() {
-    var iframeRef = useRef(null);
-    var containerRef = useRef(null);
-    var selectedNodeState = useState(null);
-    var selectedNode = selectedNodeState[0];
-    var setSelectedNode = selectedNodeState[1];
-    var graphStatsState = useState(null);
-    var graphStats = graphStatsState[0];
-    var setGraphStats = graphStatsState[1];
+  /** Fetch graph stats once on mount. */
+  function useGraphStats() {
+    var statsState = useState(null);
     var errorState = useState(null);
-    var error = errorState[0];
-    var setError = errorState[1];
-    var isFullscreenState = useState(false);
-    var isFullscreen = isFullscreenState[0];
-    var setIsFullscreen = isFullscreenState[1];
 
-    var panelInfo = usePanelUrl();
-
-    // Fetch graph stats on mount
     useEffect(function () {
       SDK.fetchJSON(GRAPH_API + "?stats=1")
         .then(function (data) {
-          setGraphStats({
+          statsState[1]({
             nodes: data.nodes ? data.nodes.length : 0,
             edges: data.edges ? data.edges.length : 0,
           });
-          setError(null);
+          errorState[1](null);
         })
         .catch(function (err) {
-          setError("Graph data unavailable — " + (err.message || "backend error"));
+          errorState[1]("Graph data unavailable — " + (err.message || "backend error"));
         });
     }, []);
 
-    // Listen for postMessage from iframe
+    return { stats: statsState[0], error: errorState[0] };
+  }
+
+  /** Listen for postMessage node-click events from the panel iframe. */
+  function useNodeSelection() {
+    var selectionState = useState(null);
+
     useEffect(function () {
       function onMessage(event) {
-        if (!event.data || !event.data.type) return;
-        if (event.data.type === "node-click") {
-          setSelectedNode(event.data.nodeId);
+        if (event.data && event.data.type === "node-click") {
+          selectionState[1](event.data.nodeId);
         }
       }
       window.addEventListener("message", onMessage);
@@ -171,30 +157,78 @@
       };
     }, []);
 
+    return selectionState;
+  }
+
+  /** Track fullscreen state and nudge the iframe to resize. */
+  function useFullscreen(containerRef, iframeRef) {
+    var fsState = useState(false);
+
+    useEffect(function () {
+      function onFsChange() {
+        fsState[1](!!document.fullscreenElement);
+        setTimeout(function () {
+          try {
+            if (iframeRef.current && iframeRef.current.contentWindow) {
+              iframeRef.current.contentWindow.dispatchEvent(new Event("resize"));
+            }
+          } catch (_) {}
+        }, 100);
+      }
+      document.addEventListener("fullscreenchange", onFsChange);
+      return function () {
+        document.removeEventListener("fullscreenchange", onFsChange);
+      };
+    }, []);
+
+    var toggle = useCallback(function () {
+      if (!document.fullscreenElement) {
+        if (containerRef.current) {
+          containerRef.current.requestFullscreen().catch(function () {});
+        }
+      } else {
+        document.exitFullscreen().catch(function () {});
+      }
+    }, []);
+
+    return { isFullscreen: fsState[0], toggleFullscreen: toggle };
+  }
+
+  // -------------------------------------------------------------------
+  // Main Page Component
+  // -------------------------------------------------------------------
+  function ConstellationPage() {
+    var iframeRef = useRef(null);
+    var containerRef = useRef(null);
+
+    var panelInfo = usePanelUrl();
+    var graphInfo = useGraphStats();
+    var selectedNodeState = useNodeSelection();
+    var selectedNode = selectedNodeState[0];
+    var fs = useFullscreen(containerRef, iframeRef);
+
+    // Memoise theme extraction so it doesn't re-run on every render
+    var themeQuery = useMemo(function () {
+      return buildThemeQuery(extractDashboardTheme());
+    }, []);
+
+    var iframeSrc = useMemo(function () {
+      return panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API) + "&" + themeQuery;
+    }, [panelInfo.url, themeQuery]);
+
     var handleReload = useCallback(function () {
       if (iframeRef.current) {
         iframeRef.current.src = iframeRef.current.src;
       }
     }, []);
 
-    var handleFullscreen = useCallback(function () {
-      setIsFullscreen(function (prev) { return !prev; });
-    }, []);
-
     var handlePopout = useCallback(function () {
-      var popTheme = extractDashboardTheme();
-      var popQuery = buildThemeQuery(popTheme);
       window.open(
-        panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API) + "&" + popQuery,
+        iframeSrc,
         "theia-constellation",
         "width=1200,height=800"
       );
-    }, [panelInfo.url]);
-
-    // Build iframe URL with graph endpoint + theme params from dashboard
-    var theme = extractDashboardTheme();
-    var themeQuery = buildThemeQuery(theme);
-    var iframeSrc = panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API) + "&" + themeQuery;
+    }, [iframeSrc]);
 
     // Environment badge
     var envBadge = panelInfo.env !== "production"
@@ -202,32 +236,6 @@
           panelInfo.env.toUpperCase())
       : null;
 
-    // Full-screen mode
-    if (isFullscreen) {
-      return h("div", {
-        ref: containerRef,
-        className: "theia-fullscreen",
-      },
-        h("div", { className: "theia-fullscreen-toolbar" },
-          h("span", { className: "text-xs font-courier tracking-widest opacity-70" }, "THEIA CONSTELLATION"),
-          h("div", { className: "flex items-center gap-2" },
-            envBadge,
-            selectedNode && h(Badge, { variant: "outline", className: "text-xs" }, selectedNode),
-            h(Button, { onClick: handleReload, className: btnClass }, "Reload"),
-            h(Button, { onClick: handleFullscreen, className: btnClass }, "Exit Fullscreen")
-          )
-        ),
-        h("iframe", {
-          ref: iframeRef,
-          src: iframeSrc,
-          className: "theia-iframe-full",
-          allow: "accelerometer; autoplay",
-          sandbox: "allow-scripts allow-same-origin",
-        })
-      );
-    }
-
-    // Normal mode
     return h("div", { className: "flex flex-col gap-6" },
 
       // Header
@@ -238,19 +246,20 @@
               h(CardTitle, { className: "text-lg" }, "Session Constellation"),
               h(Badge, { variant: "outline" }, "v0.1.0"),
               envBadge,
-              graphStats && h(Badge, { variant: "outline" },
-                graphStats.nodes + " sessions / " + graphStats.edges + " edges"
+              graphInfo.stats && h(Badge, { variant: "outline" },
+                graphInfo.stats.nodes + " sessions / " + graphInfo.stats.edges + " edges"
               )
             ),
             h("div", { className: "flex items-center gap-2" },
-              h(Button, { onClick: handleReload, className: btnClass }, "Reload"),
-              h(Button, { onClick: handleFullscreen, className: btnClass }, "Fullscreen"),
-              h(Button, { onClick: handlePopout, className: btnClass }, "Pop Out")
+              h(Button, { variant: "outline", size: "sm", onClick: handleReload }, "Reload"),
+              h(Button, { variant: "outline", size: "sm", onClick: fs.toggleFullscreen },
+                fs.isFullscreen ? "Exit Fullscreen" : "Fullscreen"),
+              h(Button, { variant: "outline", size: "sm", onClick: handlePopout }, "Pop Out")
             )
           )
         ),
-        error && h(CardContent, null,
-          h("p", { className: "text-sm text-red-400" }, error)
+        graphInfo.error && h(CardContent, null,
+          h("p", { className: "text-sm text-red-400" }, graphInfo.error)
         )
       ),
 
@@ -277,7 +286,7 @@
               onClick: function () {
                 window.location.hash = "#/sessions?id=" + selectedNode;
               },
-              className: btnClass,
+              variant: "outline", size: "sm",
             }, "View in Sessions")
           )
         )

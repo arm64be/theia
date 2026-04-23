@@ -19,14 +19,32 @@
   display: block;
 }
 
-/* Fullscreen mode */
-.theia-fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
+/* When the Fullscreen API activates, immediately override the
+   normal container constraints so the element fills the viewport
+   before React re-renders and swaps the class.                    */
+.theia-container:fullscreen,
+.theia-fullscreen:fullscreen {
+  aspect-ratio: auto;
+  max-height: none;
+  min-height: 0;
+  width: 100vw;
+  height: 100vh;
   background: #07080d;
   display: flex;
   flex-direction: column;
+  border: none;
+  border-radius: 0;
+}
+
+/* Fallback class for after React re-renders */
+.theia-fullscreen {
+  width: 100%;
+  height: 100%;
+  background: #07080d;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  border-radius: 0;
 }
 
 .theia-fullscreen-toolbar {
