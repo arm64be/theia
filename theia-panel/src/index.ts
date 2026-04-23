@@ -10,6 +10,7 @@ import { createPicker } from "./scene/Picker";
 import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSidePanel } from "./ui/SidePanel";
+import { createSearchBar } from "./ui/SearchBar";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -165,6 +166,19 @@ export async function mount(
     { passive: false },
   );
 
+  // Search bar
+  const searchBar = createSearchBar(element, graph, (result) => {
+    const idx = nodeIndex.get(result.node.id);
+    if (idx !== undefined) {
+      const sn = simNodes[idx]!;
+      ctx.focusOn(sn.x, sn.y, 1.5);
+    }
+    const related = graph.edges.filter(
+      (e) => e.source === result.node.id || e.target === result.node.id,
+    );
+    sidePanel.show(result.node, related);
+  });
+
   // Filter bar
   const filterBar = createFilterBar(element, kinds, (newKinds) => {
     kinds = newKinds;
@@ -198,6 +212,7 @@ export async function mount(
       picker.dispose();
       sidePanel.dispose();
       filterBar.dispose();
+      searchBar.dispose();
     },
     on(event, handler) {
       (listeners[event] ??= []).push(handler as never);

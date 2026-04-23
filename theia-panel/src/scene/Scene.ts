@@ -6,6 +6,7 @@ export interface SceneContext {
   renderer: THREE.WebGLRenderer;
   container: HTMLElement;
   pan(dx: number, dy: number): void;
+  focusOn(x: number, y: number, targetZoom?: number): void;
   setZoom(z: number): void;
   getZoom(): number;
   dispose(): void;
@@ -37,6 +38,7 @@ export function createScene(container: HTMLElement): SceneContext {
   let zoom = 1;
   let panX = 0;
   let panY = 0;
+  let rafId: number | null = null;
 
   function apply() {
     const s = baseSize / zoom;
@@ -72,6 +74,30 @@ export function createScene(container: HTMLElement): SceneContext {
       panX += dxWorld;
       panY += dyWorld;
       apply();
+    },
+    focusOn(x: number, y: number, targetZoom?: number) {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      const startPanX = panX;
+      const startPanY = panY;
+      const startZoom = zoom;
+      const endZoom = targetZoom ?? zoom;
+      const startTime = performance.now();
+      const duration = 700;
+
+      function step(now: number) {
+        const t = Math.min(1, (now - startTime) / duration);
+        const ease = 1 - Math.pow(1 - t, 3);
+        panX = startPanX + (x - startPanX) * ease;
+        panY = startPanY + (y - startPanY) * ease;
+        zoom = startZoom + (endZoom - startZoom) * ease;
+        apply();
+        if (t < 1) {
+          rafId = requestAnimationFrame(step);
+        } else {
+          rafId = null;
+        }
+      }
+      rafId = requestAnimationFrame(step);
     },
     setZoom(z) {
       zoom = Math.max(0.05, z);
