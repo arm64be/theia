@@ -5,7 +5,7 @@ export interface SceneContext {
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
   container: HTMLElement;
-  pan(dx: number, dy: number): void;
+  pan(dxPixel: number, dyPixel: number): void;
   focusOn(x: number, y: number, targetZoom?: number): void;
   setZoom(z: number): void;
   getZoom(): number;
@@ -18,17 +18,8 @@ export function createScene(container: HTMLElement): SceneContext {
   const scene = new THREE.Scene();
 
   const { clientWidth: w, clientHeight: h } = container;
-  let aspect = w / h;
-  const baseSize = 2.0; // visible window = larger to accommodate spread
-  const camera = new THREE.OrthographicCamera(
-    -baseSize * aspect,
-    baseSize * aspect,
-    baseSize,
-    -baseSize,
-    -10,
-    10,
-  );
-  camera.position.z = 5;
+  const aspect = w / h;
+  const camera = new THREE.PerspectiveCamera(60, aspect, 0.01, 100);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -37,11 +28,9 @@ export function createScene(container: HTMLElement): SceneContext {
   container.appendChild(renderer.domElement);
 
   let zoom = 1;
-  let panX = 0;
-  let panY = 0;
-  let rafId: number | null = null;
   const baseRadius = 5.0;
   let radius = baseRadius / zoom;
+  let rafId: number | null = null;
 
   const target = new THREE.Vector3(0, 0, 0);
   let theta = 0;
@@ -61,8 +50,6 @@ export function createScene(container: HTMLElement): SceneContext {
   const resize = () => {
     const { clientWidth: w2, clientHeight: h2 } = container;
     const a = w2 / h2;
-    aspect = a;
-    apply();
     camera.aspect = a;
     camera.updateProjectionMatrix();
     renderer.setSize(w2, h2, false);
@@ -94,20 +81,20 @@ export function createScene(container: HTMLElement): SceneContext {
     },
     focusOn(x: number, y: number, targetZoom?: number) {
       if (rafId !== null) cancelAnimationFrame(rafId);
-      const startPanX = panX;
-      const startPanY = panY;
-      const startZoom = zoom;
-      const endZoom = targetZoom ?? zoom;
+      const startTarget = target.clone();
+      const startRadius = radius;
+      const endRadius = baseRadius / (targetZoom ?? zoom);
       const startTime = performance.now();
       const duration = 700;
 
       function step(now: number) {
         const t = Math.min(1, (now - startTime) / duration);
         const ease = 1 - Math.pow(1 - t, 3);
-        panX = startPanX + (x - startPanX) * ease;
-        panY = startPanY + (y - startPanY) * ease;
-        zoom = startZoom + (endZoom - startZoom) * ease;
-        apply();
+        target.x = startTarget.x + (x - startTarget.x) * ease;
+        target.y = startTarget.y + (y - startTarget.y) * ease;
+        target.z = startTarget.z; // keep z unchanged
+        radius = startRadius + (endRadius - startRadius) * ease;
+        updateCamera();
         if (t < 1) {
           rafId = requestAnimationFrame(step);
         } else {
