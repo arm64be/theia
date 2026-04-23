@@ -11,10 +11,13 @@ interface PhysicsNode {
   id: string;
   x: number;
   y: number;
+  z: number;
   vx?: number;
   vy?: number;
+  vz?: number;
   anchorX: number;
   anchorY: number;
+  anchorZ: number;
   radius: number;
 }
 
@@ -32,6 +35,7 @@ function forceAnchor(strength = 0.15) {
     for (const n of nodes) {
       n.vx = (n.vx ?? 0) + (n.anchorX - n.x) * strength * alpha;
       n.vy = (n.vy ?? 0) + (n.anchorY - n.y) * strength * alpha;
+      n.vz = (n.vz ?? 0) + (n.anchorZ - n.z) * strength * alpha;
     }
   }
   force.initialize = (n: PhysicsNode[]) => {
@@ -59,20 +63,24 @@ function forceCluster(links: PhysicsLink[], strength = 0.03) {
       if (!neighbors || neighbors.size === 0) continue;
       let cx = 0;
       let cy = 0;
+      let cz = 0;
       let count = 0;
       for (const nid of neighbors) {
         const neighbor = nodes.find((x) => x.id === nid);
         if (neighbor) {
           cx += neighbor.x;
           cy += neighbor.y;
+          cz += neighbor.z;
           count++;
         }
       }
       if (count > 0) {
         cx /= count;
         cy /= count;
+        cz /= count;
         n.vx = (n.vx ?? 0) + (cx - n.x) * strength * alpha;
         n.vy = (n.vy ?? 0) + (cy - n.y) * strength * alpha;
+        n.vz = (n.vz ?? 0) + (cz - n.z) * strength * alpha;
       }
     }
   }
@@ -82,7 +90,7 @@ function forceCluster(links: PhysicsLink[], strength = 0.03) {
   return force;
 }
 
-/** Custom 2D collision force. */
+/** Custom 3D collision force. */
 function forceCollide(strength = 0.5) {
   let nodes: PhysicsNode[] = [];
   function force(alpha: number) {
@@ -92,16 +100,20 @@ function forceCollide(strength = 0.5) {
         const b = nodes[j]!;
         const dx = a.x - b.x;
         const dy = a.y - b.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        const dz = a.z - b.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         const minDist = a.radius + b.radius + 0.02;
         if (dist > 0 && dist < minDist) {
           const overlap = minDist - dist;
           const fx = (dx / dist) * overlap * strength * alpha;
           const fy = (dy / dist) * overlap * strength * alpha;
+          const fz = (dz / dist) * overlap * strength * alpha;
           a.vx = (a.vx ?? 0) + fx;
           a.vy = (a.vy ?? 0) + fy;
+          a.vz = (a.vz ?? 0) + fz;
           b.vx = (b.vx ?? 0) - fx;
           b.vy = (b.vy ?? 0) - fy;
+          b.vz = (b.vz ?? 0) - fz;
         }
       }
     }
@@ -110,6 +122,16 @@ function forceCollide(strength = 0.5) {
     nodes = n;
   };
   return force;
+}
+
+/** Deterministic hash of a node id to [-1, 1]. */
+function hashId(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i);
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+  }
+  return (((h >>> 0) % 1000) / 1000) * 2 - 1;
 }
 
 export function createSimulation(graph: TheiaGraph) {
@@ -132,12 +154,16 @@ export function createSimulation(graph: TheiaGraph) {
     const degree = degreeMap.get(n.id) ?? 0;
     // Larger radius for visibility: base 0.08, up to 0.18 for hubs
     const radius = 0.08 + Math.min(0.1, degree * 0.008);
+    const zSpread = 1.5;
+    const z = hashId(n.id) * zSpread;
     return {
       id: n.id,
       x: n.position.x * spread,
       y: n.position.y * spread,
+      z,
       anchorX: n.position.x * spread,
       anchorY: n.position.y * spread,
+      anchorZ: z,
       radius,
     };
   });
@@ -167,13 +193,13 @@ export function createSimulation(graph: TheiaGraph) {
     .strength((l) => kindStrength[l.kind] ?? 0.08)
     .distance((l) => kindDistance[l.kind] ?? 1.5);
 
-  const sim: Simulation<PhysicsNode, PhysicsLink> = forceSimulation(nodes, 2)
+  const sim: Simulation<PhysicsNode, PhysicsLink> = forceSimulation(nodes, 3)
     .force("link", linkForce)
     .force("charge", forceManyBody<PhysicsNode>().strength(-0.06))
     .force("collide", forceCollide(0.6))
     .force("cluster", forceCluster(links, 0.04))
     .force("anchor", forceAnchor(0.18))
-    .force("center", forceCenter(0, 0))
+    .force("center", forceCenter(0, 0, 0))
     .alphaDecay(0.025)
     .alphaTarget(0.015);
 

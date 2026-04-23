@@ -56,15 +56,16 @@ export async function mount(
   const { simulation, nodes: simNodes } = createSimulation(graph);
   simulation.stop();
 
-  const nodePositions = new Float32Array(simNodes.length * 2);
+  const nodePositions = new Float32Array(simNodes.length * 3);
 
   function tick() {
     simulation.tick(1);
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i]!;
-      nodes.setPosition(i, sn.x, sn.y);
-      nodePositions[i * 2 + 0] = sn.x;
-      nodePositions[i * 2 + 1] = sn.y;
+      nodes.setPosition(i, sn.x, sn.y, sn.z);
+      nodePositions[i * 3 + 0] = sn.x;
+      nodePositions[i * 3 + 1] = sn.y;
+      nodePositions[i * 3 + 2] = sn.z;
     }
     nodes.flush();
     edges.updatePositions(nodePositions);
@@ -77,6 +78,7 @@ export async function mount(
     const t = performance.now() / 1000;
     nodes.setTime(t);
     edges.setTime(t);
+    nodes.material.uniforms.uCameraPos.value.copy(ctx.camera.position);
     post.renderEdges(edgesScene, ctx.camera);
     post.render();
     requestAnimationFrame(frame);
@@ -112,9 +114,12 @@ export async function mount(
   let isMouseDown = false;
   let hasDragged = false;
   let mouseDownPos = { x: 0, y: 0 };
+  let dragMode: "rotate" | "pan" | null = null;
 
   element.addEventListener("mousedown", (e) => {
-    if (e.button !== 0) return; // only left click
+    if (e.button === 0) dragMode = "rotate";
+    else if (e.button === 2) dragMode = "pan";
+    else return;
     isMouseDown = true;
     hasDragged = false;
     mouseDownPos = { x: e.clientX, y: e.clientY };
@@ -128,12 +133,11 @@ export async function mount(
       hasDragged = true;
     }
     if (hasDragged) {
-      const rect = element.getBoundingClientRect();
-      const worldW = ctx.camera.right - ctx.camera.left;
-      const worldH = ctx.camera.top - ctx.camera.bottom;
-      const panX = -(dx / rect.width) * worldW;
-      const panY = (dy / rect.height) * worldH;
-      ctx.pan(panX, panY);
+      if (dragMode === "rotate") {
+        ctx.rotate(dx, dy);
+      } else if (dragMode === "pan") {
+        ctx.pan(dx, dy);
+      }
       mouseDownPos = { x: e.clientX, y: e.clientY };
     }
   });
@@ -152,6 +156,11 @@ export async function mount(
     }
     isMouseDown = false;
     hasDragged = false;
+    dragMode = null;
+  });
+
+  element.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
   });
 
   // Wheel zoom

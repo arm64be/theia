@@ -144,12 +144,14 @@ export function createEdges(): EdgeLayer {
         const si = currentNodeIndex.get(e.source);
         const ti = currentNodeIndex.get(e.target);
         if (si === undefined || ti === undefined) continue;
-        const sx = nodePositions[si * 2 + 0]!;
-        const sy = nodePositions[si * 2 + 1]!;
-        const tx = nodePositions[ti * 2 + 0]!;
-        const ty = nodePositions[ti * 2 + 1]!;
-        posAttr.setXYZ(i * 2 + 0, sx, sy, 0);
-        posAttr.setXYZ(i * 2 + 1, tx, ty, 0);
+        const sx = nodePositions[si * 3 + 0]!;
+        const sy = nodePositions[si * 3 + 1]!;
+        const sz = nodePositions[si * 3 + 2]!;
+        const tx = nodePositions[ti * 3 + 0]!;
+        const ty = nodePositions[ti * 3 + 1]!;
+        const tz = nodePositions[ti * 3 + 2]!;
+        posAttr.setXYZ(i * 2 + 0, sx, sy, sz);
+        posAttr.setXYZ(i * 2 + 1, tx, ty, tz);
       }
       posAttr.needsUpdate = true;
     }

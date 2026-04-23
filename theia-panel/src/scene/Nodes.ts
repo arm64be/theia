@@ -54,21 +54,70 @@ function modelTintColor(model: string | undefined): THREE.Color {
   return c;
 }
 
+const VERT = `
+varying vec2 vUv;
+varying vec3 vColor;
+varying vec3 vCenterPos;
+void main() {
+  vUv = uv;
+  vColor = instanceColor;
+
+  vec3 instancePos = instanceMatrix[3].xyz;
+  vec3 scale = vec3(
+    length(instanceMatrix[0].xyz),
+    length(instanceMatrix[1].xyz),
+    length(instanceMatrix[2].xyz)
+  );
+
+  vCenterPos = instancePos;
+
+  vec4 viewPos = viewMatrix * vec4(instancePos, 1.0);
+  viewPos.xy += position.xy * scale.xy;
+
+  gl_Position = projectionMatrix * viewPos;
+}
+`;
+
+const FRAG = `
+precision highp float;
+uniform sampler2D map;
+uniform vec3 uCameraPos;
+varying vec2 vUv;
+varying vec3 vColor;
+varying vec3 vCenterPos;
+void main() {
+  vec4 texColor = texture2D(map, vUv);
+  vec3 finalColor = texColor.rgb * vColor;
+  float alpha = texColor.a;
+  float dist = distance(vCenterPos, uCameraPos);
+  float fade = smoothstep(0.15, 0.8, dist);
+  alpha *= fade;
+  if (alpha < 0.01) discard;
+  gl_FragColor = vec4(finalColor, alpha);
+}
+`;
+
 export interface NodeLayer {
   mesh: THREE.InstancedMesh;
   count: number;
-  setPosition(i: number, x: number, y: number): void;
+  setPosition(i: number, x: number, y: number, z: number): void;
   setHighlight(i: number, on: boolean): void;
   setTime(t: number): void;
   flush(): void;
   dispose(): void;
+  material: THREE.ShaderMaterial;
 }
 
 export function createNodes(graph: TheiaGraph): NodeLayer {
   const n = graph.nodes.length;
   const geometry = new THREE.PlaneGeometry(1, 1);
-  const material = new THREE.MeshBasicMaterial({
-    map: NODE_GLOW_TEXTURE,
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: NODE_GLOW_TEXTURE },
+      uCameraPos: { value: new THREE.Vector3() },
+    },
+    vertexShader: VERT,
+    fragmentShader: FRAG,
     transparent: true,
     depthWrite: false,
     blending: THREE.NormalBlending,
@@ -88,7 +137,8 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
     nodeSizes[i] = Math.min(0.18, 0.05 + Math.log1p(turns) * 0.014);
     nodeColors[i] = modelTintColor(node.model);
     // Spatial wave: coherent ripple across the constellation
-    nodeWaveOffsets[i] = node.position.x * 2.0 + node.position.y * 1.5;
+    nodeWaveOffsets[i] =
+      node.position.x * 2.0 + node.position.y * 1.5 + hashString(node.id) * 3.0;
   }
 
   for (let i = 0; i < n; i++) {
@@ -108,10 +158,11 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
   return {
     mesh,
     count: n,
-    setPosition(i, x, y) {
+    material,
+    setPosition(i, x, y, z) {
       mesh.getMatrixAt(i, dummy.matrix);
       dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
-      dummy.position.set(x, y, 0);
+      dummy.position.set(x, y, z);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     },

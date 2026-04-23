@@ -1,12 +1,11 @@
 import { defineConfig } from "vite";
 
 export default defineConfig(({ command }) => ({
-  ...(command === "serve"
-    ? {
-        publicDir: "../examples",
-        server: { fs: { allow: [".."] } },
-      }
-    : {}),
+  server: {
+    port: 5179,
+    ...(command === "serve" ? { fs: { allow: [".."] } } : {}),
+  },
+  ...(command === "serve" ? { publicDir: "../examples" } : {}),
   build: {
     lib: {
       entry: "src/index.ts",
