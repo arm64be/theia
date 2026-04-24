@@ -88,7 +88,14 @@ dev-link: ## Symlink plugin source into ~/.hermes/plugins for dev
 build: build-graph build-panel-embed build-plugin ## Full build (graph + panel + plugin package)
 
 build-graph: ## Regenerate graph.json from session fixtures
-	python3 -m theia_core examples/sessions -o examples/graph.json
+	@rm -f /tmp/theia_build.db
+	@PYTHONPATH=theia-core python3 -c "\
+	from pathlib import Path; \
+	from tests.db_helpers import seed_test_db; \
+	db = Path('/tmp/theia_build.db'); \
+	seed_test_db(db, Path('examples/sessions')); \
+	print(f'seeded {db}')"
+	python3 -m theia_core --db-path /tmp/theia_build.db -o examples/graph.json
 
 build-panel-embed: ## Build self-contained panel for iframe embedding
 	cd theia-panel && npx vite build --config vite.config.embed.ts

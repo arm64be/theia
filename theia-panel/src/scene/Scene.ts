@@ -1,5 +1,12 @@
 import * as THREE from "three";
 
+export interface CameraState {
+  target: { x: number; y: number; z: number };
+  theta: number;
+  phi: number;
+  zoom: number;
+}
+
 export interface SceneContext {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
@@ -10,6 +17,8 @@ export interface SceneContext {
   setZoom(z: number): void;
   getZoom(): number;
   rotate(dxPixel: number, dyPixel: number): void;
+  getCameraState(): CameraState;
+  setCameraState(state: CameraState): void;
   dispose(): void;
   resize(): void;
 }
@@ -110,6 +119,26 @@ export function createScene(container: HTMLElement): SceneContext {
     },
     getZoom() {
       return zoom;
+    },
+    getCameraState() {
+      return {
+        target: { x: target.x, y: target.y, z: target.z },
+        theta,
+        phi,
+        zoom,
+      };
+    },
+    setCameraState(state) {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      target.set(state.target.x, state.target.y, state.target.z);
+      theta = state.theta;
+      phi = state.phi;
+      zoom = state.zoom;
+      radius = baseRadius / zoom;
+      updateCamera();
     },
     resize,
     dispose() {

@@ -15,6 +15,9 @@ function renderSummaryBlock(
   if (node.initial_prompt) {
     return `<div style="margin-top:6px;padding:6px 8px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;color:#${theme.fg2};font-size:11px;line-height:1.45"><div style="opacity:0.5;font-size:9px;letter-spacing:0.5px;margin-bottom:2px">PROMPT</div>${escape(truncate(node.initial_prompt, TOOLTIP_MAX_CHARS))}</div>`;
   }
+  if (node.preview) {
+    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;color:#${theme.fg2};font-size:11px;line-height:1.45"><div style="opacity:0.5;font-size:9px;letter-spacing:0.5px;margin-bottom:2px">PREVIEW</div>${escape(truncate(node.preview, TOOLTIP_MAX_CHARS))}</div>`;
+  }
   return "";
 }
 
@@ -42,7 +45,7 @@ export function createTooltip(
     const identity = renderSummaryBlock(node, theme);
 
     el.innerHTML = `
-      <div style="font-weight:600;color:#${theme.accent};font-size:13px">${escape(node.title)}</div>
+      <div style="font-weight:600;color:#${theme.accent};font-size:13px">${escape(node.title || node.id)}</div>
       <div style="opacity:0.65;color:#${theme.fg2};font-size:11px">${node.id}</div>
       <div style="margin-top:4px;opacity:0.8">${new Date(node.started_at).toLocaleString()}</div>
       <div style="opacity:0.6">${Math.round(node.duration_sec)}s · ${node.tool_count} tools · ${node.message_count ?? "?"} msgs</div>

@@ -1,5 +1,9 @@
 # theia — Hermes Dashboard Integration
 
+Both `theia-core` and `theia-panel` expect a `.hermes` directory (default
+`$HOME/.hermes`) containing session archives and the generated graph. Override
+with the `THEIA_HOME` environment variable.
+
 ## Mount surface
 
 `theia-panel` exports a single function:
@@ -11,7 +15,7 @@ const controller = await mount(element, graphUrl, options?);
 ```
 
 - `element` — an `HTMLElement` that will host the canvas. The function sets `position: relative` if not already set.
-- `graphUrl` — URL to a `graph.json` file that validates against `schemas/graph.schema.json`.
+- `graphUrl` — URL to a `theia-graph.json` file that validates against `schemas/graph.schema.json`.
 - `options?.edgeKinds` — optional array of edge kinds to show initially (default: `["memory-share", "cross-search"]`).
 
 ## Lifecycle

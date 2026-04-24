@@ -21,7 +21,7 @@
 
       // Support ?graph=<url> query param for iframe embedding
       const params = new URLSearchParams(window.location.search);
-      const graphUrl = params.get("graph") || "/graph.json";
+      const graphUrl = params.get("graph") || "/theia-graph.json";
 
       const ctrl = await mount(document.getElementById("app"), graphUrl);
 
