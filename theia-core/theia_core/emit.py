@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,6 +40,7 @@ def _extract_initial_prompt(sess: Session) -> str | None:
     return None
 
 
+@functools.lru_cache(maxsize=1)
 def _load_validator() -> Draft202012Validator:
     schema = json.loads(SCHEMA_PATH.read_text())
     return Draft202012Validator(schema)
@@ -51,7 +53,10 @@ def build_graph(
     projection: str,
     feature_dim: int,
 ) -> dict[str, Any]:
-    assert positions.shape == (len(sessions), 2)
+    if positions.shape != (len(sessions), 2):
+        raise ValueError(
+            f"position shape {positions.shape} does not match session count {len(sessions)}"
+        )
     nodes = []
     for sess, (x, y) in zip(sessions, positions, strict=True):
         nodes.append(

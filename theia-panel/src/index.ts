@@ -167,6 +167,8 @@ export async function mount(
         sn.z = old.z;
       }
     }
+    // Start at equilibrium to prevent jittery readjustment
+    simulation.alpha(simulation.alphaTarget());
 
     const filteredNodeIndex = new Map<string, number>();
     for (const [id, idx] of nodeIndex) {
@@ -227,6 +229,7 @@ export async function mount(
     });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
+      element.style.cursor = idx === null ? "" : "pointer";
       edges.setHoverNode(nodeId);
       if (idx === null) {
         tooltip.hide();
@@ -264,7 +267,39 @@ export async function mount(
     );
   }
 
-  const initialGraph = await loadGraph(graphUrl);
+  function createLoadingOverlay(text: string): { remove(): void } {
+    const el = document.createElement("div");
+    el.style.cssText = `
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
+      font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      letter-spacing: 0.05em; z-index: 20; transition: opacity 300ms;
+    `;
+    el.textContent = text;
+    element.appendChild(el);
+    return {
+      remove() {
+        el.style.opacity = "0";
+        setTimeout(() => {
+          try {
+            element.removeChild(el);
+          } catch {
+            /* container may have been destroyed during load */
+          }
+        }, 300);
+      },
+    };
+  }
+
+  const loading = createLoadingOverlay("Loading constellation\u2026");
+  let initialGraph: TheiaGraph;
+  try {
+    initialGraph = await loadGraph(graphUrl);
+  } catch (err) {
+    loading.remove();
+    throw err;
+  }
+  loading.remove();
   setupGraph(initialGraph);
 
   function tick() {
@@ -414,7 +449,14 @@ export async function mount(
     },
     async reload(url?: string) {
       const targetUrl = url ?? graphUrl;
-      const newGraph = await loadGraph(targetUrl);
+
+      const loading = createLoadingOverlay("Reloading\u2026");
+      let newGraph: TheiaGraph;
+      try {
+        newGraph = await loadGraph(targetUrl);
+      } finally {
+        loading.remove();
+      }
 
       const cameraState = ctx.getCameraState();
       const selectedId = sidePanel.currentNodeId();

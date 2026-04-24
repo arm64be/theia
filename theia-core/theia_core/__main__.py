@@ -52,23 +52,35 @@ def _build(
 def main(argv: list[str] | None = None) -> int:
     theia_home = _theia_home()
 
-    parser = argparse.ArgumentParser(prog="theia-core")
+    parser = argparse.ArgumentParser(
+        prog="theia-core",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument(
         "--db-path",
         type=Path,
         default=theia_home / "state.db",
-        help="path to Hermes SQLite database (default: $THEIA_HOME/state.db)",
+        help="path to Hermes SQLite database",
     )
     parser.add_argument(
         "-o",
         "--out",
         type=Path,
         default=theia_home / "theia-graph.json",
-        help="output graph JSON path (default: $THEIA_HOME/theia-graph.json)",
+        help="output graph JSON path",
     )
-    parser.add_argument("--projection", choices=["pca", "umap", "tool-vector"], default="umap")
-    parser.add_argument("--include-features", action="store_true")
-    parser.add_argument("--disable-tool-overlap", action="store_true")
+    parser.add_argument(
+        "--projection",
+        choices=["pca", "umap", "tool-vector"],
+        default="umap",
+        help="dimensionality reduction method",
+    )
+    parser.add_argument(
+        "--include-features", action="store_true", help="include per-node feature vectors in output"
+    )
+    parser.add_argument(
+        "--disable-tool-overlap", action="store_true", help="skip tool-overlap edge detection"
+    )
     parser.add_argument(
         "--watch", action="store_true", help="regenerate graph when the database changes"
     )
@@ -76,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         "--watch-interval",
         type=float,
         default=1.0,
-        help="polling interval in seconds (default: 1.0)",
+        help="polling interval in seconds",
     )
     args = parser.parse_args(argv)
 

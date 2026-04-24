@@ -59,11 +59,16 @@ export function createSidePanel(
       color: #${theme.fg}; font: 13px/1.6 var(--theia-font, ui-monospace, monospace);
       transform: translateX(${currentId ? "0" : "100%"}); transition: transform 220ms ease-out;
       padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
-      box-sizing: border-box;
+      box-sizing: border-box; outline: none;
     `;
   }
   applyPanelStyle();
+  el.tabIndex = -1;
   container.appendChild(el);
+
+  const focusStyle = document.createElement("style");
+  focusStyle.textContent = `aside:focus-visible { outline: 1px solid #${theme.accent} !important; }`;
+  document.head.appendChild(focusStyle);
 
   let lastNode: TheiaGraph["nodes"][number] | null = null;
   let lastEdges: TheiaGraph["edges"] = [];
@@ -83,6 +88,7 @@ export function createSidePanel(
     lastEdges = relatedEdges;
     renderContent();
     el.style.transform = "translateX(0)";
+    el.focus({ preventScroll: true });
     scrollTop();
   }
 
@@ -139,6 +145,10 @@ export function createSidePanel(
   });
 
   el.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      hide();
+      return;
+    }
     const link = (e.target as HTMLElement).closest("[data-navigate-to]");
     if (link) {
       const targetId = (link as HTMLElement).dataset.navigateTo!;

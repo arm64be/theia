@@ -34,7 +34,7 @@ export function createTooltip(
       padding: 10px 14px; background: ${themeBgAlpha(theme, 0.92)};
       border: 1px solid #${theme.border};
       font: 12px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
-      transform: translate(10px, 10px); opacity: 0; transition: opacity 120ms;
+      opacity: 0; transition: opacity 120ms;
       max-width: 320px; backdrop-filter: blur(4px);
     `;
   }
@@ -51,8 +51,9 @@ export function createTooltip(
       <div style="opacity:0.6">${Math.round(node.duration_sec)}s · ${node.tool_count} tools · ${node.message_count ?? "?"} msgs</div>
       ${identity}
     `;
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
+    const tooltipOffset = 10;
+    el.style.left = `${Math.max(0, Math.min(x + tooltipOffset, container.clientWidth - el.offsetWidth - tooltipOffset))}px`;
+    el.style.top = `${Math.max(0, Math.min(y + tooltipOffset, container.clientHeight - el.offsetHeight - tooltipOffset))}px`;
     el.style.opacity = "1";
   }
 

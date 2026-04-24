@@ -118,6 +118,8 @@ export function createSearchBar(
     );
   }
 
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   function render(query: string) {
     if (!query.trim()) {
       dropdown.style.display = "none";
@@ -136,8 +138,9 @@ export function createSearchBar(
     }
     currentResults = Array.from(resultByIndex.values());
     if (currentResults.length === 0) {
-      dropdown.style.display = "none";
-      dropdown.innerHTML = "";
+      dropdown.innerHTML = `<div style="padding:12px;opacity:0.4;font-size:12px;text-align:center;color:#${theme.fg2}">No results found</div>`;
+      dropdown.style.display = "block";
+      selectedIndex = -1;
       return;
     }
     dropdown.innerHTML =
@@ -176,9 +179,18 @@ export function createSearchBar(
     }
   }
 
-  input.addEventListener("input", () => render(input.value));
+  input.addEventListener("input", () => {
+    selectedIndex = -1;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => render(input.value), 80);
+  });
 
   input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      hide();
+      input.blur();
+      return;
+    }
     if (dropdown.style.display === "none") return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -189,9 +201,6 @@ export function createSearchBar(
     } else if (e.key === "Enter") {
       e.preventDefault();
       commit(selectedIndex >= 0 ? selectedIndex : 0);
-    } else if (e.key === "Escape") {
-      hide();
-      input.blur();
     }
   });
 
@@ -203,6 +212,7 @@ export function createSearchBar(
   }
 
   function dispose() {
+    if (debounceTimer) clearTimeout(debounceTimer);
     container.removeChild(wrapper);
   }
 
