@@ -178,11 +178,17 @@ def _build_preview(messages: list[dict[str, Any]]) -> str:
     return ""
 
 
-def load_sessions(db_path: Path) -> list[Session]:
+def load_sessions(db_path: Path, include_children: bool = True) -> list[Session]:
     """Load sessions from a Hermes SQLite database.
 
     Queries ``sessions`` and ``messages`` tables, extracting tool calls,
     memory events, search hits, and preview text.
+
+    Parameters
+    ----------
+    include_children:
+        If False, only top-level sessions (parent_id IS NULL) are returned.
+        Defaults to True for backward compatibility.
     """
     db_path = Path(db_path)
     if not db_path.exists():
@@ -193,11 +199,13 @@ def load_sessions(db_path: Path) -> list[Session]:
     conn.execute("PRAGMA journal_mode=WAL")
 
     try:
+        filter_clause = "" if include_children else "WHERE parent_session_id IS NULL"
         cursor = conn.execute(
-            """
+            f"""
             SELECT id, title, source, model, started_at, ended_at,
                    message_count, tool_call_count, parent_session_id
             FROM sessions
+            {filter_clause}
             ORDER BY started_at
             """
         )

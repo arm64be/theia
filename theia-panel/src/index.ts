@@ -126,6 +126,7 @@ export async function mount(
     const simResult = createSimulation(currentGraph, kinds);
     simulation = simResult.simulation;
     simNodes = simResult.nodes;
+    simulation.stop();
     for (const sn of simNodes) {
       const old = oldPositions.get(sn.id);
       if (old) {
@@ -134,7 +135,6 @@ export async function mount(
         sn.z = old.z;
       }
     }
-    simulation.stop();
 
     const filteredNodeIndex = new Map<string, number>();
     for (const [id, idx] of nodeIndex) {

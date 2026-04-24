@@ -64,7 +64,7 @@
           "target": { "type": "string" },
           "kind": { "enum": ["memory-share", "cross-search", "tool-overlap", "subagent"] },
           "weight": { "type": "number", "minimum": 0, "maximum": 1 },
-          "evidence": { "type": "object" }
+          "evidence": { "type": "object", "additionalProperties": true }
         }
       }
     }

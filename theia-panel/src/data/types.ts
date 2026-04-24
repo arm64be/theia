@@ -35,6 +35,6 @@ export interface TheiaGraph {
     target: string;
     kind: "memory-share" | "cross-search" | "tool-overlap" | "subagent";
     weight: number;
-    evidence?: {};
+    evidence?: Record<string, unknown>;
   }[];
 }
