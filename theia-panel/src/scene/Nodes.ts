@@ -93,6 +93,7 @@ export interface NodeLayer {
   count: number;
   setPosition(i: number, x: number, y: number, z: number): void;
   setHighlight(i: number, on: boolean): void;
+  setVisible(i: number, visible: boolean): void;
   setTime(t: number): void;
   setCameraPosition(pos: THREE.Vector3): void;
   flush(): void;
@@ -159,6 +160,14 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
     setHighlight(i, on) {
       if (on) highlighted.add(i);
       else highlighted.delete(i);
+    },
+    setVisible(i, visible) {
+      mesh.getMatrixAt(i, dummy.matrix);
+      dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+      const sz = visible ? nodeSizes[i]! : 0;
+      dummy.scale.set(sz, sz, sz);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
     },
     setTime(t: number) {
       const colorAttr = mesh.instanceColor!;

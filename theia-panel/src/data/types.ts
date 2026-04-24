@@ -28,11 +28,12 @@ export interface TheiaGraph {
       y: number;
     };
     features?: null | number[];
+    parent_id?: string | null;
   }[];
   edges: {
     source: string;
     target: string;
-    kind: "memory-share" | "cross-search" | "tool-overlap";
+    kind: "memory-share" | "cross-search" | "tool-overlap" | "subagent";
     weight: number;
     evidence?: {};
   }[];

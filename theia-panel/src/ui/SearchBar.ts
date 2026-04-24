@@ -10,6 +10,7 @@ export function createSearchBar(
   container: HTMLElement,
   graph: TheiaGraph,
   onFocus: (result: SearchResult) => void,
+  isVisible?: (node: TheiaGraph["nodes"][number]) => boolean,
 ) {
   const wrapper = document.createElement("div");
   wrapper.style.cssText = `
@@ -77,6 +78,7 @@ export function createSearchBar(
     const resultByIndex = new Map<number, SearchResult>();
     for (let i = 0; i < graph.nodes.length; i++) {
       const node = graph.nodes[i]!;
+      if (isVisible && !isVisible(node)) continue;
       if (matches(node, query)) {
         resultByIndex.set(i, { node, index: i });
       }

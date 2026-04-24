@@ -7,6 +7,7 @@ from typing import Any, Literal, cast
 
 from theia_core.detect.cross_search import detect_cross_search
 from theia_core.detect.memory_share import detect_memory_share
+from theia_core.detect.subagent import detect_subagent
 from theia_core.detect.tool_overlap import detect_tool_overlap
 from theia_core.emit import build_graph, write_graph
 from theia_core.features import build_feature_matrix
@@ -26,7 +27,7 @@ def _build(
     include_features: bool,
     disable_tool_overlap: bool,
 ) -> dict[str, Any]:
-    edges = detect_memory_share(sessions) + detect_cross_search(sessions)
+    edges = detect_memory_share(sessions) + detect_cross_search(sessions) + detect_subagent(sessions)
     if not disable_tool_overlap:
         edges += detect_tool_overlap(sessions)
 
@@ -81,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     def generate() -> None:
         sessions = load_sessions(args.db_path)
         if not sessions:
-            print(f"warning: no top-level sessions found in {args.db_path}")
+            print(f"warning: no sessions found in {args.db_path}")
             return
         graph = _build(
             sessions,

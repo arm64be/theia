@@ -43,6 +43,7 @@ class Session:
     search_hits: tuple[SearchHit, ...]
     preview: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
+    parent_id: str | None = None
 
 
 def _parse_iso(s: str) -> datetime:
@@ -178,7 +179,7 @@ def _build_preview(messages: list[dict[str, Any]]) -> str:
 
 
 def load_sessions(db_path: Path) -> list[Session]:
-    """Load top-level sessions from a Hermes SQLite database.
+    """Load sessions from a Hermes SQLite database.
 
     Queries ``sessions`` and ``messages`` tables, extracting tool calls,
     memory events, search hits, and preview text.
@@ -197,14 +198,13 @@ def load_sessions(db_path: Path) -> list[Session]:
             SELECT id, title, source, model, started_at, ended_at,
                    message_count, tool_call_count, parent_session_id
             FROM sessions
-            WHERE parent_session_id IS NULL
             ORDER BY started_at
             """
         )
         rows = cursor.fetchall()
         session_ids = [row["id"] for row in rows]
 
-        # Batch-load all messages for top-level sessions in one query
+        # Batch-load all messages for sessions in one query
         messages_by_session: dict[str, list[dict[str, Any]]] = {sid: [] for sid in session_ids}
         if session_ids:
             placeholders = ",".join("?" * len(session_ids))
@@ -259,6 +259,7 @@ def load_sessions(db_path: Path) -> list[Session]:
                     search_hits=tuple(search_hits),
                     preview=preview,
                     raw={"db_row": dict(row), "messages": messages},
+                    parent_id=row["parent_session_id"],
                 )
             )
 

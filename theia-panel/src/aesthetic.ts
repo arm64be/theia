@@ -6,6 +6,7 @@ export const PALETTE = {
   edgeMemory: 0xffb366, // warm amber
   edgeSearch: 0x66d9ef, // cool cyan
   edgeOverlap: 0xb089ff, // muted violet
+  edgeSubagent: 0x7ce38b, // soft green
 } as const;
 
 export const SIZES = {
@@ -16,5 +17,6 @@ export const SIZES = {
     "memory-share": 0.55,
     "cross-search": 0.5,
     "tool-overlap": 0.12,
+    subagent: 0.35,
   },
 } as const;

@@ -73,6 +73,71 @@ export async function mount(
   const isInteracting = () =>
     isMouseDown || performance.now() - lastWheelAt < 200;
 
+  function computeVisibleNodeIds(
+    graph: TheiaGraph,
+    enabledKinds: Set<string>,
+  ): Set<string> {
+    if (enabledKinds.has("subagent")) {
+      return new Set(graph.nodes.map((n) => n.id));
+    }
+    const hasNonSubagentConnection = new Map<string, boolean>();
+    for (const node of graph.nodes) {
+      if (!node.parent_id) {
+        hasNonSubagentConnection.set(node.id, true);
+      }
+    }
+    for (const edge of graph.edges) {
+      if (edge.kind === "subagent") continue;
+      if (!enabledKinds.has(edge.kind)) continue;
+      hasNonSubagentConnection.set(edge.source, true);
+      hasNonSubagentConnection.set(edge.target, true);
+    }
+    const visible = new Set<string>();
+    for (const node of graph.nodes) {
+      if (hasNonSubagentConnection.get(node.id)) {
+        visible.add(node.id);
+      }
+    }
+    return visible;
+  }
+
+  let visibleNodeIds = new Set<string>();
+
+  function updateVisibility() {
+    visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds);
+    for (let i = 0; i < currentGraph.nodes.length; i++) {
+      nodes.setVisible(i, visibleNodeIds.has(currentGraph.nodes[i]!.id));
+    }
+    nodes.flush();
+
+    // Preserve current positions when reinitializing simulation with filtered edges
+    const oldPositions = new Map<string, { x: number; y: number; z: number }>();
+    for (const sn of simNodes) {
+      oldPositions.set(sn.id, { x: sn.x, y: sn.y, z: sn.z });
+    }
+    simulation.stop();
+    const simResult = createSimulation(currentGraph, kinds);
+    simulation = simResult.simulation;
+    simNodes = simResult.nodes;
+    for (const sn of simNodes) {
+      const old = oldPositions.get(sn.id);
+      if (old) {
+        sn.x = old.x;
+        sn.y = old.y;
+        sn.z = old.z;
+      }
+    }
+    simulation.stop();
+
+    const filteredNodeIndex = new Map<string, number>();
+    for (const [id, idx] of nodeIndex) {
+      if (visibleNodeIds.has(id)) {
+        filteredNodeIndex.set(id, idx);
+      }
+    }
+    edges.rebuild(currentGraph, kinds, filteredNodeIndex, nodePositions);
+  }
+
   function setupGraph(g: TheiaGraph) {
     simulation?.stop();
 
@@ -85,7 +150,7 @@ export async function mount(
     nodes = createNodes(g);
     ctx.scene.add(nodes.mesh);
 
-    const simResult = createSimulation(g);
+    const simResult = createSimulation(g, kinds);
     simulation = simResult.simulation;
     simNodes = simResult.nodes;
     simulation.stop();
@@ -104,12 +169,25 @@ export async function mount(
     }
     nodes.flush();
 
-    edges.rebuild(g, kinds, nodeIndex, nodePositions);
+    visibleNodeIds = computeVisibleNodeIds(g, kinds);
+    for (let i = 0; i < g.nodes.length; i++) {
+      nodes.setVisible(i, visibleNodeIds.has(g.nodes[i]!.id));
+    }
+    nodes.flush();
+
+    const filteredNodeIndex = new Map<string, number>();
+    for (const [id, idx] of nodeIndex) {
+      if (visibleNodeIds.has(id)) {
+        filteredNodeIndex.set(id, idx);
+      }
+    }
+    edges.rebuild(g, kinds, filteredNodeIndex, nodePositions);
     post.resize();
 
     picker?.dispose();
     picker = createPicker(element, ctx.camera, nodes, nodePositions, {
       shouldBlock: isInteracting,
+      isVisible: (i) => visibleNodeIds.has(currentGraph.nodes[i]!.id),
     });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
@@ -129,17 +207,22 @@ export async function mount(
     });
 
     searchBar?.dispose();
-    searchBar = createSearchBar(element, currentGraph, (result) => {
-      const idx = nodeIndex.get(result.node.id);
-      if (idx !== undefined) {
-        const sn = simNodes[idx]!;
-        ctx.focusOn(sn.x, sn.y, 1.5);
-      }
-      const related = currentGraph.edges.filter(
-        (e) => e.source === result.node.id || e.target === result.node.id,
-      );
-      sidePanel.show(result.node, related);
-    });
+    searchBar = createSearchBar(
+      element,
+      currentGraph,
+      (result) => {
+        const idx = nodeIndex.get(result.node.id);
+        if (idx !== undefined && visibleNodeIds.has(result.node.id)) {
+          const sn = simNodes[idx]!;
+          ctx.focusOn(sn.x, sn.y, 1.5);
+        }
+        const related = currentGraph.edges.filter(
+          (e) => e.source === result.node.id || e.target === result.node.id,
+        );
+        sidePanel.show(result.node, related);
+      },
+      (node) => visibleNodeIds.has(node.id),
+    );
   }
 
   const initialGraph = await loadGraph(graphUrl);
@@ -245,7 +328,7 @@ export async function mount(
   // Filter bar
   const filterBar = createFilterBar(element, kinds, (newKinds) => {
     kinds = newKinds;
-    edges.rebuild(currentGraph, kinds, nodeIndex, nodePositions);
+    updateVisibility();
   });
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {

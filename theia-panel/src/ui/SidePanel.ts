@@ -125,12 +125,20 @@ function renderEdge(
         web: <span style="color:#b089ff">${escape(String(webKey))}</span>
       </div>`;
     }
+  } else if (e.kind === "subagent") {
+    const isChild = node.id === e.target;
+    const label = isChild ? "parent" : "child";
+    const displayId = isChild ? e.source : ev.child_session_id;
+    detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
+      ${label}: <span style="color:#7ce38b">${escape(String(displayId ?? "?"))}</span>
+    </div>`;
   }
 
   const kindColor: Record<string, string> = {
     "memory-share": "#ffb366",
     "cross-search": "#66d9ef",
     "tool-overlap": "#b089ff",
+    subagent: "#7ce38b",
   };
   const color = kindColor[e.kind] ?? "#cfd6e4";
 
