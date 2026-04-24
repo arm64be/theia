@@ -7,12 +7,16 @@ const SUMMARY_MAX_CHARS = 280;
 
 /** Approximate the dashboard's `bg-card` pattern: blend midground into bg at 4%. */
 function cardBg(t: ThemeTokens): string {
-  const mr = parseInt(t.midground.slice(0, 2), 16);
-  const mg = parseInt(t.midground.slice(2, 4), 16);
-  const mb = parseInt(t.midground.slice(4, 6), 16);
-  const br = parseInt(t.bg.slice(0, 2), 16);
-  const bg = parseInt(t.bg.slice(2, 4), 16);
-  const bb = parseInt(t.bg.slice(4, 6), 16);
+  const parse = (hex: string) => {
+    const h = hex.replace(/^#/, "");
+    return [
+      parseInt(h.slice(0, 2), 16) || 0,
+      parseInt(h.slice(2, 4), 16) || 0,
+      parseInt(h.slice(4, 6), 16) || 0,
+    ];
+  };
+  const [mr, mg, mb] = parse(t.midground);
+  const [br, bg, bb] = parse(t.bg);
   const mix = (a: number, b: number, p: number) =>
     Math.round(a * p + b * (1 - p));
   return `rgb(${mix(mr, br, 0.04)},${mix(mg, bg, 0.04)},${mix(mb, bb, 0.04)})`;
@@ -81,6 +85,8 @@ export function createSidePanel(
 
     const headerSummary = renderSummaryBlock(node, theme);
 
+    const dtStyle = `opacity:0.6;color:#${theme.fg2};letter-spacing:0.04em;text-transform:uppercase;font-size:10px`;
+
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
         style="position:absolute;top:12px;right:16px;background:none;border:none;color:#${theme.fg2};font-size:16px;cursor:pointer;opacity:0.5">×</button>
@@ -88,16 +94,16 @@ export function createSidePanel(
       <div style="opacity:0.5;color:#${theme.fg2};margin-bottom:2px;font-size:11px">${node.id}</div>
       ${headerSummary}
       <dl style="margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px">
-        <dt style="opacity:0.45;color:#${theme.fg2};letter-spacing:0.04em;text-transform:uppercase;font-size:10px">Started</dt><dd style="margin:0">${new Date(node.started_at).toLocaleString()}</dd>
-        <dt style="opacity:0.45;color:#${theme.fg2};letter-spacing:0.04em;text-transform:uppercase;font-size:10px">Duration</dt><dd style="margin:0">${Math.round(node.duration_sec)}s</dd>
-        <dt style="opacity:0.45;color:#${theme.fg2};letter-spacing:0.04em;text-transform:uppercase;font-size:10px">Model</dt><dd style="margin:0">${escape(node.model ?? "-")}</dd>
-        <dt style="opacity:0.45;color:#${theme.fg2};letter-spacing:0.04em;text-transform:uppercase;font-size:10px">Tools</dt><dd style="margin:0">${node.tool_count}</dd>
-        <dt style="opacity:0.45;color:#${theme.fg2};letter-spacing:0.04em;text-transform:uppercase;font-size:10px">Messages</dt><dd style="margin:0">${node.message_count ?? "-"}</dd>
+        <dt style="${dtStyle}">Started</dt><dd style="margin:0">${new Date(node.started_at).toLocaleString()}</dd>
+        <dt style="${dtStyle}">Duration</dt><dd style="margin:0">${Math.round(node.duration_sec)}s</dd>
+        <dt style="${dtStyle}">Model</dt><dd style="margin:0">${escape(node.model ?? "-")}</dd>
+        <dt style="${dtStyle}">Tools</dt><dd style="margin:0">${node.tool_count}</dd>
+        <dt style="${dtStyle}">Messages</dt><dd style="margin:0">${node.message_count ?? "-"}</dd>
       </dl>
       <div style="margin:20px 0 0;border-top:1px solid #${theme.border}"></div>
       <h4 style="margin:10px 0 8px;font-size:10px;letter-spacing:0.12em;opacity:0.5;text-transform:uppercase">Connections</h4>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${relatedEdges.length === 0 ? '<div style="opacity:0.35;font-size:11px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme)).join("")}
+        ${relatedEdges.length === 0 ? '<div style="opacity:0.5;font-size:11px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme)).join("")}
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
@@ -193,7 +199,7 @@ function renderEdge(
         <span style="border:1px solid #${theme.border};padding:1px 7px;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#${theme.fg2};line-height:1.4">${e.kind}</span>
         <span style="opacity:0.35">${direction}</span>
         <span style="opacity:0.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${escape(otherId)}</span>
-        <span style="margin-left:auto;opacity:0.35;font-size:10px;letter-spacing:0.04em">${e.weight.toFixed(2)}</span>
+        <span style="margin-left:auto;opacity:0.35;font-size:10px;letter-spacing:0.04em" title="Edge weight">w=${e.weight.toFixed(2)}</span>
       </div>
       ${detail}
     </div>
