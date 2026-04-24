@@ -5,17 +5,22 @@ import { escape, truncate } from "./utils";
 
 const SUMMARY_MAX_CHARS = 280;
 
-/** Approximate the dashboard's `bg-card` pattern: blend fg into bg at 4%. */
+/** Approximate the dashboard's `bg-card` pattern: blend midground into bg at 4%. */
 function cardBg(t: ThemeTokens): string {
-  const fr = parseInt(t.fg.slice(0, 2), 16);
-  const fg = parseInt(t.fg.slice(2, 4), 16);
-  const fb = parseInt(t.fg.slice(4, 6), 16);
+  const mr = parseInt(t.midground.slice(0, 2), 16);
+  const mg = parseInt(t.midground.slice(2, 4), 16);
+  const mb = parseInt(t.midground.slice(4, 6), 16);
   const br = parseInt(t.bg.slice(0, 2), 16);
   const bg = parseInt(t.bg.slice(2, 4), 16);
   const bb = parseInt(t.bg.slice(4, 6), 16);
   const mix = (a: number, b: number, p: number) =>
     Math.round(a * p + b * (1 - p));
-  return `rgb(${mix(fr, br, 0.04)},${mix(fg, bg, 0.04)},${mix(fb, bb, 0.04)})`;
+  return `rgb(${mix(mr, br, 0.04)},${mix(mg, bg, 0.04)},${mix(mb, bb, 0.04)})`;
+}
+
+/** Shared style for edge detail attribute lines. */
+function detailAttrStyle(t: ThemeTokens): string {
+  return `margin-top:6px;opacity:0.7;font-size:11px;color:#${t.fg2};line-height:1.5`;
 }
 
 function renderSummaryBlock(
@@ -26,10 +31,10 @@ function renderSummaryBlock(
     return `<div style="margin-top:10px;padding:10px;background:${cardBg(theme)};border-left:2px solid #${theme.accent};color:#${theme.fg};font-size:12px;line-height:1.5">${escape(node.summary)}</div>`;
   }
   if (node.initial_prompt) {
-    return `<div style="margin-top:10px;padding:10px;background:${cardBg(theme)};border-left:2px solid #66d9ef;color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, SUMMARY_MAX_CHARS))}</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:${cardBg(theme)};border-left:2px solid #${theme.accent};color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, SUMMARY_MAX_CHARS))}</div>`;
   }
   if (node.preview) {
-    return `<div style="margin-top:10px;padding:10px;background:${cardBg(theme)};border-left:2px solid #66d9ef;color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">PREVIEW</div>${escape(truncate(node.preview, SUMMARY_MAX_CHARS))}</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:${cardBg(theme)};border-left:2px solid #${theme.accent};color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">PREVIEW</div>${escape(truncate(node.preview, SUMMARY_MAX_CHARS))}</div>`;
   }
   return "";
 }
@@ -78,7 +83,7 @@ export function createSidePanel(
 
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
-        style="position:absolute;top:12px;right:16px;background:none;border:none;color:#${theme.fg2};font-size:16px;cursor:pointer;opacity:0.5;transition:opacity 120ms">×</button>
+        style="position:absolute;top:12px;right:16px;background:none;border:none;color:#${theme.fg2};font-size:16px;cursor:pointer;opacity:0.5">×</button>
       <h3 style="margin:0 0 2px;color:#${theme.accent};font-size:15px;letter-spacing:0.02em">${escape(node.title || node.id)}</h3>
       <div style="opacity:0.5;color:#${theme.fg2};margin-bottom:2px;font-size:11px">${node.id}</div>
       ${headerSummary}
@@ -135,7 +140,7 @@ function renderEdge(
     const memId = ev.memory_id;
     const salience = ev.salience;
     const readCount = ev.read_count;
-    detail = `<div style="margin-top:6px;opacity:0.7;font-size:11px;color:#${theme.fg2};line-height:1.5">
+    detail = `<div style="${detailAttrStyle(theme)}">
       memory: <span style="color:#${theme.accent}">${escape(String(memId ?? "?"))}</span>
       ${salience !== undefined ? `\u00b7 salience ${Number(salience).toFixed(2)}` : ""}
       ${readCount !== undefined ? `\u00b7 reads ${readCount}` : ""}
@@ -144,8 +149,8 @@ function renderEdge(
     const query = ev.query;
     const hitRank = ev.hit_rank;
     const hits = ev.hits;
-    detail = `<div style="margin-top:6px;opacity:0.7;font-size:11px;color:#${theme.fg2};line-height:1.5">
-      query: <span style="color:#66d9ef">${escape(String(query ?? "?"))}</span>
+    detail = `<div style="${detailAttrStyle(theme)}">
+      query: <span style="color:#${theme.accent}">${escape(String(query ?? "?"))}</span>
       ${hitRank !== undefined ? `\u00b7 rank #${hitRank}` : ""}
       ${hits !== undefined ? `\u00b7 ${hits} hit${Number(hits) === 1 ? "" : "s"}` : ""}
     </div>`;
@@ -156,42 +161,36 @@ function renderEdge(
     const linkType = ev.link_type;
     const webKey = ev.web_key;
     if (sharedTools && Array.isArray(sharedTools)) {
-      detail = `<div style="margin-top:6px;opacity:0.7;font-size:11px;color:#${theme.fg2};line-height:1.5">
-        shared: ${sharedTools.map((t: string) => `<span style="color:#b089ff">${escape(t)}</span>`).join(" ")}
+      detail = `<div style="${detailAttrStyle(theme)}">
+        shared: ${sharedTools.map((t: string) => `<span style="color:#${theme.accent}">${escape(t)}</span>`).join(" ")}
         ${jaccard !== undefined ? `\u00b7 jaccard ${Number(jaccard).toFixed(2)}` : ""}
       </div>`;
     } else if (skillName) {
-      detail = `<div style="margin-top:6px;opacity:0.7;font-size:11px;color:#${theme.fg2};line-height:1.5">
-        skill: <span style="color:#b089ff">${escape(String(skillName))}</span>
+      detail = `<div style="${detailAttrStyle(theme)}">
+        skill: <span style="color:#${theme.accent}">${escape(String(skillName))}</span>
         ${linkType ? `\u00b7 ${escape(String(linkType))}` : ""}
       </div>`;
     } else if (webKey) {
-      detail = `<div style="margin-top:6px;opacity:0.7;font-size:11px;color:#${theme.fg2};line-height:1.5">
-        web: <span style="color:#b089ff">${escape(String(webKey))}</span>
+      detail = `<div style="${detailAttrStyle(theme)}">
+        web: <span style="color:#${theme.accent}">${escape(String(webKey))}</span>
       </div>`;
     }
   } else if (e.kind === "subagent") {
     const isChild = node.id === e.target;
     const label = isChild ? "parent" : "child";
     const displayId = isChild ? e.source : ev.child_session_id;
-    detail = `<div style="margin-top:6px;opacity:0.7;font-size:11px;color:#${theme.fg2};line-height:1.5">
-      ${label}: <span style="color:#7ce38b">${escape(String(displayId ?? "?"))}</span>
+    detail = `<div style="${detailAttrStyle(theme)}">
+      ${label}: <span style="color:#${theme.accent}">${escape(String(displayId ?? "?"))}</span>
     </div>`;
   }
 
-  const kindColor: Record<string, string> = {
-    "memory-share": "#ffb366",
-    "cross-search": "#66d9ef",
-    "tool-overlap": "#b089ff",
-    subagent: "#7ce38b",
-  };
-  const color = kindColor[e.kind] ?? `#${theme.fg}`;
+  const color = `#${theme.accent}`;
 
   return `
     <div style="padding:12px;background:${cardBg(theme)};border:1px solid #${theme.border}">
       <div style="display:flex;align-items:center;gap:8px;font-size:11px">
         <span style="width:7px;height:7px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
-        <span style="border:1px solid #${theme.border};padding:1px 7px;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#${theme.fg2};line-height:1.7">${e.kind}</span>
+        <span style="border:1px solid #${theme.border};padding:1px 7px;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#${theme.fg2};line-height:1.4">${e.kind}</span>
         <span style="opacity:0.35">${direction}</span>
         <span style="opacity:0.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${escape(otherId)}</span>
         <span style="margin-left:auto;opacity:0.35;font-size:10px;letter-spacing:0.04em">${e.weight.toFixed(2)}</span>

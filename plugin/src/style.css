@@ -9,8 +9,10 @@
   max-height: 75vh;
   border: 1px solid var(--color-border, currentColor);
   border-radius: var(--radius, 0.25rem);
-  overflow: hidden;
+  overflow: clip;
+  box-sizing: border-box;
   background: var(--background-base, #07080d);
+  transition: background 200ms, border-color 200ms, border-radius 200ms;
 }
 
 .theia-iframe {
@@ -53,11 +55,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 1rem;
+  background: var(--background-base, #07080d);
   background: color-mix(in srgb, var(--background-base, #07080d) 95%, transparent);
   border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
   color: var(--midground, #cfd6e4);
-  font-family: var(--theme-font-sans, ui-monospace, monospace);
+  font-family: var(--theme-font-sans, system-ui, -apple-system, sans-serif);
   z-index: 1;
+  transition: background 200ms, border-color 200ms;
 }
 
 .theia-iframe-full {
