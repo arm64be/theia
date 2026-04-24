@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# theia — One-command installer
+# theia -- One-command installer
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/arm64be/theia/main/install.sh | bash
-#   bash install.sh                          (from a local clone)
-#   bash install.sh --help                   (show this help)
-#   bash install.sh --no-service             (skip service prompt)
-#   bash install.sh --no-update              (don't git pull if already installed)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/arm64be/theia/main/install.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/arm64be/theia/main/install.sh) -s -- --no-service
+#   bash install.sh                            (from a local clone)
+#   bash install.sh --help                     (show this help)
+#   bash install.sh --no-service               (skip service prompt)
+#   bash install.sh --no-update                (don't git pull if already installed)
 #
 # What it does:
-#   1. Checks prerequisites (Python >= 3.11, Node.js, npm, git, make)
+#   1. Checks prerequisites (Python >= 3.11, Node.js, npm, GNU Make)
 #   2. Clones the repo into ~/.hermes/hermes-theia/ (git pull to update if exists)
 #   3. Creates a Python virtual environment and installs dependencies
 #   4. Installs Node dependencies
@@ -41,6 +42,7 @@ for arg in "$@"; do
         --help|-h) HELP=true ;;
         --no-update) NO_UPDATE=true ;;
         --no-service) SKIP_SERVICE=true ;;
+        *) err "Unknown option: ${arg}"; usage; exit 1 ;;
     esac
 done
 
@@ -55,25 +57,50 @@ Options:
 EOF
 }
 
-$HELP && { usage; exit 0; }
+if [ "$HELP" = true ]; then
+    usage
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# OS detection
+# ---------------------------------------------------------------------------
+IS_MACOS=false; [[ "$(uname)" == "Darwin" ]] && IS_MACOS=true
+HAS_SYSTEMD=false
+if command -v systemctl &>/dev/null && ! $IS_MACOS; then
+    HAS_SYSTEMD=true
+fi
+
+# ---------------------------------------------------------------------------
+# GNU Make detection
+# ---------------------------------------------------------------------------
+if command -v gmake &>/dev/null; then
+    MAKE_CMD="gmake"
+elif make --version 2>/dev/null | grep -q "GNU Make"; then
+    MAKE_CMD="make"
+else
+    echo "[ERR]  GNU Make is required but was not found."
+    $IS_MACOS && echo "       Install with: brew install make"
+    exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Colours
 # ---------------------------------------------------------------------------
 R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; B='\033[0;34m'; NC='\033[0m'
-info()  { echo -e "${B}[INFO]${NC}  $1"; }
-ok()    { echo -e "${G}[ OK ]${NC}  $1"; }
-warn()  { echo -e "${Y}[WARN]${NC}  $1"; }
-err()   { echo -e "${R}[ERR]${NC}  $1"; }
+info()  { echo -e "${B}[INFO]${NC}  $*"; }
+ok()    { echo -e "${G}[ OK ]${NC}  $*"; }
+warn()  { echo -e "${Y}[WARN]${NC}  $*"; }
+err()   { echo -e "${R}[ERR]${NC}  $*"; }
 
 # ---------------------------------------------------------------------------
-# Step 1 - Prerequisites
+# Step 1 -- Prerequisites
 # ---------------------------------------------------------------------------
 check_prereqs() {
     info "Checking prerequisites..."
     local fail=0
 
-    for cmd in python3 node npm git make; do
+    for cmd in python3 node npm git; do
         command -v "$cmd" &>/dev/null || { err "'${cmd}' is required but not found"; fail=1; }
     done
     [ "$fail" -eq 1 ] && exit 1
@@ -83,38 +110,48 @@ check_prereqs() {
         ok "Python ${pyver}"
     else
         local pyver; pyver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        err "Python 3.11+ required (found ${pyver})"; fail=1; exit 1
+        err "Python 3.11+ required (found ${pyver})"
+        exit 1
     fi
 
     ok "Node.js $(node --version)"
     ok "npm $(npm --version)"
     ok "$(git --version 2>/dev/null || git version)"
-    ok "$(make --version 2>/dev/null | head -1)"
+    ok "$(${MAKE_CMD} --version 2>/dev/null | head -1)"
+
+    if $IS_MACOS; then
+        warn "macOS detected: systemd services will not be available"
+    fi
 }
 
 # ---------------------------------------------------------------------------
-# Step 2 - Clone / update repository
+# Step 2 -- Clone / update repository
 # ---------------------------------------------------------------------------
 clone_repo() {
     if [ -d "$INSTALL_DIR" ]; then
-        if $NO_UPDATE; then
+        if [ "$NO_UPDATE" = true ]; then
             info "Repository exists at ${INSTALL_DIR}, skipping update (--no-update)"
             return
         fi
         info "Updating existing repository at ${INSTALL_DIR}..."
-        (cd "$INSTALL_DIR" && git pull --ff-only) || warn "Could not git pull (local changes or network issue?)"
+        (cd "$INSTALL_DIR" && git pull --ff-only) || {
+            warn "Could not git pull (local changes or network issue?)"
+            warn "Continuing with existing source -- build may use stale code"
+        }
         return
     fi
 
     mkdir -p "$(dirname "$INSTALL_DIR")"
 
-    local self
-    self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -f "${self}/Makefile" ] && [ -f "${self}/plugin/manifest.json" ]; then
-        info "Copying repository from ${self} to ${INSTALL_DIR}..."
-        cp -r "$self" "$INSTALL_DIR"
-        ok "Repository copied"
-        return
+    local self="${BASH_SOURCE[0]:-}"
+    if [ -n "$self" ]; then
+        self="$(cd "$(dirname "$self")" && pwd)"
+        if [ -f "${self}/Makefile" ] && [ -f "${self}/plugin/manifest.json" ]; then
+            info "Copying repository from ${self} to ${INSTALL_DIR}..."
+            cp -r "$self" "$INSTALL_DIR"
+            ok "Repository copied"
+            return
+        fi
     fi
 
     info "Cloning into ${INSTALL_DIR}..."
@@ -123,22 +160,30 @@ clone_repo() {
 }
 
 # ---------------------------------------------------------------------------
-# Step 3 - Python virtual environment + theia-core
+# Step 3 -- Python virtual environment + theia-core
 # ---------------------------------------------------------------------------
 setup_venv() {
-    info "Creating Python virtual environment at ${VENV_DIR}..."
-    python3 -m venv "$VENV_DIR"
+    if [ -d "$VENV_DIR" ] && "${VENV_DIR}/bin/python" -c "import theia_core" 2>/dev/null; then
+        ok "theia-core already installed, skipping"
+        return
+    fi
+
+    if [ ! -d "$VENV_DIR" ]; then
+        info "Creating Python virtual environment at ${VENV_DIR}..."
+        python3 -m venv "$VENV_DIR"
+    fi
+
     local pip="${VENV_DIR}/bin/pip"
 
     info "Installing theia-core (Python dependencies)..."
-    (cd "${INSTALL_DIR}/theia-core" && "$pip" install -e ".[dev]") || {
+    (cd "${INSTALL_DIR}/theia-core" && "$pip" install -e ".") || {
         err "theia-core install failed"; exit 1
     }
     ok "theia-core installed"
 }
 
 # ---------------------------------------------------------------------------
-# Step 4 - Node dependencies
+# Step 4 -- Node dependencies
 # ---------------------------------------------------------------------------
 install_panel_deps() {
     info "Installing theia-panel (this may take a minute)..."
@@ -149,36 +194,44 @@ install_panel_deps() {
 }
 
 # ---------------------------------------------------------------------------
-# Step 5 - Build
+# Step 5 -- Build
 # ---------------------------------------------------------------------------
 build_project() {
     info "Building project..."
-    (cd "$INSTALL_DIR" && make build) || {
+    (cd "$INSTALL_DIR" && ${MAKE_CMD} build) || {
         err "Build failed"; exit 1
     }
     ok "Build complete"
 }
 
 # ---------------------------------------------------------------------------
-# Step 6 - Symlink plugin into Hermes
+# Step 6 -- Symlink plugin into Hermes
 # ---------------------------------------------------------------------------
 symlink_plugin() {
     info "Setting up Hermes plugin symlink..."
     mkdir -p "$HERMES_PLUGINS_DIR"
     local target="${HERMES_PLUGINS_DIR}/${PLUGIN_NAME}"
-    [ -e "$target" ] && rm -rf "$target"
+
+    if [ -L "$target" ]; then
+        rm -f "$target"
+    elif [ -e "$target" ]; then
+        local backup="${target}.bak.$(date +%s)"
+        warn "Existing non-symlink plugin at ${target}, backing up to ${backup}..."
+        mv "$target" "$backup"
+    fi
+
     ln -sfn "${INSTALL_DIR}/dist/plugin" "$target"
     ok "Plugin linked: ${target} -> ${INSTALL_DIR}/dist/plugin"
 }
 
 # ---------------------------------------------------------------------------
-# Step 7 - Optional watch service
+# Step 7 -- Optional watch service
 # ---------------------------------------------------------------------------
 install_service() {
     [ "$SKIP_SERVICE" = true ] && { info "Skipping service installation (--no-service)"; return; }
 
     if [ ! -t 0 ]; then
-        info "Non-interactive shell - skipping service prompt"
+        info "Non-interactive shell -- skipping service prompt"
         info "Run interactively to configure a watch service, or pass --no-service to silence"
         return
     fi
@@ -189,16 +242,17 @@ install_service() {
     echo ""
     echo "  How would you like to run the watcher?"
     echo ""
-    PS3="  Select an option (1-4): "
-    options=(
-        "systemd --user service (recommended)"
-        "systemd system service (requires sudo)"
-        "Simple shell script (run manually)"
-        "Skip"
-    )
+
+    local options=()
+    $HAS_SYSTEMD && options+=("systemd --user service (recommended)")
+    $HAS_SYSTEMD && options+=("systemd system service (requires sudo)")
+    options+=("Simple shell script (run manually)")
+    options+=("Skip")
+
+    PS3="  Select an option (1-${#options[@]}): "
     select opt in "${options[@]}"; do
         if [ -z "$opt" ]; then
-            warn "Invalid option, please select 1-4"
+            warn "Invalid option, please select 1-${#options[@]}"
             continue
         fi
         case $opt in
@@ -227,6 +281,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=${INSTALL_DIR}
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart=${VENV_DIR}/bin/python -m theia_core --watch
 Restart=on-failure
 RestartSec=5
@@ -256,6 +311,7 @@ After=network.target
 Type=simple
 User=${user}
 WorkingDirectory=${INSTALL_DIR}
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart=${VENV_DIR}/bin/python -m theia_core --watch
 Restart=on-failure
 RestartSec=5
@@ -265,8 +321,11 @@ WantedBy=multi-user.target
 EOF
 
     info "Installing system service (requires sudo)..."
-    sudo mv "$tmpfile" /etc/systemd/system/theia-watch.service \
-        || { err "sudo mv failed"; exit 1; }
+    sudo mv "$tmpfile" /etc/systemd/system/theia-watch.service || {
+        err "sudo mv failed"; exit 1
+    }
+    sudo chown root:root /etc/systemd/system/theia-watch.service
+    sudo chmod 644 /etc/systemd/system/theia-watch.service
     sudo systemctl daemon-reload 2>/dev/null \
         || warn "systemctl daemon-reload failed"
     ok "systemd system service installed: /etc/systemd/system/theia-watch.service"
@@ -312,19 +371,19 @@ main() {
     install_service
 }
 
-if ! (main "$@"); then
+if (main "$@"); then
+    echo ""
+    ok "Installation complete!"
+    echo ""
+    echo "  Next steps:"
+    echo "    1. Make sure Hermes is running and has session data"
+    echo "    2. If you didn't install a watcher service, run:"
+    echo "       cd ${INSTALL_DIR} && ${VENV_DIR}/bin/python -m theia_core --watch"
+    echo "    3. Open the Hermes dashboard and click the 'Constellation' tab"
+    echo ""
+else
     err ""
     err "Installation did not complete."
     err "To retry from scratch:  rm -rf ${INSTALL_DIR} && bash install.sh"
     exit 1
 fi
-
-echo ""
-ok "Installation complete!"
-echo ""
-echo "  Next steps:"
-echo "    1. Make sure Hermes is running and has session data"
-echo "    2. If you didn't install a watcher service, run:"
-echo "       cd ${INSTALL_DIR} && ${VENV_DIR}/bin/python -m theia_core --watch"
-echo "    3. Open the Hermes dashboard and click the 'Constellation' tab"
-echo ""
