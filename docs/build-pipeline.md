@@ -85,9 +85,11 @@ removed; deployment now happens inside the Hermes dashboard.
 
 | Workflow       | Triggers (paths)                                                                 | What it runs                                                                                                        | PR job name |
 |----------------|----------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|-------------|
-| `contract.yml` | push to `main` / PR touching `theia-core/**`, `theia-panel/**`, `schemas/**`, `examples/**` | Install core, regenerate `examples/graph.json` from `examples/sessions`, validate with `check-jsonschema`, then `npm ci`, `generate-types`, and `vitest run` in the panel. | `contract`  |
+| `contract.yml` | push to `main` / PR touching `theia-core/**`, `theia-panel/**`, `schemas/**`, `examples/**` | Install core, seed test DB from `examples/sessions`, regenerate `examples/graph.json` via `--db-path`, validate with `check-jsonschema`, then `npm ci`, `generate-types`, and `vitest run` in the panel. | `contract`  |
 | `core.yml`     | push to `main` / PR touching `theia-core/**`, `schemas/**`, `core.yml`           | In `theia-core`: `pip install -e ".[dev]"`, `ruff check .`, `ruff format --check .`, `mypy theia_core`, `pytest -q`. | `test`      |
 | `panel.yml`    | push to `main` / PR touching `theia-panel/**`, `schemas/**`, `panel.yml`         | In `theia-panel`: `npm ci`, `generate-types`, `typecheck`, `test`, `build`, `format:check`.                         | `build`     |
+| `plugin.yml`   | push to `main` / PR touching `plugin/**`, `theia-panel/**`, `schemas/**`, `Makefile` | Install core + panel, validate plugin structure, lint plugin API, `generate-types`, `make build-graph`, build embedded panel, assemble plugin, package tarball. | `build`     |
+| `release.yml`  | push tag `v*`                                                                     | Full CI pipeline (`lint` + `test` + `build` + `package`), create GitHub Release with tarball artifact. | `release`   |
 
 `contract` is the cross-stack check: it is the only workflow that runs
 `theia-core` and `theia-panel` together, so it will fail if the schema or the
@@ -136,7 +138,7 @@ same input session set must produce the same graph**, modulo the
 When updating fixtures:
 
 1. Edit or add files in `examples/sessions/`.
-2. Re-run `python -m theia_core examples/sessions -o examples/graph.json`.
+2. Re-run `make build-graph` (seeds a temp DB from `examples/sessions/` and generates `examples/graph.json`).
 3. Commit both the session files and the refreshed `graph.json`.
 4. Expect the diff to contain the new nodes/edges and a new `generated_at`;
    anything else suggests non-determinism and should be investigated.

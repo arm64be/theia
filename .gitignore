@@ -16,6 +16,10 @@ theia-panel/dist/
 
 # Generated
 theia-panel/public/graph.json
+theia-panel/dist-embed/
+
+# Plugin build output
+dist/
 
 # Superpowers (brainstorming/plans sessions)
 .superpowers/
@@ -23,3 +27,4 @@ theia-panel/public/graph.json
 # OS
 .DS_Store
 Thumbs.db
+.vercel

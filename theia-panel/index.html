@@ -18,9 +18,22 @@
     <div id="app"></div>
     <script type="module">
       import { mount } from "/src/index.ts";
-      mount(document.getElementById("app"), "/theia-graph.json").catch(
-        console.error,
-      );
+
+      // Support ?graph=<url> query param for iframe embedding
+      const params = new URLSearchParams(window.location.search);
+      const graphUrl = params.get("graph") || "/theia-graph.json";
+
+      const ctrl = await mount(document.getElementById("app"), graphUrl);
+
+      // Emit events to parent frame via postMessage (for dashboard integration)
+      if (window.parent !== window) {
+        ctrl.on("node-click", (nodeId) => {
+          window.parent.postMessage({ type: "node-click", nodeId }, "*");
+        });
+        ctrl.on("node-hover", (nodeId) => {
+          window.parent.postMessage({ type: "node-hover", nodeId }, "*");
+        });
+      }
     </script>
   </body>
 </html>
