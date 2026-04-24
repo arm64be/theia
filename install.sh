@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# theia -- One-command installer
+# Theia Constellation — One-command installer
+#
+# Builds and deploys the Theia plugin into a Hermes Agent installation.
+# Default target is staging (production-style: bundled panel, pre-built graph
+# from the real ~/.hermes/state.db).  Pass --dev to leave the panel pointing
+# at a Vite dev server instead.
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/arm64be/theia/main/install.sh)
-#   bash <(curl -fsSL https://raw.githubusercontent.com/arm64be/theia/main/install.sh) -s -- --no-service
-#   bash install.sh                            (from a local clone)
-#   bash install.sh --help                     (show this help)
-#   bash install.sh --no-service               (skip service prompt)
-#   bash install.sh --no-update                (don't git pull if already installed)
+#   bash install.sh                          install staging build
+#   bash install.sh --dev                    dev mode (panel via Vite)
+#   bash install.sh --no-graph               skip initial graph generation
+#   bash install.sh --no-service             skip the watcher service prompt
+#   bash install.sh --no-update              don't git-pull an existing clone
+#   bash install.sh --help
 #
-# What it does:
-#   1. Checks prerequisites (Python >= 3.11, Node.js, npm, GNU Make)
-#   2. Clones the repo into ~/.hermes/hermes-theia/ (git pull to update if exists)
-#   3. Creates a Python virtual environment and installs dependencies
-#   4. Installs Node dependencies
-#   5. Builds the panel embed and assembles the plugin
-#   6. Symlinks the plugin into ~/.hermes/plugins/theia-constellation
-#   7. Optionally installs a watch service (systemd or shell script)
+# What it does (staging, the default):
+#   1. Verify prerequisites (python3 ≥ 3.11, node, npm, git)
+#   2. Clone or update the repo into ~/.hermes/hermes-theia
+#   3. Create a venv and install theia-core (no [dev] extras)
+#   4. npm ci + vite build for the panel embed
+#   5. Assemble the plugin tree into ~/.hermes/plugins/theia-constellation
+#   6. Generate ~/.hermes/theia-graph.json from ~/.hermes/state.db (if present)
+#   7. Optionally install a watcher (systemd --user / system / shell script)
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -25,365 +30,380 @@ set -euo pipefail
 # Config
 # ---------------------------------------------------------------------------
 REPO_URL="https://github.com/arm64be/theia"
-INSTALL_DIR="${HOME}/.hermes/hermes-theia"
+HERMES_HOME="${THEIA_HOME:-${HOME}/.hermes}"
+INSTALL_DIR="${HERMES_HOME}/hermes-theia"
 VENV_DIR="${INSTALL_DIR}/.venv"
-HERMES_PLUGINS_DIR="${HOME}/.hermes/plugins"
+PLUGINS_DIR="${HERMES_HOME}/plugins"
 PLUGIN_NAME="theia-constellation"
+PLUGIN_TARGET="${PLUGINS_DIR}/${PLUGIN_NAME}"
+STATE_DB="${HERMES_HOME}/state.db"
+GRAPH_OUT="${HERMES_HOME}/theia-graph.json"
+
+MODE="staging"
+NO_UPDATE=false
+NO_SERVICE=false
+NO_GRAPH=false
 
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-HELP=false
-NO_UPDATE=false
-SKIP_SERVICE=false
-
-for arg in "$@"; do
-    case "$arg" in
-        --help|-h) HELP=true ;;
-        --no-update) NO_UPDATE=true ;;
-        --no-service) SKIP_SERVICE=true ;;
-        *) err "Unknown option: ${arg}"; usage; exit 1 ;;
-    esac
-done
-
 usage() {
-    cat << 'EOF'
+    cat <<'EOF'
 Usage: bash install.sh [options]
 
 Options:
-  --help, -h       Show this help message
-  --no-service     Skip the watch service prompt
-  --no-update      Don't git pull if already installed
+  --dev            Install in dev mode (no panel build, plugin expects Vite)
+  --no-graph       Skip initial graph generation from state.db
+  --no-service     Skip the watcher service prompt
+  --no-update      Don't git-pull if the repo is already cloned
+  -h, --help       Show this help and exit
+
+Tip: pipe-from-curl users can pass flags via:
+     curl -fsSL .../install.sh | bash -s -- --no-service
 EOF
 }
 
-if [ "$HELP" = true ]; then
-    usage
-    exit 0
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help)    usage; exit 0 ;;
+        --dev)        MODE="dev" ;;
+        --no-graph)   NO_GRAPH=true ;;
+        --no-service) NO_SERVICE=true ;;
+        --no-update)  NO_UPDATE=true ;;
+        *)            echo "error: unknown option: $arg" >&2; usage; exit 2 ;;
+    esac
+done
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+if [ -t 1 ]; then
+    RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'; RESET='\033[0m'
+else
+    RED=''; GREEN=''; YELLOW=''; BLUE=''; RESET=''
 fi
+info() { printf "${BLUE}[INFO]${RESET}  %s\n" "$*"; }
+ok()   { printf "${GREEN}[ OK ]${RESET}  %s\n" "$*"; }
+warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
+err()  { printf "${RED}[ERR ]${RESET}  %s\n" "$*" >&2; }
+
+trap 'err "Installation failed at line $LINENO."; err "To retry: rm -rf ${INSTALL_DIR} && bash install.sh"; exit 1' ERR
 
 # ---------------------------------------------------------------------------
 # OS detection
 # ---------------------------------------------------------------------------
-IS_MACOS=false; [[ "$(uname)" == "Darwin" ]] && IS_MACOS=true
-HAS_SYSTEMD=false
-if command -v systemctl &>/dev/null && ! $IS_MACOS; then
-    HAS_SYSTEMD=true
-fi
+case "$(uname -s)" in
+    Linux*)  OS_KIND="linux" ;;
+    Darwin*) OS_KIND="macos" ;;
+    *)       OS_KIND="other" ;;
+esac
 
 # ---------------------------------------------------------------------------
-# GNU Make detection
-# ---------------------------------------------------------------------------
-if command -v gmake &>/dev/null; then
-    MAKE_CMD="gmake"
-elif make --version 2>/dev/null | grep -q "GNU Make"; then
-    MAKE_CMD="make"
-else
-    echo "[ERR]  GNU Make is required but was not found."
-    $IS_MACOS && echo "       Install with: brew install make"
-    exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# Colours
-# ---------------------------------------------------------------------------
-R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; B='\033[0;34m'; NC='\033[0m'
-info()  { echo -e "${B}[INFO]${NC}  $*"; }
-ok()    { echo -e "${G}[ OK ]${NC}  $*"; }
-warn()  { echo -e "${Y}[WARN]${NC}  $*"; }
-err()   { echo -e "${R}[ERR]${NC}  $*"; }
-
-# ---------------------------------------------------------------------------
-# Step 1 -- Prerequisites
+# 1. Prerequisites
 # ---------------------------------------------------------------------------
 check_prereqs() {
     info "Checking prerequisites..."
-    local fail=0
-
+    local missing=()
     for cmd in python3 node npm git; do
-        command -v "$cmd" &>/dev/null || { err "'${cmd}' is required but not found"; fail=1; }
+        command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
     done
-    [ "$fail" -eq 1 ] && exit 1
-
-    if python3 -c "import sys; exit(0 if sys.version_info >= (3,11) else 1)" 2>/dev/null; then
-        local pyver; pyver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        ok "Python ${pyver}"
-    else
-        local pyver; pyver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        err "Python 3.11+ required (found ${pyver})"
+    if [ ${#missing[@]} -gt 0 ]; then
+        err "Missing required commands: ${missing[*]}"
+        err "Install them via your package manager and re-run."
         exit 1
     fi
 
-    ok "Node.js $(node --version)"
-    ok "npm $(npm --version)"
-    ok "$(git --version 2>/dev/null || git version)"
-    ok "$(${MAKE_CMD} --version 2>/dev/null | head -1)"
-
-    if $IS_MACOS; then
-        warn "macOS detected: systemd services will not be available"
+    if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)" 2>/dev/null; then
+        local pyver
+        pyver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        err "Python 3.11+ required (found ${pyver})"
+        exit 1
     fi
+    ok "python3 $(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")')"
+    ok "node $(node --version)"
+    ok "npm $(npm --version)"
 }
 
 # ---------------------------------------------------------------------------
-# Step 2 -- Clone / update repository
+# 2. Clone or update the repository
 # ---------------------------------------------------------------------------
 clone_repo() {
-    if [ -d "$INSTALL_DIR" ]; then
-        if [ "$NO_UPDATE" = true ]; then
-            info "Repository exists at ${INSTALL_DIR}, skipping update (--no-update)"
+    # If the script was invoked from inside an existing checkout, prefer that
+    # checkout instead of re-cloning into ~/.hermes/hermes-theia.  This makes
+    # `bash install.sh` a noop-friendly, in-place install for developers.
+    local self="${BASH_SOURCE[0]:-}"
+    if [ -n "$self" ] && [ -f "$self" ]; then
+        local self_dir
+        self_dir="$(cd "$(dirname "$self")" && pwd)"
+        if [ -f "${self_dir}/Makefile" ] && [ -f "${self_dir}/plugin/manifest.json" ]; then
+            INSTALL_DIR="$self_dir"
+            VENV_DIR="${INSTALL_DIR}/.venv"
+            info "Using existing checkout at ${INSTALL_DIR}"
             return
         fi
-        info "Updating existing repository at ${INSTALL_DIR}..."
-        (cd "$INSTALL_DIR" && git pull --ff-only) || {
-            warn "Could not git pull (local changes or network issue?)"
-            warn "Continuing with existing source -- build may use stale code"
-        }
+    fi
+
+    if [ -d "${INSTALL_DIR}/.git" ]; then
+        if $NO_UPDATE; then
+            info "Repository exists at ${INSTALL_DIR} (skipping update)"
+            return
+        fi
+        info "Updating ${INSTALL_DIR}..."
+        if ! git -C "$INSTALL_DIR" pull --ff-only 2>/dev/null; then
+            warn "git pull failed (local changes or network) — continuing with existing checkout"
+        fi
         return
     fi
 
+    info "Cloning ${REPO_URL} -> ${INSTALL_DIR}..."
     mkdir -p "$(dirname "$INSTALL_DIR")"
-
-    local self="${BASH_SOURCE[0]:-}"
-    if [ -n "$self" ]; then
-        self="$(cd "$(dirname "$self")" && pwd)"
-        if [ -f "${self}/Makefile" ] && [ -f "${self}/plugin/manifest.json" ]; then
-            info "Copying repository from ${self} to ${INSTALL_DIR}..."
-            cp -r "$self" "$INSTALL_DIR"
-            ok "Repository copied"
-            return
-        fi
-    fi
-
-    info "Cloning into ${INSTALL_DIR}..."
     git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
     ok "Repository cloned"
 }
 
 # ---------------------------------------------------------------------------
-# Step 3 -- Python virtual environment + theia-core
+# 3. Python venv + theia-core
 # ---------------------------------------------------------------------------
 setup_venv() {
-    if [ -d "$VENV_DIR" ] && "${VENV_DIR}/bin/python" -c "import theia_core" 2>/dev/null; then
-        ok "theia-core already installed, skipping"
-        return
-    fi
-
-    if [ ! -d "$VENV_DIR" ]; then
-        info "Creating Python virtual environment at ${VENV_DIR}..."
+    if [ -x "${VENV_DIR}/bin/theia-core" ]; then
+        info "Reusing existing venv at ${VENV_DIR}"
+    else
+        info "Creating venv at ${VENV_DIR}..."
         python3 -m venv "$VENV_DIR"
     fi
-
-    local pip="${VENV_DIR}/bin/pip"
-
-    info "Installing theia-core (Python dependencies)..."
-    (cd "${INSTALL_DIR}/theia-core" && "$pip" install -e ".") || {
-        err "theia-core install failed"; exit 1
-    }
-    ok "theia-core installed"
+    info "Installing theia-core into venv..."
+    "${VENV_DIR}/bin/pip" install --upgrade pip --quiet
+    "${VENV_DIR}/bin/pip" install --quiet -e "${INSTALL_DIR}/theia-core"
+    ok "theia-core installed: $("${VENV_DIR}/bin/theia-core" --help | head -1)"
 }
 
 # ---------------------------------------------------------------------------
-# Step 4 -- Node dependencies
+# 4. Build the panel embed (skipped in --dev mode)
 # ---------------------------------------------------------------------------
-install_panel_deps() {
-    info "Installing theia-panel (this may take a minute)..."
-    (cd "${INSTALL_DIR}/theia-panel" && npm ci) || {
-        err "npm install failed"; exit 1
-    }
-    ok "theia-panel dependencies installed"
+build_panel() {
+    if [ "$MODE" = "dev" ]; then
+        info "Skipping panel build (--dev mode — start it manually with: cd theia-panel && npm run dev)"
+        return
+    fi
+    info "Installing panel npm dependencies..."
+    (cd "${INSTALL_DIR}/theia-panel" && npm ci --silent --no-audit --no-fund)
+
+    info "Building panel embed (vite)..."
+    (cd "${INSTALL_DIR}/theia-panel" && npx vite build --config vite.config.embed.ts --logLevel=error)
+    ok "Panel embed built"
 }
 
 # ---------------------------------------------------------------------------
-# Step 5 -- Build
+# 5. Assemble the plugin tree directly under ~/.hermes/plugins/
 # ---------------------------------------------------------------------------
-build_project() {
-    info "Building project..."
-    (cd "$INSTALL_DIR" && ${MAKE_CMD} build) || {
-        err "Build failed"; exit 1
-    }
-    ok "Build complete"
-}
+deploy_plugin() {
+    info "Deploying plugin to ${PLUGIN_TARGET}..."
 
-# ---------------------------------------------------------------------------
-# Step 6 -- Symlink plugin into Hermes
-# ---------------------------------------------------------------------------
-symlink_plugin() {
-    info "Setting up Hermes plugin symlink..."
-    mkdir -p "$HERMES_PLUGINS_DIR"
-    local target="${HERMES_PLUGINS_DIR}/${PLUGIN_NAME}"
+    # Refuse to clobber a non-symlink directory that we didn't create.
+    if [ -e "$PLUGIN_TARGET" ] && [ ! -L "$PLUGIN_TARGET" ]; then
+        local backup="${PLUGIN_TARGET}.bak.$(date +%s)"
+        warn "Existing ${PLUGIN_TARGET} is not a symlink — backing up to ${backup}"
+        mv "$PLUGIN_TARGET" "$backup"
+    fi
+    rm -f "$PLUGIN_TARGET"
 
-    if [ -L "$target" ]; then
-        rm -f "$target"
-    elif [ -e "$target" ]; then
-        local backup="${target}.bak.$(date +%s)"
-        warn "Existing non-symlink plugin at ${target}, backing up to ${backup}..."
-        mv "$target" "$backup"
+    mkdir -p "$PLUGINS_DIR"
+    local dest="${PLUGIN_TARGET}/dashboard"
+    mkdir -p "${dest}/dist" "${dest}/data"
+
+    # Plugin manifest, frontend loader, styles
+    cp "${INSTALL_DIR}/plugin/manifest.json" "${dest}/manifest.json"
+    cp "${INSTALL_DIR}/plugin/src/index.js"  "${dest}/dist/index.js"
+    cp "${INSTALL_DIR}/plugin/src/style.css" "${dest}/dist/style.css"
+
+    # Backend Python modules
+    cp "${INSTALL_DIR}/plugin/api/__init__.py"   "${dest}/__init__.py"
+    cp "${INSTALL_DIR}/plugin/api/plugin_api.py" "${dest}/plugin_api.py"
+    cp "${INSTALL_DIR}/plugin/api/graph_data.py" "${dest}/graph_data.py"
+
+    # Built panel (only in staging — dev relies on Vite at localhost:5173)
+    if [ "$MODE" = "staging" ]; then
+        mkdir -p "${dest}/panel"
+        cp -r "${INSTALL_DIR}/theia-panel/dist-embed/." "${dest}/panel/"
     fi
 
-    ln -sfn "${INSTALL_DIR}/dist/plugin" "$target"
-    ok "Plugin linked: ${target} -> ${INSTALL_DIR}/dist/plugin"
+    ok "Plugin deployed: ${PLUGIN_TARGET}  ($(find "$PLUGIN_TARGET" -type f | wc -l) files)"
 }
 
 # ---------------------------------------------------------------------------
-# Step 7 -- Optional watch service
+# 6. Generate the initial graph from the user's real state.db
+# ---------------------------------------------------------------------------
+generate_initial_graph() {
+    if $NO_GRAPH; then
+        info "Skipping initial graph generation (--no-graph)"
+        return
+    fi
+    if [ ! -f "$STATE_DB" ]; then
+        warn "No Hermes database at ${STATE_DB} — skipping initial graph."
+        warn "After your first Hermes session, run:"
+        warn "  ${VENV_DIR}/bin/theia-core   # one-shot"
+        warn "  ${VENV_DIR}/bin/theia-core --watch  # live regeneration"
+        return
+    fi
+    info "Generating initial graph from ${STATE_DB}..."
+    if "${VENV_DIR}/bin/theia-core" --db-path "$STATE_DB" -o "$GRAPH_OUT"; then
+        ok "Wrote ${GRAPH_OUT}"
+    else
+        warn "Graph generation failed — the plugin will 404 until the watcher catches up."
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# 7. Optional watcher service (Linux + systemd only)
 # ---------------------------------------------------------------------------
 install_service() {
-    [ "$SKIP_SERVICE" = true ] && { info "Skipping service installation (--no-service)"; return; }
-
+    if $NO_SERVICE; then
+        info "Skipping watcher service (--no-service)"
+        return
+    fi
+    if [ "$OS_KIND" != "linux" ]; then
+        info "Watcher service is Linux/systemd-only — skipping on ${OS_KIND}."
+        info "On macOS, run manually: ${VENV_DIR}/bin/theia-core --watch"
+        return
+    fi
+    if ! command -v systemctl >/dev/null 2>&1; then
+        info "systemctl not found — skipping watcher service."
+        info "Run manually: ${VENV_DIR}/bin/theia-core --watch"
+        return
+    fi
     if [ ! -t 0 ]; then
-        info "Non-interactive shell -- skipping service prompt"
-        info "Run interactively to configure a watch service, or pass --no-service to silence"
+        info "Non-interactive shell — skipping watcher prompt."
+        info "Re-run interactively, or start manually: ${VENV_DIR}/bin/theia-core --watch"
         return
     fi
 
-    echo ""
-    echo "  Theia can watch your Hermes database and regenerate the"
-    echo "  constellation graph whenever sessions change."
-    echo ""
-    echo "  How would you like to run the watcher?"
-    echo ""
-
-    local options=()
-    $HAS_SYSTEMD && options+=("systemd --user service (recommended)")
-    $HAS_SYSTEMD && options+=("systemd system service (requires sudo)")
-    options+=("Simple shell script (run manually)")
-    options+=("Skip")
-
-    PS3="  Select an option (1-${#options[@]}): "
-    select opt in "${options[@]}"; do
-        if [ -z "$opt" ]; then
-            warn "Invalid option, please select 1-${#options[@]}"
-            continue
-        fi
-        case $opt in
-            "systemd --user service (recommended)")
-                install_systemd_user_service; break;;
-            "systemd system service (requires sudo)")
-                install_systemd_system_service; break;;
-            "Simple shell script (run manually)")
-                install_shell_script; break;;
-            "Skip")
-                info "Skipping service installation"; break;;
+    echo
+    echo "  The watcher regenerates ${GRAPH_OUT} whenever ${STATE_DB} changes."
+    echo "  How would you like to run it?"
+    echo
+    PS3="  Select (1-4): "
+    select opt in \
+        "systemd --user (recommended)" \
+        "systemd system (sudo required)" \
+        "Plain shell script (run manually)" \
+        "Skip"
+    do
+        case "$opt" in
+            "systemd --user (recommended)") install_systemd_user; break ;;
+            "systemd system (sudo required)") install_systemd_system; break ;;
+            "Plain shell script (run manually)") install_shell_script; break ;;
+            "Skip"|"") info "Skipping watcher install"; break ;;
+            *) warn "Pick 1-4" ;;
         esac
     done
 }
 
-install_systemd_user_service() {
-    local service_file="${HOME}/.config/systemd/user/theia-watch.service"
-    mkdir -p "$(dirname "$service_file")"
-
-    cat > "$service_file" << EOF
+install_systemd_user() {
+    local unit="${HOME}/.config/systemd/user/theia-watch.service"
+    mkdir -p "$(dirname "$unit")"
+    cat > "$unit" <<EOF
 [Unit]
-Description=Theia Constellation - Hermes session graph watcher
-Documentation=https://github.com/arm64be/theia
+Description=Theia Constellation — Hermes session graph watcher
+Documentation=${REPO_URL}
 After=network.target
 
 [Service]
 Type=simple
 WorkingDirectory=${INSTALL_DIR}
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=${VENV_DIR}/bin/python -m theia_core --watch
+Environment=PATH=${VENV_DIR}/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=${VENV_DIR}/bin/theia-core --watch --db-path ${STATE_DB} -o ${GRAPH_OUT}
 Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=default.target
 EOF
-
     systemctl --user daemon-reload 2>/dev/null \
-        || warn "systemctl daemon-reload failed (no systemd user session?)"
-    ok "systemd --user service installed: ${service_file}"
-    info "Enable with:  systemctl --user enable theia-watch.service"
-    info "Start with:   systemctl --user start theia-watch.service"
+        || warn "systemctl --user daemon-reload failed (no user systemd session?)"
+    ok "Wrote ${unit}"
+    info "Enable + start with:"
+    info "  systemctl --user enable --now theia-watch.service"
 }
 
-install_systemd_system_service() {
-    local user="${USER:-$(whoami)}"
-    local tmpfile; tmpfile=$(mktemp)
-
-    cat > "$tmpfile" << EOF
+install_systemd_system() {
+    local unit_user="${USER:-$(whoami)}"
+    local tmpfile
+    tmpfile=$(mktemp)
+    cat > "$tmpfile" <<EOF
 [Unit]
-Description=Theia Constellation - Hermes session graph watcher
-Documentation=https://github.com/arm64be/theia
+Description=Theia Constellation — Hermes session graph watcher
+Documentation=${REPO_URL}
 After=network.target
 
 [Service]
 Type=simple
-User=${user}
+User=${unit_user}
 WorkingDirectory=${INSTALL_DIR}
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ExecStart=${VENV_DIR}/bin/python -m theia_core --watch
+Environment=PATH=${VENV_DIR}/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=${VENV_DIR}/bin/theia-core --watch --db-path ${STATE_DB} -o ${GRAPH_OUT}
 Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
-
-    info "Installing system service (requires sudo)..."
-    sudo mv "$tmpfile" /etc/systemd/system/theia-watch.service || {
-        err "sudo mv failed"; exit 1
-    }
-    sudo chown root:root /etc/systemd/system/theia-watch.service
-    sudo chmod 644 /etc/systemd/system/theia-watch.service
-    sudo systemctl daemon-reload 2>/dev/null \
-        || warn "systemctl daemon-reload failed"
-    ok "systemd system service installed: /etc/systemd/system/theia-watch.service"
-    info "Enable with:  sudo systemctl enable theia-watch.service"
-    info "Start with:   sudo systemctl start theia-watch.service"
+    info "Installing /etc/systemd/system/theia-watch.service (sudo)..."
+    sudo install -m 0644 -o root -g root "$tmpfile" /etc/systemd/system/theia-watch.service
+    rm -f "$tmpfile"
+    sudo systemctl daemon-reload
+    ok "Installed /etc/systemd/system/theia-watch.service"
+    info "Enable + start with:"
+    info "  sudo systemctl enable --now theia-watch.service"
 }
 
 install_shell_script() {
-    local script="${HOME}/.hermes/start-theia.sh"
-    cat > "$script" << EOF
+    local script="${HERMES_HOME}/start-theia-watch.sh"
+    cat > "$script" <<EOF
 #!/usr/bin/env bash
+# Theia watch loop — regenerates ${GRAPH_OUT}
 set -euo pipefail
-
-cd "${INSTALL_DIR}"
-echo "Starting Theia Constellation watcher..."
-echo "Watching Hermes database for changes (Ctrl+C to stop)"
-echo ""
-exec ${VENV_DIR}/bin/python -m theia_core --watch
+exec "${VENV_DIR}/bin/theia-core" --watch --db-path "${STATE_DB}" -o "${GRAPH_OUT}"
 EOF
     chmod +x "$script"
-    ok "Shell script created: ${script}"
-    info "Run it with:  ${script}"
+    ok "Wrote ${script}"
+    info "Run with:  ${script}"
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-main() {
-    echo ""
-    echo "  +-------------------------------------------+"
-    echo "  |     Theia Constellation Installer         |"
-    echo "  |  Visualize Hermes agent sessions as a     |"
-    echo "  |  semantic constellation.                  |"
-    echo "  +-------------------------------------------+"
-    echo ""
+echo
+echo "  +------------------------------------------+"
+echo "  |  Theia Constellation Installer           |"
+echo "  |  Mode: ${MODE}$(printf '%*s' $(( 34 - ${#MODE} )) ' ')|"
+echo "  +------------------------------------------+"
+echo
 
-    check_prereqs
-    clone_repo
-    setup_venv
-    install_panel_deps
-    build_project
-    symlink_plugin
-    install_service
-}
+check_prereqs
+clone_repo
+setup_venv
+build_panel
+deploy_plugin
+generate_initial_graph
+install_service
 
-if (main "$@"); then
-    echo ""
-    ok "Installation complete!"
-    echo ""
-    echo "  Next steps:"
-    echo "    1. Make sure Hermes is running and has session data"
-    echo "    2. If you didn't install a watcher service, run:"
-    echo "       cd ${INSTALL_DIR} && ${VENV_DIR}/bin/python -m theia_core --watch"
-    echo "    3. Open the Hermes dashboard and click the 'Constellation' tab"
-    echo ""
+echo
+ok "Installation complete."
+echo
+echo "  Next steps:"
+if [ "$MODE" = "dev" ]; then
+    echo "    1. Start the panel dev server:"
+    echo "         cd ${INSTALL_DIR}/theia-panel && npm run dev"
+    echo "    2. Start the dashboard in dev mode:"
+    echo "         THEIA_ENV=development hermes dashboard"
 else
-    err ""
-    err "Installation did not complete."
-    err "To retry from scratch:  rm -rf ${INSTALL_DIR} && bash install.sh"
-    exit 1
+    echo "    1. Start the dashboard:"
+    echo "         hermes dashboard"
+    echo "    2. Open the 'Constellation' tab"
+    if [ ! -f "$STATE_DB" ]; then
+        echo "    3. Run a Hermes session, then regenerate:"
+        echo "         ${VENV_DIR}/bin/theia-core"
+    fi
 fi
+echo
