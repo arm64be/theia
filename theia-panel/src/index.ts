@@ -154,7 +154,8 @@ export async function mount(
     }
 
     currentGraph = g;
-    nodes = createNodes(g);
+    nodePositions = new Float32Array(g.nodes.length * 3);
+    nodes = createNodes(g, nodePositions);
     ctx.scene.add(nodes.mesh);
 
     const simResult = createSimulation(g, kinds);
@@ -162,7 +163,6 @@ export async function mount(
     simNodes = simResult.nodes;
     simulation.stop();
 
-    nodePositions = new Float32Array(simNodes.length * 3);
     nodeIndex = new Map(g.nodes.map((n, i) => [n.id, i]));
 
     // Pre-warm simulation so edge z-positions are 3D on first build
@@ -170,9 +170,6 @@ export async function mount(
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i]!;
       nodes.setPosition(i, sn.x, sn.y, sn.z);
-      nodePositions[i * 3 + 0] = sn.x;
-      nodePositions[i * 3 + 1] = sn.y;
-      nodePositions[i * 3 + 2] = sn.z;
     }
     nodes.flush();
 
@@ -242,9 +239,6 @@ export async function mount(
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i]!;
       nodes.setPosition(i, sn.x, sn.y, sn.z);
-      nodePositions[i * 3 + 0] = sn.x;
-      nodePositions[i * 3 + 1] = sn.y;
-      nodePositions[i * 3 + 2] = sn.z;
     }
     nodes.flush();
     edges.updatePositions(nodePositions);

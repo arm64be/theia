@@ -100,7 +100,10 @@ export interface NodeLayer {
   dispose(): void;
 }
 
-export function createNodes(graph: TheiaGraph): NodeLayer {
+export function createNodes(
+  graph: TheiaGraph,
+  nodePositions: Float32Array,
+): NodeLayer {
   const n = graph.nodes.length;
   const geometry = new THREE.PlaneGeometry(1, 1);
   const material = new THREE.ShaderMaterial({
@@ -135,7 +138,11 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
 
   for (let i = 0; i < n; i++) {
     const node = graph.nodes[i]!;
+    nodePositions[i * 3] = node.position.x;
+    nodePositions[i * 3 + 1] = node.position.y;
+    nodePositions[i * 3 + 2] = 0;
     dummy.position.set(node.position.x, node.position.y, 0);
+    dummy.quaternion.set(0, 0, 0, 1);
     const sz = nodeSizes[i]!;
     dummy.scale.set(sz, sz, sz);
     dummy.updateMatrix();
@@ -152,10 +159,12 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
     mesh,
     count: n,
     setPosition(i, x, y, z) {
-      mesh.getMatrixAt(i, dummy.matrix);
-      dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
-      dummy.position.set(x, y, z);
+      nodePositions[i * 3] = x;
+      nodePositions[i * 3 + 1] = y;
+      nodePositions[i * 3 + 2] = z;
       const sz = visibleFlags[i] ? nodeSizes[i]! : 0;
+      dummy.position.set(x, y, z);
+      dummy.quaternion.set(0, 0, 0, 1);
       dummy.scale.set(sz, sz, sz);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -166,9 +175,13 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
     },
     setVisible(i, visible) {
       visibleFlags[i] = visible;
-      mesh.getMatrixAt(i, dummy.matrix);
-      dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
       const sz = visible ? nodeSizes[i]! : 0;
+      dummy.position.set(
+        nodePositions[i * 3]!,
+        nodePositions[i * 3 + 1]!,
+        nodePositions[i * 3 + 2]!,
+      );
+      dummy.quaternion.set(0, 0, 0, 1);
       dummy.scale.set(sz, sz, sz);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
