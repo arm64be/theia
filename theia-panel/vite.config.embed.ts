@@ -12,8 +12,16 @@ export default defineConfig({
     emptyOutDir: true,
     target: "esnext",
     rollupOptions: {
-      // Bundle everything (including three.js and d3-force-3d)
-      // No externals for the embed build
+      // Bundle everything (no externals for embed build).
+      // Split heavy deps into separate chunks so each stays <500 kB.
+      // The browser fetches them in parallel on first load and caches
+      // them independently — three.js rarely changes between releases.
+      output: {
+        manualChunks: {
+          three: ["three"],
+          "d3-force": ["d3-force-3d"],
+        },
+      },
     },
   },
 });
