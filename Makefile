@@ -169,9 +169,20 @@ test-panel: ## Run theia-panel tests
 	cd theia-panel && npm run test -- --run
 
 test-contract: ## Run cross-stack contract test
-	python3 -m theia_core examples/sessions -o examples/graph.json
-	pip install -q check-jsonschema
-	check-jsonschema --schemafile schemas/graph.schema.json examples/graph.json
+	@rm -f /tmp/theia_contract.db
+	@PYTHONPATH=theia-core python3 -c "\
+	from pathlib import Path; \
+	from tests.db_helpers import seed_test_db; \
+	db = Path('/tmp/theia_contract.db'); \
+	seed_test_db(db, Path('examples/sessions')); \
+	print(f'seeded {db}')"
+	python3 -m theia_core --db-path /tmp/theia_contract.db -o examples/graph.json
+	@python3 -c "\
+	import json, jsonschema; \
+	schema = json.load(open('schemas/graph.schema.json')); \
+	data = json.load(open('examples/graph.json')); \
+	jsonschema.validate(data, schema); \
+	print('Schema validation: OK')"
 	cd theia-panel && npm run generate-types
 
 test-plugin: ## Validate plugin structure

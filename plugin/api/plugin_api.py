@@ -65,9 +65,7 @@ async def get_graph():
         if graph is None:
             return JSONResponse(
                 status_code=404,
-                content={
-                    "error": "No graph data found. Run: python -m theia_core examples/sessions -o examples/graph.json"
-                },
+                content={"error": "No graph data found. Run: make build-graph"},
             )
         return graph
 
