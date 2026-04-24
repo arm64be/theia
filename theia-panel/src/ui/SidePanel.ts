@@ -7,7 +7,7 @@ const SUMMARY_MAX_CHARS = 280;
 
 /** Approximate the dashboard's `bg-card` pattern: blend midground into bg at 4%. */
 function cardBg(t: ThemeTokens): string {
-  const parse = (hex: string) => {
+  const parse = (hex: string): [number, number, number] => {
     const h = hex.replace(/^#/, "");
     return [
       parseInt(h.slice(0, 2), 16) || 0,
