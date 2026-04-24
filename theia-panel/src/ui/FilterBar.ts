@@ -6,17 +6,22 @@ export function createFilterBar(
   container: HTMLElement,
   initial: Set<TheiaGraph["edges"][number]["kind"]>,
   onChange: (kinds: Set<TheiaGraph["edges"][number]["kind"]>) => void,
-  theme: ThemeTokens,
+  initialTheme: ThemeTokens,
 ) {
+  let theme = initialTheme;
   const bar = document.createElement("div");
-  bar.style.cssText = `
-    position: absolute; top: 12px; left: 12px;
-    display: flex; gap: 12px;
-    padding: 8px 12px; background: ${themeBgAlpha(theme, 0.75)};
-    border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
-    font: 12px/1.4 var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
-    user-select: none;
-  `;
+
+  function applyBarStyle() {
+    bar.style.cssText = `
+      position: absolute; top: 12px; left: 12px;
+      display: flex; gap: 12px;
+      padding: 8px 12px; background: ${themeBgAlpha(theme, 0.75)};
+      border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
+      font: 12px/1.4 var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
+      user-select: none;
+    `;
+  }
+  applyBarStyle();
   const kinds: TheiaGraph["edges"][number]["kind"][] = [
     "memory-share",
     "cross-search",
@@ -41,5 +46,11 @@ export function createFilterBar(
   }
 
   container.appendChild(bar);
-  return { dispose: () => container.removeChild(bar) };
+
+  function updateTheme(newTheme: ThemeTokens) {
+    theme = newTheme;
+    applyBarStyle();
+  }
+
+  return { updateTheme, dispose: () => container.removeChild(bar) };
 }

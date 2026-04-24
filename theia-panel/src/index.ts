@@ -10,7 +10,7 @@ import { createPicker } from "./scene/Picker";
 import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSidePanel } from "./ui/SidePanel";
-import { readTheme, applyTheme } from "./ui/Theme";
+import { readTheme, applyTheme, onThemeMessage } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
 
 export interface PanelOptions {
@@ -172,10 +172,15 @@ export async function mount(
   );
 
   // Filter bar
-  const filterBar = createFilterBar(element, kinds, (newKinds) => {
-    kinds = newKinds;
-    edges.rebuild(graph, kinds, nodeIndex);
-  }, theme);
+  const filterBar = createFilterBar(
+    element,
+    kinds,
+    (newKinds) => {
+      kinds = newKinds;
+      edges.rebuild(graph, kinds, nodeIndex);
+    },
+    theme,
+  );
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
     "node-click": [],
@@ -189,9 +194,18 @@ export async function mount(
     emit("node-hover", idx === null ? null : graph.nodes[idx]!.id);
   });
 
+  // Listen for live theme updates from the dashboard host
+  const stopThemeListener = onThemeMessage((newTheme) => {
+    applyTheme(newTheme);
+    tooltip.updateTheme(newTheme);
+    sidePanel.updateTheme(newTheme);
+    filterBar.updateTheme(newTheme);
+  });
+
   return {
     destroy() {
       disposed = true;
+      stopThemeListener();
       simulation.stop();
       nodes.dispose();
       edges.dispose();

@@ -207,14 +207,36 @@
     var selectedNode = selectedNodeState[0];
     var fs = useFullscreen(containerRef, iframeRef);
 
-    // Memoise theme extraction so it doesn't re-run on every render
-    var themeQuery = useMemo(function () {
+    // Initial theme — used for the iframe URL on first load
+    var initialThemeQuery = useMemo(function () {
       return buildThemeQuery(extractDashboardTheme());
     }, []);
 
     var iframeSrc = useMemo(function () {
-      return panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API) + "&" + themeQuery;
-    }, [panelInfo.url, themeQuery]);
+      return panelInfo.url + "?graph=" + encodeURIComponent(GRAPH_API) + "&" + initialThemeQuery;
+    }, [panelInfo.url, initialThemeQuery]);
+
+    // Live theme observation — watches :root style mutations (triggered by
+    // dashboard theme switches) and forwards updated tokens to the iframe
+    // via postMessage so the panel can re-apply without a full reload.
+    useEffect(function () {
+      var observer = new MutationObserver(function () {
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+          var tokens = extractDashboardTheme();
+          try {
+            iframeRef.current.contentWindow.postMessage(
+              { type: "theia-theme-update", tokens: tokens },
+              "*"
+            );
+          } catch (_) {}
+        }
+      });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["style", "class"],
+      });
+      return function () { observer.disconnect(); };
+    }, []);
 
     var handleReload = useCallback(function () {
       if (iframeRef.current) {

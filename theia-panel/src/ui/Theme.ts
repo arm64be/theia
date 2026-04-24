@@ -80,3 +80,36 @@ export function themeBgAlpha(tokens: ThemeTokens, alpha: number): string {
   const b = parseInt(hex.slice(4, 6), 16);
   return `rgba(${r},${g},${b},${alpha})`;
 }
+
+/**
+ * Listen for live theme updates sent by the dashboard host via postMessage.
+ * Returns a cleanup function to remove the listener.
+ *
+ * Message protocol:
+ *   { type: "theia-theme-update", tokens: ThemeTokens }
+ */
+export function onThemeMessage(
+  callback: (tokens: ThemeTokens) => void,
+): () => void {
+  function handler(event: MessageEvent) {
+    if (
+      event.data &&
+      event.data.type === "theia-theme-update" &&
+      event.data.tokens
+    ) {
+      const t = event.data.tokens;
+      const tokens: ThemeTokens = {
+        bg: t.bg || DEFAULTS.bg,
+        fg: t.fg || DEFAULTS.fg,
+        fg2: t.fg2 || DEFAULTS.fg2,
+        accent: t.accent || DEFAULTS.accent,
+        border: t.border || DEFAULTS.border,
+        font: t.font || DEFAULTS.font,
+        radius: t.radius || DEFAULTS.radius,
+      };
+      callback(tokens);
+    }
+  }
+  window.addEventListener("message", handler);
+  return () => window.removeEventListener("message", handler);
+}

@@ -49,17 +49,19 @@ def _sessions_to_nodes(
         model = s.get("model") or "unknown"
         source = s.get("source") or "unknown"
 
-        nodes.append({
-            "id": sid,
-            "title": s.get("title") or sid[:20],
-            "started_at": timestamp_to_iso(started),
-            "duration_sec": round(compute_duration(started, ended), 1),
-            "tool_count": s.get("tool_call_count", 0) or 0,
-            "message_count": s.get("message_count", 0) or 0,
-            "model": model,
-            "position": {"x": 0.0, "y": 0.0},
-            "features": None,
-        })
+        nodes.append(
+            {
+                "id": sid,
+                "title": s.get("title") or sid[:20],
+                "started_at": timestamp_to_iso(started),
+                "duration_sec": round(compute_duration(started, ended), 1),
+                "tool_count": s.get("tool_call_count", 0) or 0,
+                "message_count": s.get("message_count", 0) or 0,
+                "model": model,
+                "position": {"x": 0.0, "y": 0.0},
+                "features": None,
+            }
+        )
 
         source_groups.setdefault(source, []).append(idx)
         model_groups.setdefault(model, []).append(idx)

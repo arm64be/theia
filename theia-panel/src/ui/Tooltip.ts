@@ -2,16 +2,24 @@ import type { TheiaGraph } from "../data/types";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
 
-export function createTooltip(container: HTMLElement, theme: ThemeTokens) {
+export function createTooltip(
+  container: HTMLElement,
+  initialTheme: ThemeTokens,
+) {
+  let theme = initialTheme;
   const el = document.createElement("div");
-  el.style.cssText = `
-    position: absolute; pointer-events: none;
-    padding: 8px 12px; background: ${themeBgAlpha(theme, 0.92)};
-    border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
-    font: 12px/1.4 var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
-    transform: translate(8px, 8px); opacity: 0; transition: opacity 120ms;
-    max-width: 280px;
-  `;
+
+  function applyContainerStyle() {
+    el.style.cssText = `
+      position: absolute; pointer-events: none;
+      padding: 8px 12px; background: ${themeBgAlpha(theme, 0.92)};
+      border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
+      font: 12px/1.4 var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
+      transform: translate(8px, 8px); opacity: 0; transition: opacity 120ms;
+      max-width: 280px;
+    `;
+  }
+  applyContainerStyle();
   container.appendChild(el);
 
   function show(node: TheiaGraph["nodes"][number], x: number, y: number) {
@@ -29,11 +37,17 @@ export function createTooltip(container: HTMLElement, theme: ThemeTokens) {
   function hide() {
     el.style.opacity = "0";
   }
+  function updateTheme(newTheme: ThemeTokens) {
+    theme = newTheme;
+    const wasVisible = el.style.opacity === "1";
+    applyContainerStyle();
+    if (wasVisible) el.style.opacity = "1";
+  }
   function dispose() {
     container.removeChild(el);
   }
 
-  return { show, hide, dispose };
+  return { show, hide, updateTheme, dispose };
 }
 
 function escape(s: string): string {

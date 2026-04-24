@@ -2,25 +2,45 @@ import type { TheiaGraph } from "../data/types";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
 
-export function createSidePanel(container: HTMLElement, theme: ThemeTokens) {
+export function createSidePanel(
+  container: HTMLElement,
+  initialTheme: ThemeTokens,
+) {
+  let theme = initialTheme;
   const el = document.createElement("aside");
-  el.style.cssText = `
-    position: absolute; top: 0; right: 0; bottom: 0; width: min(380px, 40vw);
-    background: ${themeBgAlpha(theme, 0.94)}; border-left: 1px solid #${theme.border};
-    color: #${theme.fg}; font: 13px/1.5 var(--theia-font, ui-monospace, monospace);
-    transform: translateX(100%); transition: transform 200ms ease-out;
-    padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
-    box-sizing: border-box;
-  `;
+  let currentId: string | null = null;
+
+  function applyPanelStyle() {
+    el.style.cssText = `
+      position: absolute; top: 0; right: 0; bottom: 0; width: min(380px, 40vw);
+      background: ${themeBgAlpha(theme, 0.94)}; border-left: 1px solid #${theme.border};
+      color: #${theme.fg}; font: 13px/1.5 var(--theia-font, ui-monospace, monospace);
+      transform: translateX(${currentId ? "0" : "100%"}); transition: transform 200ms ease-out;
+      padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
+      box-sizing: border-box;
+    `;
+  }
+  applyPanelStyle();
   container.appendChild(el);
 
-  let currentId: string | null = null;
+  let lastNode: TheiaGraph["nodes"][number] | null = null;
+  let lastEdges: TheiaGraph["edges"] = [];
 
   function show(
     node: TheiaGraph["nodes"][number],
     relatedEdges: TheiaGraph["edges"],
   ) {
     currentId = node.id;
+    lastNode = node;
+    lastEdges = relatedEdges;
+    renderContent();
+    el.style.transform = "translateX(0)";
+  }
+
+  function renderContent() {
+    if (!lastNode) return;
+    const node = lastNode;
+    const relatedEdges = lastEdges;
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
         style="position:absolute;top:10px;right:14px;background:none;border:none;color:#${theme.fg};font-size:18px;cursor:pointer">×</button>
@@ -39,7 +59,6 @@ export function createSidePanel(container: HTMLElement, theme: ThemeTokens) {
       </ul>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
-    el.style.transform = "translateX(0)";
   }
 
   function hide() {
@@ -50,11 +69,18 @@ export function createSidePanel(container: HTMLElement, theme: ThemeTokens) {
   function currentNodeId() {
     return currentId;
   }
+  function updateTheme(newTheme: ThemeTokens) {
+    theme = newTheme;
+    applyPanelStyle();
+    if (currentId && lastNode) {
+      renderContent();
+    }
+  }
   function dispose() {
     container.removeChild(el);
   }
 
-  return { show, hide, currentNodeId, dispose };
+  return { show, hide, currentNodeId, updateTheme, dispose };
 }
 
 function escape(s: string): string {

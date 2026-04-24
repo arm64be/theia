@@ -47,13 +47,15 @@ def compute_positions(nodes: list[dict]) -> None:
 
     features: list[list[float]] = []
     for nd in nodes:
-        features.append([
-            nd["message_count"] / max_msgs,
-            nd["tool_count"] / max_tools,
-            nd["duration_sec"] / max_dur,
-            hash_to_float(nd["model"]),
-            hash_to_float(nd["started_at"][:10]),
-        ])
+        features.append(
+            [
+                nd["message_count"] / max_msgs,
+                nd["tool_count"] / max_tools,
+                nd["duration_sec"] / max_dur,
+                hash_to_float(nd["model"]),
+                hash_to_float(nd["started_at"][:10]),
+            ]
+        )
 
     # ------------------------------------------------------------------
     # Center features and compute per-dimension variance

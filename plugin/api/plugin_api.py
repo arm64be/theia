@@ -22,7 +22,6 @@ from fastapi.responses import JSONResponse
 
 from .graph_builder import build_live_graph
 from .graph_data import load_static_graph
-from .graph_utils import iso_now
 
 router = APIRouter()
 log = logging.getLogger("theia-constellation")
