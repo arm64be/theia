@@ -308,8 +308,7 @@ export async function mount(
       if (idx !== null) {
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
-          (e) =>
-            (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
+          (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
         sidePanel.show(n, related);
         emit("node-click", n.id);
