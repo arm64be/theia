@@ -59,7 +59,7 @@ jobs:
         run: npm run generate-types
 
       - name: Build graph from fixtures
-        run: python -m theia_core examples/sessions -o examples/graph.json
+        run: make build-graph
 
       - name: Build embedded panel
         run: make build-panel-embed
