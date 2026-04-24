@@ -11,6 +11,8 @@ import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSearchBar } from "./ui/SearchBar";
 import { createSidePanel } from "./ui/SidePanel";
+import { readTheme, applyTheme, onThemeMessage } from "./ui/Theme";
+import type { ThemeTokens } from "./ui/Theme";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -33,6 +35,10 @@ export async function mount(
   graphUrl: string,
   options: PanelOptions = {},
 ): Promise<Controller> {
+  // Read and apply theme from query params (or use defaults)
+  const theme: ThemeTokens = readTheme();
+  applyTheme(theme);
+
   element.style.position ||= "relative";
   element.style.overflow = "hidden";
 
@@ -64,8 +70,8 @@ export async function mount(
   let picker: ReturnType<typeof createPicker>;
   let searchBar: ReturnType<typeof createSearchBar>;
 
-  const tooltip = createTooltip(element);
-  const sidePanel = createSidePanel(element);
+  const tooltip = createTooltip(element, theme);
+  const sidePanel = createSidePanel(element, theme);
 
   let lastMouse = { x: 0, y: 0 };
   let lastWheelAt = 0;
@@ -227,6 +233,7 @@ export async function mount(
         );
         sidePanel.show(result.node, related);
       },
+      theme,
       (node) => visibleNodeIds.has(node.id),
     );
   }
@@ -330,10 +337,15 @@ export async function mount(
   );
 
   // Filter bar
-  const filterBar = createFilterBar(element, kinds, (newKinds) => {
-    kinds = newKinds;
-    updateVisibility();
-  });
+  const filterBar = createFilterBar(
+    element,
+    kinds,
+    (newKinds) => {
+      kinds = newKinds;
+      updateVisibility();
+    },
+    theme,
+  );
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
     "node-click": [],
@@ -343,9 +355,19 @@ export async function mount(
     (listeners[event] ?? []).forEach((fn) => fn(...args));
   }
 
+  // Listen for live theme updates from the dashboard host
+  const stopThemeListener = onThemeMessage((newTheme) => {
+    applyTheme(newTheme);
+    tooltip.updateTheme(newTheme);
+    sidePanel.updateTheme(newTheme);
+    filterBar.updateTheme(newTheme);
+    searchBar.updateTheme(newTheme);
+  });
+
   return {
     destroy() {
       disposed = true;
+      stopThemeListener();
       simulation.stop();
       nodes.dispose();
       edges.dispose();

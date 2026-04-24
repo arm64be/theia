@@ -1,4 +1,6 @@
 import type { TheiaGraph } from "../data/types";
+import type { ThemeTokens } from "./Theme";
+import { themeBgAlpha } from "./Theme";
 import { escape } from "./utils";
 
 export interface SearchResult {
@@ -10,43 +12,58 @@ export function createSearchBar(
   container: HTMLElement,
   graph: TheiaGraph,
   onFocus: (result: SearchResult) => void,
+  initialTheme: ThemeTokens,
   isVisible?: (node: TheiaGraph["nodes"][number]) => boolean,
 ) {
+  let theme = initialTheme;
+
   const wrapper = document.createElement("div");
-  wrapper.style.cssText = `
-    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-    z-index: 10; font: 13px/1.4 ui-monospace, monospace;
-    color: #cfd6e4; width: min(320px, 50vw);
-  `;
-
   const input = document.createElement("input");
-  input.type = "text";
-  input.placeholder = "Search sessions…";
-  input.style.cssText = `
-    width: 100%; box-sizing: border-box;
-    padding: 8px 12px; background: rgba(10,12,20,0.85);
-    border: 1px solid rgba(255,255,255,0.15); border-radius: 6px;
-    color: #cfd6e4; font: inherit; outline: none;
-    backdrop-filter: blur(4px);
-  `;
-  input.addEventListener("focus", () => {
-    input.style.borderColor = "rgba(255,196,119,0.5)";
-  });
-
   const dropdown = document.createElement("div");
-  dropdown.style.cssText = `
-    position: absolute; top: calc(100% + 6px); left: 0; right: 0;
-    background: rgba(10,12,20,0.95); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 6px; overflow: hidden; display: none;
-    backdrop-filter: blur(6px); max-height: 240px; overflow-y: auto;
-  `;
+
+  function applyWrapperStyle() {
+    wrapper.style.cssText = `
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 10; font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      color: #${theme.fg}; width: min(320px, 50vw);
+    `;
+  }
+
+  function applyInputStyle() {
+    input.style.cssText = `
+      width: 100%; box-sizing: border-box;
+      padding: 8px 12px; background: ${themeBgAlpha(theme, 0.85)};
+      border: 1px solid #${theme.border};
+      color: #${theme.fg}; font: inherit; outline: none;
+      backdrop-filter: blur(4px);
+    `;
+  }
+
+  function applyDropdownStyle() {
+    dropdown.style.cssText = `
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: ${themeBgAlpha(theme, 0.95)}; border: 1px solid #${theme.border};
+      overflow: hidden; display: none;
+      backdrop-filter: blur(6px); max-height: 240px; overflow-y: auto;
+    `;
+  }
+
+  applyWrapperStyle();
+  applyInputStyle();
+  applyDropdownStyle();
+
+  input.type = "text";
+  input.placeholder = "Search sessions\u2026";
+  input.addEventListener("focus", () => {
+    input.style.borderColor = `#${theme.accent}`;
+  });
 
   let clickingDropdown = false;
   dropdown.addEventListener("mousedown", () => {
     clickingDropdown = true;
   });
   input.addEventListener("blur", () => {
-    input.style.borderColor = "rgba(255,255,255,0.15)";
+    input.style.borderColor = `#${theme.border}`;
     if (!clickingDropdown) list.hide();
     clickingDropdown = false;
   });
@@ -97,8 +114,8 @@ export function createSearchBar(
         border-bottom: 1px solid rgba(255,255,255,0.05);
         transition: background 100ms;
       ">
-        <div style="font-weight:600;color:#ffc477">${escape(r.node.title || r.node.id)}</div>
-        <div style="opacity:0.6;font-size:11px">${escape(r.node.id)} · ${Math.round(r.node.duration_sec)}s</div>
+        <div style="font-weight:600;color:#${theme.accent}">${escape(r.node.title || r.node.id)}</div>
+        <div style="opacity:0.6;font-size:11px">${escape(r.node.id)} \u00b7 ${Math.round(r.node.duration_sec)}s</div>
         ${r.node.preview ? `<div style="opacity:0.5;font-size:10px;margin-top:2px">${escape(r.node.preview)}</div>` : ""}
       </div>
     `,
@@ -134,9 +151,16 @@ export function createSearchBar(
     },
   };
 
+  function updateTheme(newTheme: ThemeTokens) {
+    theme = newTheme;
+    applyWrapperStyle();
+    applyInputStyle();
+    applyDropdownStyle();
+  }
+
   function dispose() {
     container.removeChild(wrapper);
   }
 
-  return { dispose, input };
+  return { updateTheme, dispose, input };
 }

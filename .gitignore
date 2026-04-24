@@ -17,6 +17,7 @@ theia-panel/dist/
 # Generated
 theia-panel/public/graph.json
 theia-core/graph.json
+theia-panel/dist-embed/
 
 # Superpowers (brainstorming/plans sessions)
 .superpowers/
@@ -24,3 +25,4 @@ theia-core/graph.json
 # OS
 .DS_Store
 Thumbs.db
+.vercel

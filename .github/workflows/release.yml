@@ -1,0 +1,92 @@
+name: release
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: theia-panel/package-lock.json
+
+      # Install
+      - name: Install theia-core
+        working-directory: theia-core
+        run: pip install -e ".[dev]"
+
+      - name: Install theia-panel
+        working-directory: theia-panel
+        run: npm ci
+
+      # Full CI pipeline
+      - name: Lint core
+        run: make lint-core
+
+      - name: Lint panel
+        run: make lint-panel
+
+      - name: Lint plugin
+        run: |
+          pip install ruff
+          make lint-plugin
+
+      - name: Test core
+        run: make test-core
+
+      - name: Generate types
+        working-directory: theia-panel
+        run: npm run generate-types
+
+      - name: Test panel
+        run: make test-panel
+
+      - name: Test contract
+        run: make test-contract
+
+      - name: Test plugin structure
+        run: make test-plugin
+
+      # Build + Package
+      - name: Build and package plugin
+        run: make package
+
+      # Create GitHub Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/theia-constellation-v*.tar.gz
+          generate_release_notes: true
+          body: |
+            ## Theia Constellation Plugin
+
+            ### Installation
+
+            ```bash
+            # Download and extract to Hermes plugins directory
+            mkdir -p ~/.hermes/plugins/theia-constellation
+            tar -xzf theia-constellation-v*.tar.gz -C ~/.hermes/plugins/theia-constellation
+
+            # Restart the dashboard
+            hermes dashboard
+            ```
+
+            ### What's included
+
+            - Dashboard plugin (Constellation tab with iframe-embedded three.js panel)
+            - Backend API (dynamic graph from SessionDB + static graph fallback)
+            - Self-contained panel build (three.js + d3-force-3d bundled)

@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Hermes Dashboard — Theia Experiment</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        font-family:
+          "SF Mono", "Fira Code", "JetBrains Mono", monospace;
+        background: #0d1117;
+        color: #c9d1d9;
+      }
+
+      .dashboard {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        grid-template-columns: 280px 1fr;
+        height: 100vh;
+      }
+
+      /* ── Header ─────────────────────────────── */
+      .header {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 24px;
+        background: #161b22;
+        border-bottom: 1px solid #21262d;
+      }
+
+      .header h1 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #ffc477;
+        letter-spacing: 0.5px;
+      }
+
+      .header h1 span {
+        color: #8b949e;
+        font-weight: 400;
+      }
+
+      .header-right {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        font-size: 12px;
+        color: #8b949e;
+      }
+
+      .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #3fb950;
+        margin-right: 6px;
+      }
+
+      /* ── Sidebar ────────────────────────────── */
+      .sidebar {
+        background: #161b22;
+        border-right: 1px solid #21262d;
+        padding: 16px;
+        overflow-y: auto;
+      }
+
+      .sidebar h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #8b949e;
+        margin-bottom: 12px;
+      }
+
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        color: #c9d1d9;
+        transition: background 0.15s;
+        margin-bottom: 2px;
+      }
+
+      .nav-item:hover {
+        background: #21262d;
+      }
+
+      .nav-item.active {
+        background: #1c2333;
+        color: #ffc477;
+        border-left: 2px solid #ffc477;
+      }
+
+      .nav-icon {
+        width: 16px;
+        text-align: center;
+        opacity: 0.6;
+      }
+
+      .section-divider {
+        border: none;
+        border-top: 1px solid #21262d;
+        margin: 16px 0;
+      }
+
+      /* ── Main content ───────────────────────── */
+      .main {
+        position: relative;
+        background: #0d1117;
+        overflow: hidden;
+      }
+
+      /* ── Iframe container ───────────────────── */
+      .iframe-container {
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+
+      .iframe-container iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        display: block;
+      }
+
+      /* ── Panel header ───────────────────────── */
+      .panel-header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 20px;
+        background: linear-gradient(
+          to bottom,
+          rgba(13, 17, 23, 0.95),
+          rgba(13, 17, 23, 0)
+        );
+        z-index: 10;
+        pointer-events: none;
+      }
+
+      .panel-header > * {
+        pointer-events: auto;
+      }
+
+      .panel-title {
+        font-size: 13px;
+        color: #8b949e;
+      }
+
+      .panel-title strong {
+        color: #ffc477;
+      }
+
+      .panel-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .panel-btn {
+        padding: 4px 12px;
+        border-radius: 4px;
+        border: 1px solid #30363d;
+        background: #21262d;
+        color: #c9d1d9;
+        font-size: 11px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s;
+      }
+
+      .panel-btn:hover {
+        background: #30363d;
+        border-color: #8b949e;
+      }
+
+      /* ── Info cards in sidebar ───────────────── */
+      .info-card {
+        background: #0d1117;
+        border: 1px solid #21262d;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 8px;
+      }
+
+      .info-card .label {
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #8b949e;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+      }
+
+      .info-card .value {
+        font-size: 20px;
+        font-weight: 600;
+        color: #ffc477;
+      }
+
+      .info-card .sub {
+        font-size: 11px;
+        color: #8b949e;
+        margin-top: 2px;
+      }
+
+      /* ── Iframe loading state ─────────────── */
+      .iframe-loading {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #07080d;
+        z-index: 5;
+        transition: opacity 0.5s;
+      }
+
+      .iframe-loading.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .loading-text {
+        font-size: 14px;
+        color: #8b949e;
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.4;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="dashboard">
+      <!-- Header -->
+      <header class="header">
+        <h1>HERMES <span>/ dashboard</span></h1>
+        <div class="header-right">
+          <span><span class="status-dot"></span>agent online</span>
+          <span>v0.10.0</span>
+        </div>
+      </header>
+
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <h2>Navigation</h2>
+        <div class="nav-item">
+          <span class="nav-icon">&#x25CB;</span> Overview
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon">&#x25CE;</span> Sessions
+        </div>
+        <div class="nav-item active">
+          <span class="nav-icon">&#x2726;</span> Constellation
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon">&#x25C7;</span> Memory
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon">&#x2699;</span> Skills
+        </div>
+
+        <hr class="section-divider" />
+
+        <h2>Theia Panel</h2>
+
+        <div class="info-card">
+          <div class="label">Sessions</div>
+          <div class="value" id="session-count">--</div>
+          <div class="sub">loaded in constellation</div>
+        </div>
+
+        <div class="info-card">
+          <div class="label">Edges</div>
+          <div class="value" id="edge-count">--</div>
+          <div class="sub">cross-session links</div>
+        </div>
+
+        <div class="info-card">
+          <div class="label">Iframe Source</div>
+          <div class="value" style="font-size: 12px; word-break: break-all" id="iframe-src">
+            --
+          </div>
+        </div>
+
+        <hr class="section-divider" />
+
+        <h2>Integration Notes</h2>
+        <div
+          style="
+            font-size: 11px;
+            color: #8b949e;
+            line-height: 1.5;
+            padding: 8px;
+          "
+        >
+          This dashboard embeds the theia-panel via an
+          <code style="color: #ffc477">&lt;iframe&gt;</code>
+          pointing at the Vite dev server. The panel runs independently and
+          communicates via
+          <code style="color: #66d9ef">postMessage</code> (future).
+          <br /><br />
+          Lowest-risk integration path per
+          <code style="color: #ffc477">docs/integration.md</code>.
+        </div>
+      </aside>
+
+      <!-- Main content: iframe embed -->
+      <main class="main">
+        <div class="panel-header">
+          <div class="panel-title">
+            <strong>theia</strong> &mdash; session constellation
+          </div>
+          <div class="panel-actions">
+            <button
+              class="panel-btn"
+              onclick="document.getElementById('theia-iframe').contentWindow.location.reload()"
+            >
+              Reload
+            </button>
+            <button
+              class="panel-btn"
+              onclick="window.open(document.getElementById('theia-iframe').src, '_blank')"
+            >
+              Pop out
+            </button>
+          </div>
+        </div>
+
+        <div class="iframe-container">
+          <div class="iframe-loading" id="iframe-loading">
+            <span class="loading-text">loading constellation...</span>
+          </div>
+          <iframe
+            id="theia-iframe"
+            src="http://localhost:5173/?graph=/graph.json"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
+            loading="eager"
+          ></iframe>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const iframe = document.getElementById("theia-iframe");
+      const loading = document.getElementById("iframe-loading");
+
+      // Update iframe source display
+      document.getElementById("iframe-src").textContent = iframe.src;
+
+      // Hide loading overlay when iframe loads
+      iframe.addEventListener("load", () => {
+        loading.classList.add("hidden");
+
+        // Try to read graph data for sidebar stats
+        // (will work if same-origin, fail silently if cross-origin)
+        try {
+          fetch("/graph.json")
+            .then((r) => r.json())
+            .then((graph) => {
+              document.getElementById("session-count").textContent =
+                graph.nodes?.length ?? "--";
+              document.getElementById("edge-count").textContent =
+                graph.edges?.length ?? "--";
+            })
+            .catch(() => {});
+        } catch (_) {}
+      });
+
+      // Listen for postMessage from the theia panel
+      window.addEventListener("message", (event) => {
+        if (event.origin !== "http://localhost:5173") return;
+
+        if (event.data?.type === "node-click") {
+          console.log("[dashboard] node clicked:", event.data.nodeId);
+          // Update sidebar with selected node info
+          const label = document.getElementById("iframe-src");
+          label.textContent = "selected: " + event.data.nodeId;
+          label.style.color = "#ffc477";
+        }
+
+        if (event.data?.type === "node-hover") {
+          // Could update a hover indicator in the sidebar
+        }
+      });
+    </script>
+  </body>
+</html>
