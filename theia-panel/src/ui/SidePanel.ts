@@ -46,6 +46,7 @@ function renderSummaryBlock(
 export function createSidePanel(
   container: HTMLElement,
   initialTheme: ThemeTokens,
+  onNavigate?: (nodeId: string) => void,
 ) {
   let theme = initialTheme;
   const el = document.createElement("aside");
@@ -67,6 +68,12 @@ export function createSidePanel(
   let lastNode: TheiaGraph["nodes"][number] | null = null;
   let lastEdges: TheiaGraph["edges"] = [];
 
+  function scrollTop() {
+    requestAnimationFrame(() => {
+      el.scrollTop = 0;
+    });
+  }
+
   function show(
     node: TheiaGraph["nodes"][number],
     relatedEdges: TheiaGraph["edges"],
@@ -76,6 +83,20 @@ export function createSidePanel(
     lastEdges = relatedEdges;
     renderContent();
     el.style.transform = "translateX(0)";
+    scrollTop();
+  }
+
+  function handleNavClick(targetId: string) {
+    if (onNavigate) {
+      onNavigate(targetId);
+    }
+  }
+
+  function onNavKeyDown(e: KeyboardEvent, targetId: string) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleNavClick(targetId);
+    }
   }
 
   function renderContent() {
@@ -89,8 +110,8 @@ export function createSidePanel(
 
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
-        style="position:absolute;top:12px;right:16px;background:none;border:none;color:#${theme.fg2};font-size:16px;cursor:pointer;opacity:0.5">×</button>
-      <h3 style="margin:0 0 2px;color:#${theme.accent};font-size:15px;letter-spacing:0.02em">${escape(node.title || node.id)}</h3>
+        style="position:absolute;top:10px;right:14px;background:none;border:none;color:#${theme.fg2};font-size:16px;cursor:pointer;opacity:0.5">×</button>
+      <h3 style="margin:0 30px 2px 0;color:#${theme.accent};font-size:15px;letter-spacing:0.02em">${escape(node.title || node.id)}</h3>
       <div style="opacity:0.5;color:#${theme.fg2};margin-bottom:2px;font-size:11px">${node.id}</div>
       ${headerSummary}
       <dl style="margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px">
@@ -103,11 +124,42 @@ export function createSidePanel(
       <div style="margin:20px 0 0;border-top:1px solid #${theme.border}"></div>
       <h4 style="margin:10px 0 8px;font-size:10px;letter-spacing:0.12em;opacity:0.5;text-transform:uppercase">Connections</h4>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${relatedEdges.length === 0 ? '<div style="opacity:0.5;font-size:11px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme)).join("")}
+        ${relatedEdges.length === 0 ? '<div style="opacity:0.5;font-size:11px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme, !!onNavigate)).join("")}
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
   }
+
+  el.addEventListener("click", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      const targetId = (link as HTMLElement).dataset.navigateTo!;
+      handleNavClick(targetId);
+    }
+  });
+
+  el.addEventListener("keydown", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      const targetId = (link as HTMLElement).dataset.navigateTo!;
+      onNavKeyDown(e, targetId);
+    }
+  });
+
+  el.addEventListener("focusin", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      (link as HTMLElement).style.outline = "1px solid";
+      (link as HTMLElement).style.outlineColor = `#${theme.accent}`;
+    }
+  });
+
+  el.addEventListener("focusout", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      (link as HTMLElement).style.outline = "none";
+    }
+  });
 
   function hide() {
     currentId = null;
@@ -135,11 +187,13 @@ function renderEdge(
   node: TheiaGraph["nodes"][number],
   e: TheiaGraph["edges"][number],
   theme: ThemeTokens,
+  hasNav: boolean,
 ): string {
   const isSource = e.source === node.id;
   const otherId = isSource ? e.target : e.source;
   const direction = isSource ? "\u2192" : "\u2190";
   const ev = (e.evidence ?? {}) as Record<string, unknown>;
+  const color = `#${theme.accent}`;
 
   let detail = "";
   if (e.kind === "memory-share") {
@@ -190,15 +244,15 @@ function renderEdge(
     </div>`;
   }
 
-  const color = `#${theme.accent}`;
-
   return `
     <div style="padding:12px;background:${cardBg(theme)};border:1px solid #${theme.border}">
       <div style="display:flex;align-items:center;gap:8px;font-size:11px">
         <span style="width:7px;height:7px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
         <span style="border:1px solid #${theme.border};padding:1px 7px;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#${theme.fg2};line-height:1.4">${e.kind}</span>
         <span style="opacity:0.35">${direction}</span>
-        <span style="opacity:0.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${escape(otherId)}</span>
+        <span ${hasNav ? `data-navigate-to="${escape(otherId)}" tabindex="0" role="link"` : ""}
+          style="cursor:${hasNav ? "pointer" : "default"};border-bottom:1px dashed rgba(255,255,255,0.2);${hasNav ? "outline:none" : ""};opacity:0.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px"
+          ${hasNav ? `title="Navigate to session"` : ""}>${escape(otherId)}</span>
         <span style="margin-left:auto;opacity:0.35;font-size:10px;letter-spacing:0.04em" title="Edge weight">w=${e.weight.toFixed(2)}</span>
       </div>
       ${detail}
