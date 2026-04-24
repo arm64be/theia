@@ -83,12 +83,12 @@ export function createFilterBar(
     "tool-overlap",
     "subagent",
   ];
-  const kindLabels: Record<string, string> = {
+  const kindLabels = {
     "memory-share": "Memory Share",
     "cross-search": "Cross Search",
     "tool-overlap": "Tool Overlap",
     subagent: "Subagent",
-  };
+  } satisfies Record<TheiaGraph["edges"][number]["kind"], string>;
   const state = new Set(initial);
   let selectedModel: string | null = null;
 

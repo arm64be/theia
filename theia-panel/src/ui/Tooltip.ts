@@ -34,7 +34,7 @@ export function createTooltip(
       padding: 10px 14px; background: ${themeBgAlpha(theme, 0.92)};
       border: 1px solid #${theme.border};
       font: 12px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
-      transform: translate(10px, 10px); opacity: 0; transition: opacity 120ms;
+      opacity: 0; transition: opacity 120ms;
       max-width: 320px; backdrop-filter: blur(4px);
     `;
   }
@@ -52,8 +52,8 @@ export function createTooltip(
       ${identity}
     `;
     const tooltipOffset = 10;
-    el.style.left = `${Math.min(x, container.clientWidth - el.offsetWidth - tooltipOffset)}px`;
-    el.style.top = `${Math.min(y, container.clientHeight - el.offsetHeight - tooltipOffset)}px`;
+    el.style.left = `${Math.max(0, Math.min(x + tooltipOffset, container.clientWidth - el.offsetWidth - tooltipOffset))}px`;
+    el.style.top = `${Math.max(0, Math.min(y + tooltipOffset, container.clientHeight - el.offsetHeight - tooltipOffset))}px`;
     el.style.opacity = "1";
   }
 

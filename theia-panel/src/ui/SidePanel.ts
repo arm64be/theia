@@ -44,6 +44,10 @@ export function createSidePanel(
   el.tabIndex = -1;
   container.appendChild(el);
 
+  const focusStyle = document.createElement("style");
+  focusStyle.textContent = `aside:focus-visible { outline: 1px solid #${theme.accent} !important; }`;
+  document.head.appendChild(focusStyle);
+
   let lastNode: TheiaGraph["nodes"][number] | null = null;
   let lastEdges: TheiaGraph["edges"] = [];
 

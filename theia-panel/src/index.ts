@@ -267,30 +267,39 @@ export async function mount(
     );
   }
 
-  // Loading indicator
-  const loadingEl = document.createElement("div");
-  loadingEl.style.cssText = `
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
-    font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
-    letter-spacing: 0.1em; z-index: 20; transition: opacity 300ms;
-  `;
-  loadingEl.textContent = "Loading constellation\u2026";
-  element.appendChild(loadingEl);
+  function createLoadingOverlay(text: string): { remove(): void } {
+    const el = document.createElement("div");
+    el.style.cssText = `
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
+      font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      letter-spacing: 0.05em; z-index: 20; transition: opacity 300ms;
+    `;
+    el.textContent = text;
+    element.appendChild(el);
+    return {
+      remove() {
+        el.style.opacity = "0";
+        setTimeout(() => {
+          try {
+            element.removeChild(el);
+          } catch {
+            /* container may have been destroyed during load */
+          }
+        }, 300);
+      },
+    };
+  }
 
+  const loading = createLoadingOverlay("Loading constellation\u2026");
   let initialGraph: TheiaGraph;
   try {
     initialGraph = await loadGraph(graphUrl);
-  } finally {
-    loadingEl.style.opacity = "0";
-    setTimeout(() => {
-      try {
-        element.removeChild(loadingEl);
-      } catch {
-        /* ok */
-      }
-    }, 300);
+  } catch (err) {
+    loading.remove();
+    throw err;
   }
+  loading.remove();
   setupGraph(initialGraph);
 
   function tick() {
@@ -441,21 +450,12 @@ export async function mount(
     async reload(url?: string) {
       const targetUrl = url ?? graphUrl;
 
-      const loadingReload = document.createElement("div");
-      loadingReload.style.cssText = `
-        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-        background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
-        font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
-        letter-spacing: 0.1em; z-index: 20;
-      `;
-      loadingReload.textContent = "Reloading\u2026";
-      element.appendChild(loadingReload);
-
+      const loading = createLoadingOverlay("Reloading\u2026");
       let newGraph: TheiaGraph;
       try {
         newGraph = await loadGraph(targetUrl);
       } finally {
-        element.removeChild(loadingReload);
+        loading.remove();
       }
 
       const cameraState = ctx.getCameraState();

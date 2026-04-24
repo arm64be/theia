@@ -10,7 +10,7 @@ export function fnv1a(str: string): number {
 
 /** Hash a string to [0, 1). */
 export function hash01(str: string): number {
-  return (fnv1a(str) % 1000) / 1000;
+  return fnv1a(str) / 0xffffffff;
 }
 
 /** Hash a string to [-1, 1]. */

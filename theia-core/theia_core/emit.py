@@ -40,7 +40,7 @@ def _extract_initial_prompt(sess: Session) -> str | None:
     return None
 
 
-@functools.cache
+@functools.lru_cache(maxsize=1)
 def _load_validator() -> Draft202012Validator:
     schema = json.loads(SCHEMA_PATH.read_text())
     return Draft202012Validator(schema)
