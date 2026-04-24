@@ -5,18 +5,40 @@ import { escape, truncate } from "./utils";
 
 const SUMMARY_MAX_CHARS = 280;
 
+/** Approximate the dashboard's `bg-card` pattern: blend midground into bg at 4%. */
+function cardBg(t: ThemeTokens): string {
+  const parse = (hex: string): [number, number, number] => {
+    const h = hex.replace(/^#/, "");
+    return [
+      parseInt(h.slice(0, 2), 16) || 0,
+      parseInt(h.slice(2, 4), 16) || 0,
+      parseInt(h.slice(4, 6), 16) || 0,
+    ];
+  };
+  const [mr, mg, mb] = parse(t.midground);
+  const [br, bg, bb] = parse(t.bg);
+  const mix = (a: number, b: number, p: number) =>
+    Math.round(a * p + b * (1 - p));
+  return `rgb(${mix(mr, br, 0.04)},${mix(mg, bg, 0.04)},${mix(mb, bb, 0.04)})`;
+}
+
+/** Shared style for edge detail attribute lines. */
+function detailAttrStyle(t: ThemeTokens): string {
+  return `margin-top:6px;opacity:0.7;font-size:11px;color:#${t.fg2};line-height:1.5`;
+}
+
 function renderSummaryBlock(
   node: TheiaGraph["nodes"][number],
   theme: ThemeTokens,
 ): string {
   if (node.summary) {
-    return `<div style="margin-top:10px;padding:10px;background:rgba(255,196,119,0.08);border-left:2px solid #${theme.accent};color:#${theme.fg};font-size:12px;line-height:1.5">${escape(node.summary)}</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:${cardBg(theme)};border-left:2px solid #${theme.accent};color:#${theme.fg};font-size:12px;line-height:1.5">${escape(node.summary)}</div>`;
   }
   if (node.initial_prompt) {
-    return `<div style="margin-top:10px;padding:10px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, SUMMARY_MAX_CHARS))}</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:${cardBg(theme)};border-left:2px solid #${theme.accent};color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, SUMMARY_MAX_CHARS))}</div>`;
   }
   if (node.preview) {
-    return `<div style="margin-top:10px;padding:10px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">PREVIEW</div>${escape(truncate(node.preview, SUMMARY_MAX_CHARS))}</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:${cardBg(theme)};border-left:2px solid #${theme.accent};color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">PREVIEW</div>${escape(truncate(node.preview, SUMMARY_MAX_CHARS))}</div>`;
   }
   return "";
 }
@@ -34,7 +56,7 @@ export function createSidePanel(
     el.style.cssText = `
       position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 45vw);
       background: ${themeBgAlpha(theme, 0.95)}; border-left: 1px solid #${theme.border};
-      color: #${theme.fg}; font: 13px/1.5 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      color: #${theme.fg}; font: 13px/1.6 var(--theia-font, ui-monospace, monospace);
       transform: translateX(${currentId ? "0" : "100%"}); transition: transform 220ms ease-out;
       padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
       box-sizing: border-box;
@@ -84,22 +106,25 @@ export function createSidePanel(
 
     const headerSummary = renderSummaryBlock(node, theme);
 
+    const dtStyle = `opacity:0.6;color:#${theme.fg2};letter-spacing:0.04em;text-transform:uppercase;font-size:10px`;
+
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
-        style="position:absolute;top:10px;right:14px;background:none;border:none;color:#${theme.fg};font-size:18px;cursor:pointer">×</button>
-      <h3 style="margin:0 30px 2px 0;color:#${theme.accent};font-size:16px">${escape(node.title || node.id)}</h3>
-      <div style="opacity:0.55;color:#${theme.fg2};margin-bottom:2px;font-size:11px">${node.id}</div>
+        style="position:absolute;top:10px;right:14px;background:none;border:none;color:#${theme.fg2};font-size:16px;cursor:pointer;opacity:0.5">×</button>
+      <h3 style="margin:0 30px 2px 0;color:#${theme.accent};font-size:15px;letter-spacing:0.02em">${escape(node.title || node.id)}</h3>
+      <div style="opacity:0.5;color:#${theme.fg2};margin-bottom:2px;font-size:11px">${node.id}</div>
       ${headerSummary}
-      <dl style="margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px">
-        <dt style="opacity:0.6;color:#${theme.fg2}">Started</dt><dd style="margin:0">${new Date(node.started_at).toLocaleString()}</dd>
-        <dt style="opacity:0.6;color:#${theme.fg2}">Duration</dt><dd style="margin:0">${Math.round(node.duration_sec)}s</dd>
-        <dt style="opacity:0.6;color:#${theme.fg2}">Model</dt><dd style="margin:0">${escape(node.model ?? "-")}</dd>
-        <dt style="opacity:0.6;color:#${theme.fg2}">Tools</dt><dd style="margin:0">${node.tool_count}</dd>
-        <dt style="opacity:0.6;color:#${theme.fg2}">Messages</dt><dd style="margin:0">${node.message_count ?? "-"}</dd>
+      <dl style="margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px">
+        <dt style="${dtStyle}">Started</dt><dd style="margin:0">${new Date(node.started_at).toLocaleString()}</dd>
+        <dt style="${dtStyle}">Duration</dt><dd style="margin:0">${Math.round(node.duration_sec)}s</dd>
+        <dt style="${dtStyle}">Model</dt><dd style="margin:0">${escape(node.model ?? "-")}</dd>
+        <dt style="${dtStyle}">Tools</dt><dd style="margin:0">${node.tool_count}</dd>
+        <dt style="${dtStyle}">Messages</dt><dd style="margin:0">${node.message_count ?? "-"}</dd>
       </dl>
-      <h4 style="margin:20px 0 8px;font-size:11px;letter-spacing:0.6px;opacity:0.7;text-transform:uppercase">Connections</h4>
+      <div style="margin:20px 0 0;border-top:1px solid #${theme.border}"></div>
+      <h4 style="margin:10px 0 8px;font-size:10px;letter-spacing:0.12em;opacity:0.5;text-transform:uppercase">Connections</h4>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${relatedEdges.length === 0 ? '<div style="opacity:0.4;font-size:12px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme, !!onNavigate)).join("")}
+        ${relatedEdges.length === 0 ? '<div style="opacity:0.5;font-size:11px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme, !!onNavigate)).join("")}
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
@@ -158,13 +183,6 @@ export function createSidePanel(
   return { show, hide, currentNodeId, updateTheme, dispose };
 }
 
-const kindColor: Record<string, string> = {
-  "memory-share": "#ffb366",
-  "cross-search": "#66d9ef",
-  "tool-overlap": "#b089ff",
-  subagent: "#7ce38b",
-};
-
 function renderEdge(
   node: TheiaGraph["nodes"][number],
   e: TheiaGraph["edges"][number],
@@ -175,14 +193,14 @@ function renderEdge(
   const otherId = isSource ? e.target : e.source;
   const direction = isSource ? "\u2192" : "\u2190";
   const ev = (e.evidence ?? {}) as Record<string, unknown>;
-  const color = kindColor[e.kind] ?? `#${theme.fg}`;
+  const color = `#${theme.accent}`;
 
   let detail = "";
   if (e.kind === "memory-share") {
     const memId = ev.memory_id;
     const salience = ev.salience;
     const readCount = ev.read_count;
-    detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
+    detail = `<div style="${detailAttrStyle(theme)}">
       memory: <span style="color:#${theme.accent}">${escape(String(memId ?? "?"))}</span>
       ${salience !== undefined ? `\u00b7 salience ${Number(salience).toFixed(2)}` : ""}
       ${readCount !== undefined ? `\u00b7 reads ${readCount}` : ""}
@@ -191,8 +209,8 @@ function renderEdge(
     const query = ev.query;
     const hitRank = ev.hit_rank;
     const hits = ev.hits;
-    detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
-      query: <span style="color:#66d9ef">${escape(String(query ?? "?"))}</span>
+    detail = `<div style="${detailAttrStyle(theme)}">
+      query: <span style="color:#${theme.accent}">${escape(String(query ?? "?"))}</span>
       ${hitRank !== undefined ? `\u00b7 rank #${hitRank}` : ""}
       ${hits !== undefined ? `\u00b7 ${hits} hit${Number(hits) === 1 ? "" : "s"}` : ""}
     </div>`;
@@ -203,38 +221,39 @@ function renderEdge(
     const linkType = ev.link_type;
     const webKey = ev.web_key;
     if (sharedTools && Array.isArray(sharedTools)) {
-      detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
-        shared: ${sharedTools.map((t: string) => `<span style="color:#b089ff">${escape(t)}</span>`).join(" ")}
+      detail = `<div style="${detailAttrStyle(theme)}">
+        shared: ${sharedTools.map((t: string) => `<span style="color:#${theme.accent}">${escape(t)}</span>`).join(" ")}
         ${jaccard !== undefined ? `\u00b7 jaccard ${Number(jaccard).toFixed(2)}` : ""}
       </div>`;
     } else if (skillName) {
-      detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
-        skill: <span style="color:#b089ff">${escape(String(skillName))}</span>
+      detail = `<div style="${detailAttrStyle(theme)}">
+        skill: <span style="color:#${theme.accent}">${escape(String(skillName))}</span>
         ${linkType ? `\u00b7 ${escape(String(linkType))}` : ""}
       </div>`;
     } else if (webKey) {
-      detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
-        web: <span style="color:#b089ff">${escape(String(webKey))}</span>
+      detail = `<div style="${detailAttrStyle(theme)}">
+        web: <span style="color:#${theme.accent}">${escape(String(webKey))}</span>
       </div>`;
     }
   } else if (e.kind === "subagent") {
     const isChild = node.id === e.target;
     const label = isChild ? "parent" : "child";
-    detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
-      ${label}: <span style="color:#7ce38b">${escape(String(otherId))}</span>
+    const displayId = isChild ? e.source : ev.child_session_id;
+    detail = `<div style="${detailAttrStyle(theme)}">
+      ${label}: <span style="color:#${theme.accent}">${escape(String(displayId ?? "?"))}</span>
     </div>`;
   }
 
   return `
-    <div style="padding:10px;background:rgba(255,255,255,0.03);border:1px solid #${theme.border}">
-      <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-        <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
-        <span style="font-weight:600">${e.kind}</span>
-        <span style="opacity:0.6">${direction}</span>
+    <div style="padding:12px;background:${cardBg(theme)};border:1px solid #${theme.border}">
+      <div style="display:flex;align-items:center;gap:8px;font-size:11px">
+        <span style="width:7px;height:7px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
+        <span style="border:1px solid #${theme.border};padding:1px 7px;font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#${theme.fg2};line-height:1.4">${e.kind}</span>
+        <span style="opacity:0.35">${direction}</span>
         <span ${hasNav ? `data-navigate-to="${escape(otherId)}" tabindex="0" role="link"` : ""}
-          style="cursor:${hasNav ? "pointer" : "default"};border-bottom:1px dashed rgba(255,255,255,0.2);${hasNav ? "outline:none" : ""}"
+          style="cursor:${hasNav ? "pointer" : "default"};border-bottom:1px dashed rgba(255,255,255,0.2);${hasNav ? "outline:none" : ""};opacity:0.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px"
           ${hasNav ? `title="Navigate to session"` : ""}>${escape(otherId)}</span>
-        <span style="margin-left:auto;opacity:0.5;font-size:11px">w=${e.weight.toFixed(2)}</span>
+        <span style="margin-left:auto;opacity:0.35;font-size:10px;letter-spacing:0.04em" title="Edge weight">w=${e.weight.toFixed(2)}</span>
       </div>
       ${detail}
     </div>

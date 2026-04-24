@@ -77,24 +77,26 @@
     function cssVar(name) {
       return (root.getPropertyValue(name) || "").trim();
     }
-    var bg     = toHex(cssVar("--background-base"), "07080d");
+    var bg       = toHex(cssVar("--background-base"), "07080d");
     // fg — primary body text: use the midground triplet (theme-responsive).
-    var fg     = toHex(cssVar("--midground-base"), "cfd6e4");
+    var fg       = toHex(cssVar("--midground-base"), "cfd6e4");
     // fg2 — secondary/muted labels (55% opacity midground in the DS).
-    var fg2    = toHex(cssVar("--color-muted-foreground") || cssVar("--midground"), "9ca3af");
+    var fg2      = toHex(cssVar("--color-muted-foreground") || cssVar("--midground"), "9ca3af");
+    // midground — the dashboard's midground layer used e.g. for bg-card blend.
+    var midground = toHex(cssVar("--midground-base"), "cfd6e4");
     // accent — warm gold for emphasis.  --color-warning is static (#ffbd38)
     // but intentionally fixed: it provides a functional highlight that stands
     // out from body text across all dark themes.  Falls back to the theme's
     // midground only if --color-warning is absent.
-    var accent = toHex(cssVar("--color-warning") || cssVar("--midground-base"), "ffc477");
-    var border = toHex(cssVar("--color-border"), "ffffff26");
-    var font   = root.getPropertyValue("font-family").trim()
+    var accent   = toHex(cssVar("--color-warning") || cssVar("--midground-base"), "ffc477");
+    var border   = toHex(cssVar("--color-border"), "ffffff26");
+    var font     = root.getPropertyValue("font-family").trim()
       || "'Mondwest', ui-monospace, monospace";
-    return { bg: bg, fg: fg, fg2: fg2, accent: accent, border: border, font: font, radius: "0" };
+    return { bg, fg, fg2, midground, accent, border, font, radius: "0" };
   }
 
   function buildThemeQuery(theme) {
-    var keys = ["bg", "fg", "fg2", "accent", "border", "font", "radius"];
+    var keys = ["bg", "fg", "fg2", "midground", "accent", "border", "font", "radius"];
     return keys.map(function (k) {
       return k + "=" + encodeURIComponent(theme[k]);
     }).join("&");

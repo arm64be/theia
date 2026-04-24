@@ -21,6 +21,7 @@ export interface ThemeTokens {
   bg: string;
   fg: string;
   fg2: string;
+  midground: string;
   accent: string;
   border: string;
   font: string;
@@ -31,6 +32,7 @@ const DEFAULTS: ThemeTokens = {
   bg: "07080d",
   fg: "cfd6e4",
   fg2: "9ca3af",
+  midground: "cfd6e4",
   accent: "ffc477",
   border: "ffffff26",
   font: "'Mondwest', ui-monospace, monospace",
@@ -44,6 +46,7 @@ export function readTheme(): ThemeTokens {
     bg: params.get("bg") || DEFAULTS.bg,
     fg: params.get("fg") || DEFAULTS.fg,
     fg2: params.get("fg2") || DEFAULTS.fg2,
+    midground: params.get("midground") || DEFAULTS.midground,
     accent: params.get("accent") || DEFAULTS.accent,
     border: params.get("border") || DEFAULTS.border,
     font: params.get("font")?.replace(/\+/g, " ") || DEFAULTS.font,
@@ -58,6 +61,7 @@ export function applyTheme(tokens: ThemeTokens): void {
   root.style.setProperty("--theia-bg", `#${tokens.bg}`);
   root.style.setProperty("--theia-fg", `#${tokens.fg}`);
   root.style.setProperty("--theia-fg2", `#${tokens.fg2}`);
+  root.style.setProperty("--theia-midground", `#${tokens.midground}`);
   root.style.setProperty("--theia-accent", `#${tokens.accent}`);
   root.style.setProperty("--theia-border", `#${tokens.border}`);
   root.style.setProperty("--theia-font", tokens.font);
@@ -102,6 +106,7 @@ export function onThemeMessage(
         bg: t.bg || DEFAULTS.bg,
         fg: t.fg || DEFAULTS.fg,
         fg2: t.fg2 || DEFAULTS.fg2,
+        midground: t.midground || DEFAULTS.midground,
         accent: t.accent || DEFAULTS.accent,
         border: t.border || DEFAULTS.border,
         font: t.font || DEFAULTS.font,
