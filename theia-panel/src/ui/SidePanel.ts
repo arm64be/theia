@@ -24,6 +24,7 @@ function renderSummaryBlock(
 export function createSidePanel(
   container: HTMLElement,
   initialTheme: ThemeTokens,
+  onNavigate?: (nodeId: string) => void,
 ) {
   let theme = initialTheme;
   const el = document.createElement("aside");
@@ -46,6 +47,12 @@ export function createSidePanel(
   let lastNode: TheiaGraph["nodes"][number] | null = null;
   let lastEdges: TheiaGraph["edges"] = [];
 
+  function scrollTop() {
+    requestAnimationFrame(() => {
+      el.scrollTop = 0;
+    });
+  }
+
   function show(
     node: TheiaGraph["nodes"][number],
     relatedEdges: TheiaGraph["edges"],
@@ -56,6 +63,20 @@ export function createSidePanel(
     renderContent();
     el.style.transform = "translateX(0)";
     el.focus({ preventScroll: true });
+    scrollTop();
+  }
+
+  function handleNavClick(targetId: string) {
+    if (onNavigate) {
+      onNavigate(targetId);
+    }
+  }
+
+  function onNavKeyDown(e: KeyboardEvent, targetId: string) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleNavClick(targetId);
+    }
   }
 
   function renderContent() {
@@ -68,7 +89,7 @@ export function createSidePanel(
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
         style="position:absolute;top:10px;right:14px;background:none;border:none;color:#${theme.fg};font-size:18px;cursor:pointer">×</button>
-      <h3 style="margin:0 0 2px;color:#${theme.accent};font-size:16px">${escape(node.title || node.id)}</h3>
+      <h3 style="margin:0 30px 2px 0;color:#${theme.accent};font-size:16px">${escape(node.title || node.id)}</h3>
       <div style="opacity:0.55;color:#${theme.fg2};margin-bottom:2px;font-size:11px">${node.id}</div>
       ${headerSummary}
       <dl style="margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px">
@@ -80,20 +101,51 @@ export function createSidePanel(
       </dl>
       <h4 style="margin:20px 0 8px;font-size:11px;letter-spacing:0.6px;opacity:0.7;text-transform:uppercase">Connections</h4>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${relatedEdges.length === 0 ? '<div style="opacity:0.4;font-size:12px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme)).join("")}
+        ${relatedEdges.length === 0 ? '<div style="opacity:0.4;font-size:12px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme, !!onNavigate)).join("")}
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
   }
 
+  el.addEventListener("click", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      const targetId = (link as HTMLElement).dataset.navigateTo!;
+      handleNavClick(targetId);
+    }
+  });
+
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      hide();
+      return;
+    }
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      const targetId = (link as HTMLElement).dataset.navigateTo!;
+      onNavKeyDown(e, targetId);
+    }
+  });
+
+  el.addEventListener("focusin", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      (link as HTMLElement).style.outline = "1px solid";
+      (link as HTMLElement).style.outlineColor = `#${theme.accent}`;
+    }
+  });
+
+  el.addEventListener("focusout", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      (link as HTMLElement).style.outline = "none";
+    }
+  });
+
   function hide() {
     currentId = null;
     el.style.transform = "translateX(100%)";
   }
-
-  el.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") hide();
-  });
 
   function currentNodeId() {
     return currentId;
@@ -112,15 +164,24 @@ export function createSidePanel(
   return { show, hide, currentNodeId, updateTheme, dispose };
 }
 
+const kindColor: Record<string, string> = {
+  "memory-share": "#ffb366",
+  "cross-search": "#66d9ef",
+  "tool-overlap": "#b089ff",
+  subagent: "#7ce38b",
+};
+
 function renderEdge(
   node: TheiaGraph["nodes"][number],
   e: TheiaGraph["edges"][number],
   theme: ThemeTokens,
+  hasNav: boolean,
 ): string {
   const isSource = e.source === node.id;
   const otherId = isSource ? e.target : e.source;
   const direction = isSource ? "\u2192" : "\u2190";
   const ev = (e.evidence ?? {}) as Record<string, unknown>;
+  const color = kindColor[e.kind] ?? `#${theme.fg}`;
 
   let detail = "";
   if (e.kind === "memory-share") {
@@ -165,19 +226,10 @@ function renderEdge(
   } else if (e.kind === "subagent") {
     const isChild = node.id === e.target;
     const label = isChild ? "parent" : "child";
-    const displayId = isChild ? e.source : ev.child_session_id;
     detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
-      ${label}: <span style="color:#7ce38b">${escape(String(displayId ?? "?"))}</span>
+      ${label}: <span style="color:#7ce38b">${escape(String(otherId))}</span>
     </div>`;
   }
-
-  const kindColor: Record<string, string> = {
-    "memory-share": "#ffb366",
-    "cross-search": "#66d9ef",
-    "tool-overlap": "#b089ff",
-    subagent: "#7ce38b",
-  };
-  const color = kindColor[e.kind] ?? `#${theme.fg}`;
 
   return `
     <div style="padding:10px;background:rgba(255,255,255,0.03);border:1px solid #${theme.border}">
@@ -185,7 +237,9 @@ function renderEdge(
         <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
         <span style="font-weight:600">${e.kind}</span>
         <span style="opacity:0.6">${direction}</span>
-        <span>${escape(otherId)}</span>
+        <span ${hasNav ? `data-navigate-to="${escape(otherId)}" tabindex="0" role="link"` : ""}
+          style="cursor:${hasNav ? "pointer" : "default"};border-bottom:1px dashed rgba(255,255,255,0.2);${hasNav ? "outline:none" : ""}"
+          ${hasNav ? `title="Navigate to session"` : ""}>${escape(otherId)}</span>
         <span style="margin-left:auto;opacity:0.5;font-size:11px">w=${e.weight.toFixed(2)}</span>
       </div>
       ${detail}

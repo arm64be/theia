@@ -21,6 +21,9 @@ export function createSearchBar(
   const input = document.createElement("input");
   const dropdown = document.createElement("div");
 
+  let currentResults: SearchResult[] = [];
+  let selectedIndex = -1;
+
   function applyWrapperStyle() {
     wrapper.style.cssText = `
       position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
@@ -43,7 +46,7 @@ export function createSearchBar(
     dropdown.style.cssText = `
       position: absolute; top: calc(100% + 6px); left: 0; right: 0;
       background: ${themeBgAlpha(theme, 0.95)}; border: 1px solid #${theme.border};
-      overflow: hidden; display: none;
+      display: none;
       backdrop-filter: blur(6px); max-height: 240px; overflow-y: auto;
     `;
   }
@@ -64,12 +67,41 @@ export function createSearchBar(
   });
   input.addEventListener("blur", () => {
     input.style.borderColor = `#${theme.border}`;
-    if (!clickingDropdown) list.hide();
+    if (!clickingDropdown) hide();
     clickingDropdown = false;
   });
 
   wrapper.append(input, dropdown);
   container.appendChild(wrapper);
+
+  function select(index: number) {
+    const items = dropdown.querySelectorAll<HTMLElement>(".search-item");
+    for (let i = 0; i < items.length; i++) {
+      items[i]!.style.background =
+        i === index ? "rgba(255,255,255,0.1)" : "transparent";
+    }
+    selectedIndex = index;
+    if (index >= 0 && items[index]) {
+      items[index]!.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function commit(index: number) {
+    const result = currentResults[index];
+    if (result) {
+      onFocus(result);
+      input.value = "";
+      currentResults = [];
+      selectedIndex = -1;
+      dropdown.style.display = "none";
+    }
+  }
+
+  function hide() {
+    dropdown.style.display = "none";
+    currentResults = [];
+    selectedIndex = -1;
+  }
 
   function normalize(s: string) {
     return s.toLowerCase();
@@ -87,8 +119,6 @@ export function createSearchBar(
   }
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  let selectedIndex = -1;
-  let currentResults: SearchResult[] = [];
 
   function render(query: string) {
     if (!query.trim()) {
@@ -113,14 +143,14 @@ export function createSearchBar(
       selectedIndex = -1;
       return;
     }
-    selectedIndex = Math.min(selectedIndex, currentResults.length - 1);
-    dropdown.innerHTML = currentResults
-      .map(
-        (r, ri) => `
+    dropdown.innerHTML =
+      `<div style="padding:6px 12px;font-size:10px;opacity:0.5;letter-spacing:0.5px">${currentResults.length} result${currentResults.length === 1 ? "" : "s"}</div>` +
+      currentResults
+        .map(
+          (r, ri) => `
       <div class="search-item" data-result-index="${ri}" style="
         padding: 8px 12px; cursor: pointer;
         border-bottom: 1px solid rgba(255,255,255,0.05);
-        background: ${ri === selectedIndex ? "rgba(255,255,255,0.08)" : "transparent"};
         transition: background 100ms;
       ">
         <div style="font-weight:600;color:#${theme.accent}">${escape(r.node.title || r.node.id)}</div>
@@ -128,46 +158,24 @@ export function createSearchBar(
         ${r.node.preview ? `<div style="opacity:0.5;font-size:10px;margin-top:2px">${escape(r.node.preview)}</div>` : ""}
       </div>
     `,
-      )
-      .join("");
-    for (const el of dropdown.querySelectorAll(".search-item")) {
-      const item = el as HTMLElement;
-      item.addEventListener("mouseenter", () => {
-        const ri = Number(item.dataset.resultIndex);
-        selectedIndex = ri;
-        highlightSelected();
-      });
-      item.addEventListener("mouseleave", () => {
-        selectedIndex = -1;
-        highlightSelected();
-      });
-      item.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        const ri = Number(item.dataset.resultIndex);
-        const result = currentResults[ri];
-        if (result) {
-          focusResult(result);
-        }
-      });
-    }
+        )
+        .join("");
     dropdown.style.display = "block";
-  }
-
-  function focusResult(result: SearchResult) {
-    onFocus(result);
-    input.value = "";
-    dropdown.style.display = "none";
-    currentResults = [];
     selectedIndex = -1;
-  }
 
-  function highlightSelected() {
-    for (let ri = 0; ri < dropdown.children.length; ri++) {
-      const child = dropdown.children[ri] as HTMLElement | null;
-      if (child) {
-        child.style.background =
-          ri === selectedIndex ? "rgba(255,255,255,0.08)" : "transparent";
-      }
+    for (const el of dropdown.querySelectorAll<HTMLElement>(".search-item")) {
+      el.addEventListener("mouseenter", () => {
+        const ri = Number(el.dataset.resultIndex);
+        select(ri);
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.background = "transparent";
+      });
+      el.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const ri = Number(el.dataset.resultIndex);
+        commit(ri);
+      });
     }
   }
 
@@ -178,34 +186,23 @@ export function createSearchBar(
   });
 
   input.addEventListener("keydown", (e) => {
-    if (currentResults.length === 0) return;
+    if (e.key === "Escape") {
+      hide();
+      input.blur();
+      return;
+    }
+    if (dropdown.style.display === "none") return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      selectedIndex = Math.min(selectedIndex + 1, currentResults.length - 1);
-      highlightSelected();
+      select(Math.min(selectedIndex + 1, currentResults.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      selectedIndex = Math.max(selectedIndex - 1, 0);
-      highlightSelected();
-    } else if (e.key === "Enter" && selectedIndex >= 0) {
+      select(Math.max(selectedIndex - 1, 0));
+    } else if (e.key === "Enter") {
       e.preventDefault();
-      focusResult(currentResults[selectedIndex]!);
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      dropdown.style.display = "none";
-      currentResults = [];
-      selectedIndex = -1;
-      input.blur();
+      commit(selectedIndex >= 0 ? selectedIndex : 0);
     }
   });
-
-  const list = {
-    hide() {
-      dropdown.style.display = "none";
-      currentResults = [];
-      selectedIndex = -1;
-    },
-  };
 
   function updateTheme(newTheme: ThemeTokens) {
     theme = newTheme;
