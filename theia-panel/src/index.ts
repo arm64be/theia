@@ -141,8 +141,8 @@ export async function mount(
         sn.z = old.z;
       }
     }
-    // Start near equilibrium to prevent jittery readjustment
-    simulation.alpha(0.02);
+    // Start at equilibrium to prevent jittery readjustment
+    simulation.alpha(simulation.alphaTarget());
 
     const filteredNodeIndex = new Map<string, number>();
     for (const [id, idx] of nodeIndex) {
@@ -423,9 +423,12 @@ export async function mount(
       loadingReload.textContent = "Reloading\u2026";
       element.appendChild(loadingReload);
 
-      const newGraph = await loadGraph(targetUrl);
-
-      element.removeChild(loadingReload);
+      let newGraph: TheiaGraph;
+      try {
+        newGraph = await loadGraph(targetUrl);
+      } finally {
+        element.removeChild(loadingReload);
+      }
 
       const cameraState = ctx.getCameraState();
       const selectedId = sidePanel.currentNodeId();

@@ -51,8 +51,9 @@ export function createTooltip(
       <div style="opacity:0.6">${Math.round(node.duration_sec)}s · ${node.tool_count} tools · ${node.message_count ?? "?"} msgs</div>
       ${identity}
     `;
-    el.style.left = `${Math.min(x, container.clientWidth - el.offsetWidth - 15)}px`;
-    el.style.top = `${Math.min(y, container.clientHeight - el.offsetHeight - 15)}px`;
+    const tooltipOffset = 10;
+    el.style.left = `${Math.min(x, container.clientWidth - el.offsetWidth - tooltipOffset)}px`;
+    el.style.top = `${Math.min(y, container.clientHeight - el.offsetHeight - tooltipOffset)}px`;
     el.style.opacity = "1";
   }
 

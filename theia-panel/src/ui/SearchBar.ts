@@ -215,6 +215,7 @@ export function createSearchBar(
   }
 
   function dispose() {
+    if (debounceTimer) clearTimeout(debounceTimer);
     container.removeChild(wrapper);
   }
 
