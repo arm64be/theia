@@ -10,10 +10,10 @@ function renderSummaryBlock(
   theme: ThemeTokens,
 ): string {
   if (node.summary) {
-    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(255,196,119,0.07);border-left:2px solid #${theme.accent};border-radius:0 4px 4px 0;color:#${theme.fg};font-size:11px;line-height:1.45">${escape(truncate(node.summary, TOOLTIP_MAX_CHARS))}</div>`;
+    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(255,196,119,0.07);border-left:2px solid #${theme.accent};color:#${theme.fg};font-size:11px;line-height:1.45">${escape(truncate(node.summary, TOOLTIP_MAX_CHARS))}</div>`;
   }
   if (node.initial_prompt) {
-    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#${theme.fg2};font-size:11px;line-height:1.45"><div style="opacity:0.5;font-size:9px;letter-spacing:0.5px;margin-bottom:2px">PROMPT</div>${escape(truncate(node.initial_prompt, TOOLTIP_MAX_CHARS))}</div>`;
+    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;color:#${theme.fg2};font-size:11px;line-height:1.45"><div style="opacity:0.5;font-size:9px;letter-spacing:0.5px;margin-bottom:2px">PROMPT</div>${escape(truncate(node.initial_prompt, TOOLTIP_MAX_CHARS))}</div>`;
   }
   return "";
 }
@@ -29,8 +29,8 @@ export function createTooltip(
     el.style.cssText = `
       position: absolute; pointer-events: none;
       padding: 10px 14px; background: ${themeBgAlpha(theme, 0.92)};
-      border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
-      font: 12px/1.4 var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
+      border: 1px solid #${theme.border};
+      font: 12px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
       transform: translate(10px, 10px); opacity: 0; transition: opacity 120ms;
       max-width: 320px; backdrop-filter: blur(4px);
     `;

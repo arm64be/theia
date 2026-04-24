@@ -89,12 +89,12 @@
     var accent = toHex(cssVar("--color-warning") || cssVar("--midground-base"), "ffc477");
     var border = toHex(cssVar("--color-border"), "ffffff26");
     var font   = root.getPropertyValue("font-family").trim()
-      || "ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace";
-    return { bg: bg, fg: fg, fg2: fg2, accent: accent, border: border, font: font };
+      || "'Mondwest', ui-monospace, monospace";
+    return { bg: bg, fg: fg, fg2: fg2, accent: accent, border: border, font: font, radius: "0" };
   }
 
   function buildThemeQuery(theme) {
-    var keys = ["bg", "fg", "fg2", "accent", "border", "font"];
+    var keys = ["bg", "fg", "fg2", "accent", "border", "font", "radius"];
     return keys.map(function (k) {
       return k + "=" + encodeURIComponent(theme[k]);
     }).join("&");

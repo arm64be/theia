@@ -23,7 +23,7 @@ export function createSearchBar(
   function applyWrapperStyle() {
     wrapper.style.cssText = `
       position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-      z-index: 10; font: 13px/1.4 var(--theia-font, ui-monospace, monospace);
+      z-index: 10; font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
       color: #${theme.fg}; width: min(320px, 50vw);
     `;
   }
@@ -32,7 +32,7 @@ export function createSearchBar(
     input.style.cssText = `
       width: 100%; box-sizing: border-box;
       padding: 8px 12px; background: ${themeBgAlpha(theme, 0.85)};
-      border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
+      border: 1px solid #${theme.border};
       color: #${theme.fg}; font: inherit; outline: none;
       backdrop-filter: blur(4px);
     `;
@@ -42,7 +42,7 @@ export function createSearchBar(
     dropdown.style.cssText = `
       position: absolute; top: calc(100% + 6px); left: 0; right: 0;
       background: ${themeBgAlpha(theme, 0.95)}; border: 1px solid #${theme.border};
-      border-radius: var(--theia-radius, 6px); overflow: hidden; display: none;
+      overflow: hidden; display: none;
       backdrop-filter: blur(6px); max-height: 240px; overflow-y: auto;
     `;
   }

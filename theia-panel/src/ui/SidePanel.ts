@@ -10,10 +10,10 @@ function renderSummaryBlock(
   theme: ThemeTokens,
 ): string {
   if (node.summary) {
-    return `<div style="margin-top:10px;padding:10px;background:rgba(255,196,119,0.08);border-left:2px solid #${theme.accent};border-radius:0 4px 4px 0;color:#${theme.fg};font-size:12px;line-height:1.5">${escape(node.summary)}</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:rgba(255,196,119,0.08);border-left:2px solid #${theme.accent};color:#${theme.fg};font-size:12px;line-height:1.5">${escape(node.summary)}</div>`;
   }
   if (node.initial_prompt) {
-    return `<div style="margin-top:10px;padding:10px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, SUMMARY_MAX_CHARS))}</div>`;
+    return `<div style="margin-top:10px;padding:10px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;color:#${theme.fg2};font-size:12px;line-height:1.5"><div style="opacity:0.6;font-size:10px;letter-spacing:0.5px;margin-bottom:4px">INITIAL PROMPT</div>${escape(truncate(node.initial_prompt, SUMMARY_MAX_CHARS))}</div>`;
   }
   return "";
 }
@@ -30,7 +30,7 @@ export function createSidePanel(
     el.style.cssText = `
       position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 45vw);
       background: ${themeBgAlpha(theme, 0.95)}; border-left: 1px solid #${theme.border};
-      color: #${theme.fg}; font: 13px/1.5 var(--theia-font, ui-monospace, monospace);
+      color: #${theme.fg}; font: 13px/1.5 'Mondwest', var(--theia-font, ui-monospace, monospace);
       transform: translateX(${currentId ? "0" : "100%"}); transition: transform 220ms ease-out;
       padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
       box-sizing: border-box;
@@ -163,7 +163,7 @@ function renderEdge(
   const color = kindColor[e.kind] ?? `#${theme.fg}`;
 
   return `
-    <div style="padding:10px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid #${theme.border}">
+    <div style="padding:10px;background:rgba(255,255,255,0.03);border:1px solid #${theme.border}">
       <div style="display:flex;align-items:center;gap:8px;font-size:12px">
         <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
         <span style="font-weight:600">${e.kind}</span>

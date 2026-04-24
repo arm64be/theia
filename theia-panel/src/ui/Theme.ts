@@ -11,7 +11,7 @@
  *   &accent=ffc477       — accent / highlight color
  *   &border=ffffff26      — border color (hex with optional alpha)
  *   &font=Courier+Prime  — font family (URL-encoded)
- *   &radius=6            — border-radius in px
+ *   &radius=0            — border-radius in px (0 = brutalist)
  *
  * If no params are provided, the panel falls back to its built-in dark
  * palette — so standalone use is unchanged.
@@ -33,8 +33,8 @@ const DEFAULTS: ThemeTokens = {
   fg2: "9ca3af",
   accent: "ffc477",
   border: "ffffff26",
-  font: "ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace",
-  radius: "6",
+  font: "'Mondwest', ui-monospace, monospace",
+  radius: "0",
 };
 
 /** Read theme tokens from the current URL's query string. */
