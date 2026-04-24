@@ -78,8 +78,14 @@
       return (root.getPropertyValue(name) || "").trim();
     }
     var bg     = toHex(cssVar("--background-base"), "07080d");
+    // fg — primary body text: use the midground triplet (theme-responsive).
     var fg     = toHex(cssVar("--midground-base"), "cfd6e4");
+    // fg2 — secondary/muted labels (55% opacity midground in the DS).
     var fg2    = toHex(cssVar("--color-muted-foreground") || cssVar("--midground"), "9ca3af");
+    // accent — warm gold for emphasis.  --color-warning is static (#ffbd38)
+    // but intentionally fixed: it provides a functional highlight that stands
+    // out from body text across all dark themes.  Falls back to the theme's
+    // midground only if --color-warning is absent.
     var accent = toHex(cssVar("--color-warning") || cssVar("--midground-base"), "ffc477");
     var border = toHex(cssVar("--color-border"), "ffffff26");
     var font   = root.getPropertyValue("font-family").trim()
