@@ -27,7 +27,8 @@ def _build(
     include_features: bool,
     disable_tool_overlap: bool,
 ) -> dict[str, Any]:
-    edges = detect_memory_share(sessions) + detect_cross_search(sessions) + detect_subagent(sessions)
+    edges = detect_memory_share(sessions) + detect_cross_search(sessions)
+    edges += detect_subagent(sessions)
     if not disable_tool_overlap:
         edges += detect_tool_overlap(sessions)
 
