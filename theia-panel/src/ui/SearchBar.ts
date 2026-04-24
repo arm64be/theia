@@ -59,6 +59,7 @@ export function createSearchBar(
   input.placeholder = "Search sessions\u2026";
   input.addEventListener("focus", () => {
     input.style.borderColor = `#${theme.accent}`;
+    if (input.value.trim()) render(input.value);
   });
 
   let clickingDropdown = false;
@@ -90,7 +91,6 @@ export function createSearchBar(
     const result = currentResults[index];
     if (result) {
       onFocus(result);
-      input.value = "";
       currentResults = [];
       selectedIndex = -1;
       dropdown.style.display = "none";

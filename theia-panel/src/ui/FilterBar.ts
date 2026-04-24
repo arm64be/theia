@@ -61,6 +61,8 @@ export function createFilterBar(
   let theme = initialTheme;
   const bar = document.createElement("div");
   const toggles: Array<HTMLButtonElement & { _applyStyle: () => void }> = [];
+  let select: HTMLSelectElement | null = null;
+  let separator: HTMLSpanElement | null = null;
 
   function applyBarStyle() {
     bar.style.cssText = `
@@ -115,24 +117,26 @@ export function createFilterBar(
     bar.append(label);
   }
 
-  const models = new Set<string>();
-  for (const node of graph.nodes) {
-    if (node.model) models.add(node.model);
-  }
-  if (models.size > 1) {
-    const separator = document.createElement("span");
-    separator.style.cssText =
-      "width:1px;height:16px;background:#fff;opacity:0.15;pointer-events:auto";
+  let currentGraph = graph;
+
+  function rebuildModelSelect() {
+    if (separator) separator.remove();
+    if (select) select.remove();
+    separator = null;
+    select = null;
+
+    const models = new Set<string>();
+    for (const node of currentGraph.nodes) {
+      if (node.model) models.add(node.model);
+    }
+    if (models.size <= 1) return;
+
+    separator = document.createElement("span");
+    separator.style.cssText = `width:1px;height:16px;background:${theme.fg};opacity:0.15;pointer-events:auto`;
     bar.append(separator);
 
-    const select = document.createElement("select");
-    select.style.cssText = `
-      pointer-events: auto; background: transparent;
-      border: 1px solid #${theme.border}; color: #${theme.fg};
-      font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
-      padding: 2px 4px; outline: none; cursor: pointer;
-      letter-spacing: 0.05em; text-transform: uppercase;
-    `;
+    select = document.createElement("select");
+    applySelectStyle();
 
     const allOption = document.createElement("option");
     allOption.value = "";
@@ -147,20 +151,48 @@ export function createFilterBar(
     }
 
     select.onchange = () => {
-      selectedModel = select.value || null;
+      selectedModel = select!.value || null;
       emitChange();
     };
 
     bar.append(select);
   }
 
+  function applySelectStyle() {
+    if (!select) return;
+    select.style.cssText = `
+      pointer-events: auto; background: transparent;
+      border: 1px solid #${theme.border}; color: #${theme.fg};
+      font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      padding: 2px 4px; cursor: pointer;
+      letter-spacing: 0.05em; text-transform: uppercase;
+    `;
+    select.onfocus = () => {
+      select!.style.borderColor = `#${theme.accent}`;
+    };
+    select.onblur = () => {
+      select!.style.borderColor = `#${theme.border}`;
+    };
+  }
+
+  rebuildModelSelect();
   container.appendChild(bar);
+
+  function updateGraph(newGraph: TheiaGraph) {
+    currentGraph = newGraph;
+    rebuildModelSelect();
+  }
 
   function updateTheme(newTheme: ThemeTokens) {
     theme = newTheme;
     applyBarStyle();
     for (const t of toggles) t._applyStyle();
+    applySelectStyle();
   }
 
-  return { updateTheme, dispose: () => container.removeChild(bar) };
+  return {
+    updateTheme,
+    updateGraph,
+    dispose: () => container.removeChild(bar),
+  };
 }

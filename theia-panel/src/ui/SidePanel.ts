@@ -45,20 +45,36 @@ export function createSidePanel(
 
   let lastNode: TheiaGraph["nodes"][number] | null = null;
   let lastEdges: TheiaGraph["edges"] = [];
-  let lastGraph: TheiaGraph | null = null;
+
+  function scrollTop() {
+    requestAnimationFrame(() => {
+      el.scrollTop = 0;
+    });
+  }
 
   function show(
     node: TheiaGraph["nodes"][number],
     relatedEdges: TheiaGraph["edges"],
-    graph?: TheiaGraph,
   ) {
     currentId = node.id;
     lastNode = node;
     lastEdges = relatedEdges;
-    if (graph) lastGraph = graph;
     renderContent();
     el.style.transform = "translateX(0)";
-    el.scrollTop = 0;
+    scrollTop();
+  }
+
+  function handleNavClick(targetId: string) {
+    if (onNavigate) {
+      onNavigate(targetId);
+    }
+  }
+
+  function onNavKeyDown(e: KeyboardEvent, targetId: string) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleNavClick(targetId);
+    }
   }
 
   function renderContent() {
@@ -87,18 +103,23 @@ export function createSidePanel(
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
-
-    const navLinks = el.querySelectorAll("[data-navigate-to]");
-    for (const link of navLinks) {
-      (link as HTMLElement).onclick = (e) => {
-        e.stopPropagation();
-        const targetId = (link as HTMLElement).dataset.navigateTo!;
-        if (onNavigate) {
-          onNavigate(targetId);
-        }
-      };
-    }
   }
+
+  el.addEventListener("click", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      const targetId = (link as HTMLElement).dataset.navigateTo!;
+      handleNavClick(targetId);
+    }
+  });
+
+  el.addEventListener("keydown", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      const targetId = (link as HTMLElement).dataset.navigateTo!;
+      onNavKeyDown(e, targetId);
+    }
+  });
 
   function hide() {
     currentId = null;
@@ -122,6 +143,13 @@ export function createSidePanel(
   return { show, hide, currentNodeId, updateTheme, dispose };
 }
 
+const kindColor: Record<string, string> = {
+  "memory-share": "#ffb366",
+  "cross-search": "#66d9ef",
+  "tool-overlap": "#b089ff",
+  subagent: "#7ce38b",
+};
+
 function renderEdge(
   node: TheiaGraph["nodes"][number],
   e: TheiaGraph["edges"][number],
@@ -131,6 +159,7 @@ function renderEdge(
   const otherId = isSource ? e.target : e.source;
   const direction = isSource ? "\u2192" : "\u2190";
   const ev = (e.evidence ?? {}) as Record<string, unknown>;
+  const color = kindColor[e.kind] ?? `#${theme.fg}`;
 
   let detail = "";
   if (e.kind === "memory-share") {
@@ -175,19 +204,10 @@ function renderEdge(
   } else if (e.kind === "subagent") {
     const isChild = node.id === e.target;
     const label = isChild ? "parent" : "child";
-    const displayId = isChild ? e.source : ev.child_session_id;
     detail = `<div style="margin-top:4px;opacity:0.75;font-size:11px">
-      ${label}: <span style="color:#7ce38b">${escape(String(displayId ?? "?"))}</span>
+      ${label}: <span style="color:#7ce38b">${escape(String(otherId))}</span>
     </div>`;
   }
-
-  const kindColor: Record<string, string> = {
-    "memory-share": "#ffb366",
-    "cross-search": "#66d9ef",
-    "tool-overlap": "#b089ff",
-    subagent: "#7ce38b",
-  };
-  const color = kindColor[e.kind] ?? `#${theme.fg}`;
 
   return `
     <div style="padding:10px;background:rgba(255,255,255,0.03);border:1px solid #${theme.border}">
@@ -195,7 +215,9 @@ function renderEdge(
         <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
         <span style="font-weight:600">${e.kind}</span>
         <span style="opacity:0.6">${direction}</span>
-        <span data-navigate-to="${escape(otherId)}" style="cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2)" title="Navigate to session">${escape(otherId)}</span>
+        <span data-navigate-to="${escape(otherId)}" tabindex="0" role="link"
+          style="cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2)"
+          title="Navigate to session">${escape(otherId)}</span>
         <span style="margin-left:auto;opacity:0.5;font-size:11px">w=${e.weight.toFixed(2)}</span>
       </div>
       ${detail}

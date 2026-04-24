@@ -59,6 +59,7 @@ export async function mount(
   };
 
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
+  let modelFilter: string | null = null;
 
   // Mutable graph-specific state — closures capture the binding, not the value
   let currentGraph: TheiaGraph;
@@ -73,18 +74,19 @@ export async function mount(
   const tooltip = createTooltip(element, theme);
   const sidePanel = createSidePanel(element, theme, (targetId) => {
     const idx = nodeIndex.get(targetId);
-    if (idx !== undefined && visibleNodeIds.has(targetId)) {
-      const sn = simNodes[idx]!;
-      ctx.focusOn(sn.x, sn.y, 1.5);
-      const n = currentGraph.nodes[idx]!;
-      const related = currentGraph.edges.filter(
-        (e) =>
-          (e.source === n.id || e.target === n.id) &&
-          kinds.has(e.kind) &&
-          visibleNodeIds.has(e.source === n.id ? e.target : e.source),
-      );
-      sidePanel.show(n, related, currentGraph);
-    }
+    if (idx === undefined || !visibleNodeIds.has(targetId)) return;
+    const sn = simNodes[idx];
+    if (!sn) return;
+    ctx.focusOn(sn.x, sn.y, 1.5);
+    const n = currentGraph.nodes[idx]!;
+    const related = currentGraph.edges.filter(
+      (e) =>
+        (e.source === n.id || e.target === n.id) &&
+        kinds.has(e.kind) &&
+        visibleNodeIds.has(e.source === n.id ? e.target : e.source),
+    );
+    sidePanel.show(n, related);
+    emit("node-click", targetId);
   });
 
   let lastMouse = { x: 0, y: 0 };
@@ -258,7 +260,7 @@ export async function mount(
             (e.source === result.node.id || e.target === result.node.id) &&
             kinds.has(e.kind),
         );
-        sidePanel.show(result.node, related, currentGraph);
+        sidePanel.show(result.node, related);
       },
       theme,
       (node) => visibleNodeIds.has(node.id),
@@ -337,7 +339,7 @@ export async function mount(
         const related = currentGraph.edges.filter(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
-        sidePanel.show(n, related, currentGraph);
+        sidePanel.show(n, related);
         emit("node-click", n.id);
       }
     }
@@ -361,8 +363,6 @@ export async function mount(
     },
     { passive: false },
   );
-
-  let modelFilter: string | null = null;
 
   // Filter bar
   const filterBar = createFilterBar(
@@ -423,6 +423,7 @@ export async function mount(
       const selectedId = sidePanel.currentNodeId();
 
       setupGraph(newGraph);
+      filterBar.updateGraph(newGraph);
 
       ctx.setCameraState(cameraState);
       if (selectedId !== null) {
@@ -433,7 +434,7 @@ export async function mount(
             (e) =>
               (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
           );
-          sidePanel.show(n, related, currentGraph);
+          sidePanel.show(n, related);
         }
       }
     },
