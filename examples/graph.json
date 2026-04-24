@@ -1,9 +1,9 @@
 {
   "meta": {
-    "generated_at": "2026-04-24T10:12:23.294032Z",
+    "generated_at": "2026-04-24T10:29:07.716317Z",
     "source_count": 3,
     "projection": "umap",
-    "feature_dim": 4
+    "feature_dim": 5
   },
   "nodes": [
     {
@@ -11,12 +11,14 @@
       "title": "Alpha \u2014 writes auth memory",
       "started_at": "2026-04-18T09:00:00Z",
       "duration_sec": 1000.0,
-      "tool_count": 3,
+      "tool_count": 4,
       "message_count": 50,
       "model": "claude-opus-4-7",
+      "summary": "Designed the authentication middleware architecture and stored it in persistent memory. Covered JWT token validation, refresh flows, and middleware integration patterns.",
+      "initial_prompt": null,
       "position": {
-        "x": 3.0080345491008233e-16,
-        "y": 0.5029945449101049
+        "x": 0.1998069782708196,
+        "y": 0.40134980674379
       },
       "features": null
     },
@@ -28,9 +30,11 @@
       "tool_count": 2,
       "message_count": 32,
       "model": "claude-opus-4-7",
+      "summary": null,
+      "initial_prompt": "I need to implement auth middleware for our API. Can you help me understand the best approach for JWT validation and refresh token handling?",
       "position": {
-        "x": -0.9678580071207084,
-        "y": -0.2514972724550523
+        "x": -0.9910909253370497,
+        "y": -0.13318700279888648
       },
       "features": null
     },
@@ -39,17 +43,28 @@
       "title": "Gamma \u2014 overlaps tools only",
       "started_at": "2026-04-18T14:00:00Z",
       "duration_sec": 600.0,
-      "tool_count": 3,
+      "tool_count": 4,
       "message_count": 20,
       "model": "claude-opus-4-7",
+      "summary": null,
+      "initial_prompt": null,
       "position": {
-        "x": 0.9678580071207081,
-        "y": -0.25149727245505255
+        "x": 0.7912839470662301,
+        "y": -0.2681628039449035
       },
       "features": null
     }
   ],
   "edges": [
+    {
+      "source": "sess_alpha",
+      "target": "sess_beta",
+      "kind": "memory-share",
+      "weight": 0.9,
+      "evidence": {
+        "memory_id": "mem_auth_design"
+      }
+    },
     {
       "source": "sess_alpha",
       "target": "sess_beta",
@@ -59,6 +74,15 @@
         "query": "auth middleware",
         "hit_rank": 1,
         "hits": 1
+      }
+    },
+    {
+      "source": "sess_alpha",
+      "target": "sess_gamma",
+      "kind": "tool-overlap",
+      "weight": 1.0,
+      "evidence": {
+        "web_key": "search:rust async patterns"
       }
     }
   ]

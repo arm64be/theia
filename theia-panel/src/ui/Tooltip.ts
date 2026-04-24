@@ -1,6 +1,22 @@
 import type { TheiaGraph } from "../data/types";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
+import { escape, truncate } from "./utils";
+
+const TOOLTIP_MAX_CHARS = 180;
+
+function renderSummaryBlock(
+  node: TheiaGraph["nodes"][number],
+  theme: ThemeTokens,
+): string {
+  if (node.summary) {
+    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(255,196,119,0.07);border-left:2px solid #${theme.accent};border-radius:0 4px 4px 0;color:#${theme.fg};font-size:11px;line-height:1.45">${escape(truncate(node.summary, TOOLTIP_MAX_CHARS))}</div>`;
+  }
+  if (node.initial_prompt) {
+    return `<div style="margin-top:6px;padding:6px 8px;background:rgba(102,217,239,0.06);border-left:2px solid #66d9ef;border-radius:0 4px 4px 0;color:#${theme.fg2};font-size:11px;line-height:1.45"><div style="opacity:0.5;font-size:9px;letter-spacing:0.5px;margin-bottom:2px">PROMPT</div>${escape(truncate(node.initial_prompt, TOOLTIP_MAX_CHARS))}</div>`;
+  }
+  return "";
+}
 
 export function createTooltip(
   container: HTMLElement,
@@ -12,22 +28,25 @@ export function createTooltip(
   function applyContainerStyle() {
     el.style.cssText = `
       position: absolute; pointer-events: none;
-      padding: 8px 12px; background: ${themeBgAlpha(theme, 0.92)};
+      padding: 10px 14px; background: ${themeBgAlpha(theme, 0.92)};
       border: 1px solid #${theme.border}; border-radius: var(--theia-radius, 6px);
       font: 12px/1.4 var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
-      transform: translate(8px, 8px); opacity: 0; transition: opacity 120ms;
-      max-width: 280px;
+      transform: translate(10px, 10px); opacity: 0; transition: opacity 120ms;
+      max-width: 320px; backdrop-filter: blur(4px);
     `;
   }
   applyContainerStyle();
   container.appendChild(el);
 
   function show(node: TheiaGraph["nodes"][number], x: number, y: number) {
+    const identity = renderSummaryBlock(node, theme);
+
     el.innerHTML = `
-      <div style="font-weight:600;color:#${theme.accent}">${escape(node.title)}</div>
-      <div style="opacity:0.7;color:#${theme.fg2}">${node.id}</div>
-      <div style="margin-top:4px">${new Date(node.started_at).toLocaleString()}</div>
-      <div>${Math.round(node.duration_sec)}s · ${node.tool_count} tools</div>
+      <div style="font-weight:600;color:#${theme.accent};font-size:13px">${escape(node.title)}</div>
+      <div style="opacity:0.65;color:#${theme.fg2};font-size:11px">${node.id}</div>
+      <div style="margin-top:4px;opacity:0.8">${new Date(node.started_at).toLocaleString()}</div>
+      <div style="opacity:0.6">${Math.round(node.duration_sec)}s · ${node.tool_count} tools · ${node.message_count ?? "?"} msgs</div>
+      ${identity}
     `;
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
@@ -48,11 +67,4 @@ export function createTooltip(
   }
 
   return { show, hide, updateTheme, dispose };
-}
-
-function escape(s: string): string {
-  return s.replace(
-    /[&<>"]/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!,
-  );
 }

@@ -10,6 +10,7 @@ import { createPicker } from "./scene/Picker";
 import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSidePanel } from "./ui/SidePanel";
+import { createSearchBar } from "./ui/SearchBar";
 import { readTheme, applyTheme, onThemeMessage } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
 
@@ -56,25 +57,30 @@ export async function mount(
 
   const edgesScene = new THREE.Scene();
   edgesScene.add(edges.group);
-  edges.rebuild(graph, kinds, nodeIndex);
-  ctx.scene.add(nodes.mesh);
 
   const { simulation, nodes: simNodes } = createSimulation(graph);
   simulation.stop();
 
-  const nodePositions = new Float32Array(simNodes.length * 2);
+  const nodePositions = new Float32Array(simNodes.length * 3);
 
   function tick() {
     simulation.tick(1);
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i]!;
-      nodes.setPosition(i, sn.x, sn.y);
-      nodePositions[i * 2 + 0] = sn.x;
-      nodePositions[i * 2 + 1] = sn.y;
+      nodes.setPosition(i, sn.x, sn.y, sn.z);
+      nodePositions[i * 3 + 0] = sn.x;
+      nodePositions[i * 3 + 1] = sn.y;
+      nodePositions[i * 3 + 2] = sn.z;
     }
     nodes.flush();
     edges.updatePositions(nodePositions);
   }
+
+  // Pre-warm simulation so edge z-positions are 3D on first build
+  tick();
+
+  edges.rebuild(graph, kinds, nodeIndex, nodePositions);
+  ctx.scene.add(nodes.mesh);
 
   let disposed = false;
   function frame() {
@@ -83,6 +89,7 @@ export async function mount(
     const t = performance.now() / 1000;
     nodes.setTime(t);
     edges.setTime(t);
+    nodes.setCameraPosition(ctx.camera.position);
     post.renderEdges(edgesScene, ctx.camera);
     post.render();
     requestAnimationFrame(frame);
@@ -91,7 +98,7 @@ export async function mount(
 
   // Tooltip + hover
   const tooltip = createTooltip(element, theme);
-  const picker = createPicker(element, ctx.camera, nodes);
+  const picker = createPicker(element, ctx.camera, nodes, nodePositions);
   let lastMouse = { x: 0, y: 0 };
   element.addEventListener("mousemove", (e) => {
     const r = element.getBoundingClientRect();
@@ -118,9 +125,12 @@ export async function mount(
   let isMouseDown = false;
   let hasDragged = false;
   let mouseDownPos = { x: 0, y: 0 };
+  let dragMode: "rotate" | "pan" | null = null;
 
   element.addEventListener("mousedown", (e) => {
-    if (e.button !== 0) return; // only left click
+    if (e.button === 0) dragMode = "rotate";
+    else if (e.button === 2) dragMode = "pan";
+    else return;
     isMouseDown = true;
     hasDragged = false;
     mouseDownPos = { x: e.clientX, y: e.clientY };
@@ -134,12 +144,11 @@ export async function mount(
       hasDragged = true;
     }
     if (hasDragged) {
-      const rect = element.getBoundingClientRect();
-      const worldW = ctx.camera.right - ctx.camera.left;
-      const worldH = ctx.camera.top - ctx.camera.bottom;
-      const panX = -(dx / rect.width) * worldW;
-      const panY = (dy / rect.height) * worldH;
-      ctx.pan(panX, panY);
+      if (dragMode === "rotate") {
+        ctx.rotate(dx, dy);
+      } else if (dragMode === "pan") {
+        ctx.pan(dx, dy);
+      }
       mouseDownPos = { x: e.clientX, y: e.clientY };
     }
   });
@@ -158,6 +167,11 @@ export async function mount(
     }
     isMouseDown = false;
     hasDragged = false;
+    dragMode = null;
+  });
+
+  element.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
   });
 
   // Wheel zoom
@@ -171,13 +185,31 @@ export async function mount(
     { passive: false },
   );
 
+  // Search bar
+  const searchBar = createSearchBar(
+    element,
+    graph,
+    (result) => {
+      const idx = nodeIndex.get(result.node.id);
+      if (idx !== undefined) {
+        const sn = simNodes[idx]!;
+        ctx.focusOn(sn.x, sn.y, 1.5);
+      }
+      const related = graph.edges.filter(
+        (e) => e.source === result.node.id || e.target === result.node.id,
+      );
+      sidePanel.show(result.node, related);
+    },
+    theme,
+  );
+
   // Filter bar
   const filterBar = createFilterBar(
     element,
     kinds,
     (newKinds) => {
       kinds = newKinds;
-      edges.rebuild(graph, kinds, nodeIndex);
+      edges.rebuild(graph, kinds, nodeIndex, nodePositions);
     },
     theme,
   );
@@ -200,6 +232,7 @@ export async function mount(
     tooltip.updateTheme(newTheme);
     sidePanel.updateTheme(newTheme);
     filterBar.updateTheme(newTheme);
+    searchBar.updateTheme(newTheme);
   });
 
   return {
@@ -218,6 +251,7 @@ export async function mount(
       picker.dispose();
       sidePanel.dispose();
       filterBar.dispose();
+      searchBar.dispose();
     },
     on(event, handler) {
       (listeners[event] ??= []).push(handler as never);
