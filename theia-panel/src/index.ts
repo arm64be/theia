@@ -141,6 +141,8 @@ export async function mount(
         sn.z = old.z;
       }
     }
+    // Start near equilibrium to prevent jittery readjustment
+    simulation.alpha(0.02);
 
     const filteredNodeIndex = new Map<string, number>();
     for (const [id, idx] of nodeIndex) {
@@ -201,6 +203,7 @@ export async function mount(
     });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
+      element.style.cursor = idx === null ? "" : "pointer";
       edges.setHoverNode(nodeId);
       if (idx === null) {
         tooltip.hide();
@@ -238,7 +241,30 @@ export async function mount(
     );
   }
 
-  const initialGraph = await loadGraph(graphUrl);
+  // Loading indicator
+  const loadingEl = document.createElement("div");
+  loadingEl.style.cssText = `
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
+    font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+    letter-spacing: 0.1em; z-index: 20; transition: opacity 300ms;
+  `;
+  loadingEl.textContent = "Loading constellation\u2026";
+  element.appendChild(loadingEl);
+
+  let initialGraph: TheiaGraph;
+  try {
+    initialGraph = await loadGraph(graphUrl);
+  } finally {
+    loadingEl.style.opacity = "0";
+    setTimeout(() => {
+      try {
+        element.removeChild(loadingEl);
+      } catch {
+        /* ok */
+      }
+    }, 300);
+  }
   setupGraph(initialGraph);
 
   function tick() {
@@ -386,7 +412,20 @@ export async function mount(
     },
     async reload(url?: string) {
       const targetUrl = url ?? graphUrl;
+
+      const loadingReload = document.createElement("div");
+      loadingReload.style.cssText = `
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
+        font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+        letter-spacing: 0.1em; z-index: 20;
+      `;
+      loadingReload.textContent = "Reloading\u2026";
+      element.appendChild(loadingReload);
+
       const newGraph = await loadGraph(targetUrl);
+
+      element.removeChild(loadingReload);
 
       const cameraState = ctx.getCameraState();
       const selectedId = sidePanel.currentNodeId();

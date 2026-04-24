@@ -66,9 +66,18 @@ def main(argv: list[str] | None = None) -> int:
         default=theia_home / "theia-graph.json",
         help="output graph JSON path (default: $THEIA_HOME/theia-graph.json)",
     )
-    parser.add_argument("--projection", choices=["pca", "umap", "tool-vector"], default="umap")
-    parser.add_argument("--include-features", action="store_true")
-    parser.add_argument("--disable-tool-overlap", action="store_true")
+    parser.add_argument(
+        "--projection",
+        choices=["pca", "umap", "tool-vector"],
+        default="umap",
+        help="dimensionality reduction method (default: umap)",
+    )
+    parser.add_argument(
+        "--include-features", action="store_true", help="include per-node feature vectors in output"
+    )
+    parser.add_argument(
+        "--disable-tool-overlap", action="store_true", help="skip tool-overlap edge detection"
+    )
     parser.add_argument(
         "--watch", action="store_true", help="regenerate graph when the database changes"
     )

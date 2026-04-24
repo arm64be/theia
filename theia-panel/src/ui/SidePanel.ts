@@ -36,10 +36,11 @@ export function createSidePanel(
       color: #${theme.fg}; font: 13px/1.5 'Mondwest', var(--theia-font, ui-monospace, monospace);
       transform: translateX(${currentId ? "0" : "100%"}); transition: transform 220ms ease-out;
       padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
-      box-sizing: border-box;
+      box-sizing: border-box; outline: none;
     `;
   }
   applyPanelStyle();
+  el.tabIndex = -1;
   container.appendChild(el);
 
   let lastNode: TheiaGraph["nodes"][number] | null = null;
@@ -54,6 +55,7 @@ export function createSidePanel(
     lastEdges = relatedEdges;
     renderContent();
     el.style.transform = "translateX(0)";
+    el.focus({ preventScroll: true });
   }
 
   function renderContent() {
@@ -88,6 +90,10 @@ export function createSidePanel(
     currentId = null;
     el.style.transform = "translateX(100%)";
   }
+
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hide();
+  });
 
   function currentNodeId() {
     return currentId;

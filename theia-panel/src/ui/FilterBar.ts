@@ -70,7 +70,7 @@ export function createFilterBar(
       padding: 6px 14px; background: ${themeBgAlpha(theme, 0.85)};
       border: 1px solid #${theme.border};
       font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
-      letter-spacing: 0.1em; color: #${theme.fg}; text-transform: uppercase;
+      letter-spacing: 0.05em; color: #${theme.fg};
       user-select: none; backdrop-filter: blur(6px); pointer-events: none;
     `;
   }
@@ -81,6 +81,12 @@ export function createFilterBar(
     "tool-overlap",
     "subagent",
   ];
+  const kindLabels: Record<string, string> = {
+    "memory-share": "Memory Share",
+    "cross-search": "Cross Search",
+    "tool-overlap": "Tool Overlap",
+    subagent: "Subagent",
+  };
   const state = new Set(initial);
 
   for (const kind of kinds) {
@@ -106,7 +112,7 @@ export function createFilterBar(
     });
     toggles.push(toggle as HTMLButtonElement & { _applyStyle: () => void });
 
-    label.append(toggle, document.createTextNode(kind));
+    label.append(toggle, document.createTextNode(kindLabels[kind] ?? kind));
     bar.append(label);
   }
 

@@ -86,10 +86,16 @@ export function createSearchBar(
     );
   }
 
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let selectedIndex = -1;
+  let currentResults: SearchResult[] = [];
+
   function render(query: string) {
     if (!query.trim()) {
       dropdown.style.display = "none";
       dropdown.innerHTML = "";
+      currentResults = [];
+      selectedIndex = -1;
       return;
     }
     const resultByIndex = new Map<number, SearchResult>();
@@ -100,18 +106,21 @@ export function createSearchBar(
         resultByIndex.set(i, { node, index: i });
       }
     }
-    const results = Array.from(resultByIndex.values());
-    if (results.length === 0) {
-      dropdown.style.display = "none";
-      dropdown.innerHTML = "";
+    currentResults = Array.from(resultByIndex.values());
+    if (currentResults.length === 0) {
+      dropdown.innerHTML = `<div style="padding:12px;opacity:0.4;font-size:12px;text-align:center;color:#${theme.fg2}">No results found</div>`;
+      dropdown.style.display = "block";
+      selectedIndex = -1;
       return;
     }
-    dropdown.innerHTML = results
+    selectedIndex = Math.min(selectedIndex, currentResults.length - 1);
+    dropdown.innerHTML = currentResults
       .map(
-        (r) => `
-      <div class="search-item" data-index="${r.index}" style="
+        (r, ri) => `
+      <div class="search-item" data-result-index="${ri}" style="
         padding: 8px 12px; cursor: pointer;
         border-bottom: 1px solid rgba(255,255,255,0.05);
+        background: ${ri === selectedIndex ? "rgba(255,255,255,0.08)" : "transparent"};
         transition: background 100ms;
       ">
         <div style="font-weight:600;color:#${theme.accent}">${escape(r.node.title || r.node.id)}</div>
@@ -124,30 +133,77 @@ export function createSearchBar(
     for (const el of dropdown.querySelectorAll(".search-item")) {
       const item = el as HTMLElement;
       item.addEventListener("mouseenter", () => {
-        item.style.background = "rgba(255,255,255,0.06)";
+        const ri = Number(item.dataset.resultIndex);
+        selectedIndex = ri;
+        highlightSelected();
       });
       item.addEventListener("mouseleave", () => {
-        item.style.background = "transparent";
+        selectedIndex = -1;
+        highlightSelected();
       });
       item.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        const idx = Number(item.dataset.index);
-        const result = resultByIndex.get(idx);
+        const ri = Number(item.dataset.resultIndex);
+        const result = currentResults[ri];
         if (result) {
-          onFocus(result);
-          input.value = "";
-          dropdown.style.display = "none";
+          focusResult(result);
         }
       });
     }
     dropdown.style.display = "block";
   }
 
-  input.addEventListener("input", () => render(input.value));
+  function focusResult(result: SearchResult) {
+    onFocus(result);
+    input.value = "";
+    dropdown.style.display = "none";
+    currentResults = [];
+    selectedIndex = -1;
+  }
+
+  function highlightSelected() {
+    for (let ri = 0; ri < dropdown.children.length; ri++) {
+      const child = dropdown.children[ri] as HTMLElement | null;
+      if (child) {
+        child.style.background =
+          ri === selectedIndex ? "rgba(255,255,255,0.08)" : "transparent";
+      }
+    }
+  }
+
+  input.addEventListener("input", () => {
+    selectedIndex = -1;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => render(input.value), 80);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (currentResults.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      selectedIndex = Math.min(selectedIndex + 1, currentResults.length - 1);
+      highlightSelected();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      selectedIndex = Math.max(selectedIndex - 1, 0);
+      highlightSelected();
+    } else if (e.key === "Enter" && selectedIndex >= 0) {
+      e.preventDefault();
+      focusResult(currentResults[selectedIndex]!);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      dropdown.style.display = "none";
+      currentResults = [];
+      selectedIndex = -1;
+      input.blur();
+    }
+  });
 
   const list = {
     hide() {
       dropdown.style.display = "none";
+      currentResults = [];
+      selectedIndex = -1;
     },
   };
 

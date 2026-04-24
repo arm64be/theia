@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { TheiaGraph } from "../data/types";
 import { PALETTE, SIZES } from "../aesthetic";
+import { hash01 } from "../util/hash";
 
 type GraphEdge = TheiaGraph["edges"][number];
 
@@ -114,7 +115,8 @@ export function createEdges(): EdgeLayer {
           SIZES.edgeOpacity;
         opacities[i * 2 + 0] = baseOpacity;
         opacities[i * 2 + 1] = baseOpacity;
-        const phase = (((i * 137.5) % 1000) / 1000) * Math.PI * 2;
+        const phase =
+          hash01(e.source + "|" + e.target + "|" + e.kind) * Math.PI * 2;
         phases[i * 2 + 0] = phase;
         phases[i * 2 + 1] = phase;
         validIndices.push(i);
