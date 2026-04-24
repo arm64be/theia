@@ -80,10 +80,7 @@ export async function mount(
     ctx.focusOn(sn.x, sn.y, 1.5);
     const n = currentGraph.nodes[idx]!;
     const related = currentGraph.edges.filter(
-      (e) =>
-        (e.source === n.id || e.target === n.id) &&
-        kinds.has(e.kind) &&
-        visibleNodeIds.has(e.source === n.id ? e.target : e.source),
+      (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
     );
     sidePanel.show(n, related);
     emit("node-click", targetId);

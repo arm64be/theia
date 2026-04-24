@@ -129,10 +129,14 @@ export function createFilterBar(
     for (const node of currentGraph.nodes) {
       if (node.model) models.add(node.model);
     }
+    if (selectedModel && !models.has(selectedModel)) {
+      selectedModel = null;
+      emitChange();
+    }
     if (models.size <= 1) return;
 
     separator = document.createElement("span");
-    separator.style.cssText = `width:1px;height:16px;background:${theme.fg};opacity:0.15;pointer-events:auto`;
+    separator.style.cssText = `width:1px;height:16px;background:#${theme.border};pointer-events:auto`;
     bar.append(separator);
 
     select = document.createElement("select");
@@ -149,6 +153,8 @@ export function createFilterBar(
       option.textContent = m;
       select.append(option);
     }
+
+    if (selectedModel) select.value = selectedModel;
 
     select.onchange = () => {
       selectedModel = select!.value || null;

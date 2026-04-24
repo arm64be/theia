@@ -99,7 +99,7 @@ export function createSidePanel(
       </dl>
       <h4 style="margin:20px 0 8px;font-size:11px;letter-spacing:0.6px;opacity:0.7;text-transform:uppercase">Connections</h4>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${relatedEdges.length === 0 ? '<div style="opacity:0.4;font-size:12px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme)).join("")}
+        ${relatedEdges.length === 0 ? '<div style="opacity:0.4;font-size:12px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme, !!onNavigate)).join("")}
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
@@ -118,6 +118,21 @@ export function createSidePanel(
     if (link) {
       const targetId = (link as HTMLElement).dataset.navigateTo!;
       onNavKeyDown(e, targetId);
+    }
+  });
+
+  el.addEventListener("focusin", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      (link as HTMLElement).style.outline = "1px solid";
+      (link as HTMLElement).style.outlineColor = `#${theme.accent}`;
+    }
+  });
+
+  el.addEventListener("focusout", (e) => {
+    const link = (e.target as HTMLElement).closest("[data-navigate-to]");
+    if (link) {
+      (link as HTMLElement).style.outline = "none";
     }
   });
 
@@ -154,6 +169,7 @@ function renderEdge(
   node: TheiaGraph["nodes"][number],
   e: TheiaGraph["edges"][number],
   theme: ThemeTokens,
+  hasNav: boolean,
 ): string {
   const isSource = e.source === node.id;
   const otherId = isSource ? e.target : e.source;
@@ -215,9 +231,9 @@ function renderEdge(
         <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
         <span style="font-weight:600">${e.kind}</span>
         <span style="opacity:0.6">${direction}</span>
-        <span data-navigate-to="${escape(otherId)}" tabindex="0" role="link"
-          style="cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2)"
-          title="Navigate to session">${escape(otherId)}</span>
+        <span ${hasNav ? `data-navigate-to="${escape(otherId)}" tabindex="0" role="link"` : ""}
+          style="cursor:${hasNav ? "pointer" : "default"};border-bottom:1px dashed rgba(255,255,255,0.2);${hasNav ? "outline:none" : ""}"
+          ${hasNav ? `title="Navigate to session"` : ""}>${escape(otherId)}</span>
         <span style="margin-left:auto;opacity:0.5;font-size:11px">w=${e.weight.toFixed(2)}</span>
       </div>
       ${detail}
