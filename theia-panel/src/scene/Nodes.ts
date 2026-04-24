@@ -146,6 +146,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
   const highlighted = new Set<number>();
+  const visibleFlags = new Array(n).fill(true);
 
   return {
     mesh,
@@ -154,6 +155,8 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
       mesh.getMatrixAt(i, dummy.matrix);
       dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
       dummy.position.set(x, y, z);
+      const sz = visibleFlags[i] ? nodeSizes[i]! : 0;
+      dummy.scale.set(sz, sz, sz);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
     },
@@ -162,6 +165,7 @@ export function createNodes(graph: TheiaGraph): NodeLayer {
       else highlighted.delete(i);
     },
     setVisible(i, visible) {
+      visibleFlags[i] = visible;
       mesh.getMatrixAt(i, dummy.matrix);
       dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
       const sz = visible ? nodeSizes[i]! : 0;

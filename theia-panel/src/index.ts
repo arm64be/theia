@@ -80,17 +80,24 @@ export async function mount(
     if (enabledKinds.has("subagent")) {
       return new Set(graph.nodes.map((n) => n.id));
     }
+    const subagentIds = new Set<string>();
     const hasNonSubagentConnection = new Map<string, boolean>();
     for (const node of graph.nodes) {
-      if (!node.parent_id) {
+      if (node.parent_id) {
+        subagentIds.add(node.id);
+      } else {
         hasNonSubagentConnection.set(node.id, true);
       }
     }
     for (const edge of graph.edges) {
       if (edge.kind === "subagent") continue;
       if (!enabledKinds.has(edge.kind)) continue;
-      hasNonSubagentConnection.set(edge.source, true);
-      hasNonSubagentConnection.set(edge.target, true);
+      if (!subagentIds.has(edge.source)) {
+        hasNonSubagentConnection.set(edge.source, true);
+      }
+      if (!subagentIds.has(edge.target)) {
+        hasNonSubagentConnection.set(edge.target, true);
+      }
     }
     const visible = new Set<string>();
     for (const node of graph.nodes) {
@@ -217,7 +224,9 @@ export async function mount(
           ctx.focusOn(sn.x, sn.y, 1.5);
         }
         const related = currentGraph.edges.filter(
-          (e) => e.source === result.node.id || e.target === result.node.id,
+          (e) =>
+            (e.source === result.node.id || e.target === result.node.id) &&
+            kinds.has(e.kind),
         );
         sidePanel.show(result.node, related);
       },
@@ -298,7 +307,8 @@ export async function mount(
       if (idx !== null) {
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
-          (e) => e.source === n.id || e.target === n.id,
+          (e) =>
+            (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
         sidePanel.show(n, related);
         emit("node-click", n.id);
@@ -374,7 +384,8 @@ export async function mount(
         if (idx !== undefined) {
           const n = currentGraph.nodes[idx]!;
           const related = currentGraph.edges.filter(
-            (e) => e.source === n.id || e.target === n.id,
+            (e) =>
+              (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
           );
           sidePanel.show(n, related);
         }
