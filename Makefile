@@ -26,6 +26,17 @@ HERMES_PLUGINS := $(HOME)/.hermes/plugins
 DEV_PORT      := 5173
 
 # ---------------------------------------------------------------------------
+# Source collections (for file-target dependency tracking)
+# ---------------------------------------------------------------------------
+
+CORE_SOURCES    := $(shell find theia-core/theia_core -name '*.py' 2>/dev/null)
+FIXTURE_SOURCES := $(shell find examples/sessions -name '*.json' 2>/dev/null)
+PANEL_SOURCES   := $(shell find theia-panel/src -name '*.ts' ! -path '*/data/types.ts' 2>/dev/null) \
+                   theia-panel/vite.config.embed.ts theia-panel/index.html
+PLUGIN_SOURCES  := $(wildcard plugin/api/*.py) \
+                   plugin/manifest.json plugin/src/index.js plugin/src/style.css
+
+# ---------------------------------------------------------------------------
 # Meta
 # ---------------------------------------------------------------------------
 
@@ -81,13 +92,16 @@ dev-link: ## Symlink plugin source into ~/.hermes/plugins for dev
 	@echo "  Linked: $(HERMES_PLUGINS)/$(PLUGIN_NAME) -> $(CURDIR)/dist/plugin"
 
 # ---------------------------------------------------------------------------
-# Build
+# Build (file-based targets — only rebuild when sources change)
 # ---------------------------------------------------------------------------
 
-.PHONY: build build-panel-embed build-graph build-plugin
-build: build-graph build-panel-embed build-plugin ## Full build (graph + panel + plugin package)
+# Generated types: rebuilds only when schema changes
+GENERATED_TYPES := theia-panel/src/data/types.ts
+$(GENERATED_TYPES): schemas/graph.schema.json
+	cd theia-panel && npm run generate-types
 
-build-graph: ## Regenerate graph.json from session fixtures
+# Graph: rebuilds only when core code or fixture JSONs change
+examples/graph.json: $(CORE_SOURCES) $(FIXTURE_SOURCES)
 	@rm -f /tmp/theia_build.db
 	@PYTHONPATH=theia-core python3 -c "\
 	from pathlib import Path; \
@@ -97,10 +111,13 @@ build-graph: ## Regenerate graph.json from session fixtures
 	print(f'seeded {db}')"
 	python3 -m theia_core --db-path /tmp/theia_build.db -o examples/graph.json
 
-build-panel-embed: ## Build self-contained panel for iframe embedding
+# Panel embed: rebuilds only when panel TS sources or generated types change
+theia-panel/dist-embed/.built: $(PANEL_SOURCES) $(GENERATED_TYPES)
 	cd theia-panel && npx vite build --config vite.config.embed.ts
+	@touch $@
 
-build-plugin: build-panel-embed ## Assemble plugin directory in dist/plugin/
+# Plugin assembly: rebuilds when embed or plugin sources change
+$(DIST_DIR)/.built: theia-panel/dist-embed/.built $(PLUGIN_SOURCES)
 	@rm -rf $(DIST_DIR)
 	@mkdir -p $(DIST_DIR)/dist $(DIST_DIR)/panel
 	@# Copy plugin source
@@ -119,6 +136,22 @@ build-plugin: build-panel-embed ## Assemble plugin directory in dist/plugin/
 	@cp -r theia-panel/dist-embed/* $(DIST_DIR)/panel/
 	@echo "  Plugin assembled: $(DIST_DIR)/"
 	@echo "    $$(find $(DIST_DIR) -type f | wc -l) files"
+	@touch $@
+
+# Package: rebuilds only when assembled plugin changes
+dist/$(PACKAGE_NAME): $(DIST_DIR)/.built
+	@mkdir -p dist
+	cd dist/plugin && tar -czf ../$(PACKAGE_NAME) .
+	@echo "  Package: dist/$(PACKAGE_NAME)"
+	@echo "  Size: $$(du -h dist/$(PACKAGE_NAME) | cut -f1)"
+
+# PHONY convenience aliases (delegate to file targets)
+.PHONY: build build-graph build-panel-embed build-plugin package
+build: build-graph build-panel-embed build-plugin ## Full build (graph + panel + plugin)
+build-graph: examples/graph.json
+build-panel-embed: theia-panel/dist-embed/.built
+build-plugin: $(DIST_DIR)/.built
+package: dist/$(PACKAGE_NAME) ## Create distributable tarball
 
 # ---------------------------------------------------------------------------
 # Staging
@@ -126,7 +159,7 @@ build-plugin: build-panel-embed ## Assemble plugin directory in dist/plugin/
 
 .PHONY: staging staging-deploy
 staging: build ## Build and deploy to local hermes for staging
-	@$(MAKE) staging-deploy
+	@$(MAKE) --no-print-directory staging-deploy
 
 staging-deploy: ## Deploy built plugin to ~/.hermes/plugins (staging mode)
 	@mkdir -p $(HERMES_PLUGINS)
@@ -140,13 +173,7 @@ staging-deploy: ## Deploy built plugin to ~/.hermes/plugins (staging mode)
 # Release
 # ---------------------------------------------------------------------------
 
-.PHONY: release package
-package: build ## Create distributable tarball
-	@mkdir -p dist
-	cd dist/plugin && tar -czf ../$(PACKAGE_NAME) .
-	@echo "  Package: dist/$(PACKAGE_NAME)"
-	@echo "  Size: $$(du -h dist/$(PACKAGE_NAME) | cut -f1)"
-
+.PHONY: release
 release: package ## Create release (tarball + git tag)
 	@echo ""
 	@echo "  Release v$(VERSION) ready:"
@@ -168,22 +195,13 @@ test-core: ## Run theia-core tests
 test-panel: ## Run theia-panel tests
 	cd theia-panel && npm run test -- --run
 
-test-contract: ## Run cross-stack contract test
-	@rm -f /tmp/theia_contract.db
-	@PYTHONPATH=theia-core python3 -c "\
-	from pathlib import Path; \
-	from tests.db_helpers import seed_test_db; \
-	db = Path('/tmp/theia_contract.db'); \
-	seed_test_db(db, Path('examples/sessions')); \
-	print(f'seeded {db}')"
-	python3 -m theia_core --db-path /tmp/theia_contract.db -o examples/graph.json
+test-contract: examples/graph.json ## Run cross-stack contract test (reuses graph)
 	@python3 -c "\
 	import json, jsonschema; \
 	schema = json.load(open('schemas/graph.schema.json')); \
 	data = json.load(open('examples/graph.json')); \
 	jsonschema.validate(data, schema); \
 	print('Schema validation: OK')"
-	cd theia-panel && npm run generate-types
 
 test-plugin: ## Validate plugin structure
 	@echo "  Checking plugin manifest..."
@@ -217,11 +235,15 @@ lint-plugin: ## Lint plugin Python code
 	ruff check plugin/api/*.py && ruff format --check plugin/api/*.py
 
 # ---------------------------------------------------------------------------
-# CI (full pipeline)
+# CI (full pipeline — parallelised phases, file targets prevent re-work)
 # ---------------------------------------------------------------------------
 
 .PHONY: ci
-ci: lint test build package ## Full CI pipeline
+ci: ## Full CI pipeline (parallelised phases)
+	@$(MAKE) --no-print-directory -j4 lint-core lint-panel lint-plugin test-plugin
+	@$(MAKE) --no-print-directory -j4 test-core test-panel build-graph build-panel-embed
+	@$(MAKE) --no-print-directory -j4 test-contract build-plugin
+	@$(MAKE) --no-print-directory package
 	@echo ""
 	@echo "  CI passed: lint + test + build + package"
 	@echo "  Artifact:  dist/$(PACKAGE_NAME)"
