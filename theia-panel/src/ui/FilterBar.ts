@@ -2,13 +2,6 @@ import type { TheiaGraph } from "../data/types";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
 
-/**
- * Dashboard-style toggle switch matching switch.tsx:
- *   Track:  36x20px, no border-radius, border 1px solid
- *   Thumb:  14x14px square, translateX-based positioning
- *   Checked:   bg = fg @ 15%, border = fg @ 30%, thumb at 16px
- *   Unchecked: bg = background, border = border, thumb at 2px
- */
 function createToggle(
   checked: boolean,
   theme: ThemeTokens,
@@ -53,10 +46,16 @@ function createToggle(
   return Object.assign(btn, { _applyStyle: applyToggleStyle });
 }
 
+export interface FilterState {
+  kinds: Set<TheiaGraph["edges"][number]["kind"]>;
+  model: string | null;
+}
+
 export function createFilterBar(
   container: HTMLElement,
   initial: Set<TheiaGraph["edges"][number]["kind"]>,
-  onChange: (kinds: Set<TheiaGraph["edges"][number]["kind"]>) => void,
+  graph: TheiaGraph,
+  onChange: (state: FilterState) => void,
   initialTheme: ThemeTokens,
 ) {
   let theme = initialTheme;
@@ -66,7 +65,7 @@ export function createFilterBar(
   function applyBarStyle() {
     bar.style.cssText = `
       position: absolute; top: 12px; left: 12px;
-      display: flex; gap: 14px;
+      display: flex; gap: 14px; align-items: center;
       padding: 6px 14px; background: ${themeBgAlpha(theme, 0.85)};
       border: 1px solid #${theme.border};
       font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
@@ -75,6 +74,7 @@ export function createFilterBar(
     `;
   }
   applyBarStyle();
+
   const kinds: TheiaGraph["edges"][number]["kind"][] = [
     "memory-share",
     "cross-search",
@@ -82,6 +82,11 @@ export function createFilterBar(
     "subagent",
   ];
   const state = new Set(initial);
+  let selectedModel: string | null = null;
+
+  function emitChange() {
+    onChange({ kinds: new Set(state), model: selectedModel });
+  }
 
   for (const kind of kinds) {
     const label = document.createElement("label");
@@ -102,12 +107,51 @@ export function createFilterBar(
       if (next) state.add(kind);
       else state.delete(kind);
       label.style.color = next ? `#${theme.fg}` : `#${theme.fg2}`;
-      onChange(new Set(state));
+      emitChange();
     });
     toggles.push(toggle as HTMLButtonElement & { _applyStyle: () => void });
 
     label.append(toggle, document.createTextNode(kind));
     bar.append(label);
+  }
+
+  const models = new Set<string>();
+  for (const node of graph.nodes) {
+    if (node.model) models.add(node.model);
+  }
+  if (models.size > 1) {
+    const separator = document.createElement("span");
+    separator.style.cssText =
+      "width:1px;height:16px;background:#fff;opacity:0.15;pointer-events:auto";
+    bar.append(separator);
+
+    const select = document.createElement("select");
+    select.style.cssText = `
+      pointer-events: auto; background: transparent;
+      border: 1px solid #${theme.border}; color: #${theme.fg};
+      font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      padding: 2px 4px; outline: none; cursor: pointer;
+      letter-spacing: 0.05em; text-transform: uppercase;
+    `;
+
+    const allOption = document.createElement("option");
+    allOption.value = "";
+    allOption.textContent = "All Models";
+    select.append(allOption);
+
+    for (const m of Array.from(models).sort()) {
+      const option = document.createElement("option");
+      option.value = m;
+      option.textContent = m;
+      select.append(option);
+    }
+
+    select.onchange = () => {
+      selectedModel = select.value || null;
+      emitChange();
+    };
+
+    bar.append(select);
   }
 
   container.appendChild(bar);

@@ -24,6 +24,7 @@ function renderSummaryBlock(
 export function createSidePanel(
   container: HTMLElement,
   initialTheme: ThemeTokens,
+  onNavigate?: (nodeId: string) => void,
 ) {
   let theme = initialTheme;
   const el = document.createElement("aside");
@@ -44,16 +45,20 @@ export function createSidePanel(
 
   let lastNode: TheiaGraph["nodes"][number] | null = null;
   let lastEdges: TheiaGraph["edges"] = [];
+  let lastGraph: TheiaGraph | null = null;
 
   function show(
     node: TheiaGraph["nodes"][number],
     relatedEdges: TheiaGraph["edges"],
+    graph?: TheiaGraph,
   ) {
     currentId = node.id;
     lastNode = node;
     lastEdges = relatedEdges;
+    if (graph) lastGraph = graph;
     renderContent();
     el.style.transform = "translateX(0)";
+    el.scrollTop = 0;
   }
 
   function renderContent() {
@@ -66,7 +71,7 @@ export function createSidePanel(
     el.innerHTML = `
       <button aria-label="close" id="sv-close"
         style="position:absolute;top:10px;right:14px;background:none;border:none;color:#${theme.fg};font-size:18px;cursor:pointer">×</button>
-      <h3 style="margin:0 0 2px;color:#${theme.accent};font-size:16px">${escape(node.title || node.id)}</h3>
+      <h3 style="margin:0 30px 2px 0;color:#${theme.accent};font-size:16px">${escape(node.title || node.id)}</h3>
       <div style="opacity:0.55;color:#${theme.fg2};margin-bottom:2px;font-size:11px">${node.id}</div>
       ${headerSummary}
       <dl style="margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px">
@@ -82,6 +87,17 @@ export function createSidePanel(
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
+
+    const navLinks = el.querySelectorAll("[data-navigate-to]");
+    for (const link of navLinks) {
+      (link as HTMLElement).onclick = (e) => {
+        e.stopPropagation();
+        const targetId = (link as HTMLElement).dataset.navigateTo!;
+        if (onNavigate) {
+          onNavigate(targetId);
+        }
+      };
+    }
   }
 
   function hide() {
@@ -179,7 +195,7 @@ function renderEdge(
         <span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
         <span style="font-weight:600">${e.kind}</span>
         <span style="opacity:0.6">${direction}</span>
-        <span>${escape(otherId)}</span>
+        <span data-navigate-to="${escape(otherId)}" style="cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2)" title="Navigate to session">${escape(otherId)}</span>
         <span style="margin-left:auto;opacity:0.5;font-size:11px">w=${e.weight.toFixed(2)}</span>
       </div>
       ${detail}

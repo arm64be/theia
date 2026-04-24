@@ -71,7 +71,21 @@ export async function mount(
   let searchBar: ReturnType<typeof createSearchBar>;
 
   const tooltip = createTooltip(element, theme);
-  const sidePanel = createSidePanel(element, theme);
+  const sidePanel = createSidePanel(element, theme, (targetId) => {
+    const idx = nodeIndex.get(targetId);
+    if (idx !== undefined && visibleNodeIds.has(targetId)) {
+      const sn = simNodes[idx]!;
+      ctx.focusOn(sn.x, sn.y, 1.5);
+      const n = currentGraph.nodes[idx]!;
+      const related = currentGraph.edges.filter(
+        (e) =>
+          (e.source === n.id || e.target === n.id) &&
+          kinds.has(e.kind) &&
+          visibleNodeIds.has(e.source === n.id ? e.target : e.source),
+      );
+      sidePanel.show(n, related, currentGraph);
+    }
+  });
 
   let lastMouse = { x: 0, y: 0 };
   let lastWheelAt = 0;
@@ -82,42 +96,55 @@ export async function mount(
   function computeVisibleNodeIds(
     graph: TheiaGraph,
     enabledKinds: Set<string>,
+    modelFilter?: string | null,
   ): Set<string> {
+    const kindVisible = new Set<string>();
     if (enabledKinds.has("subagent")) {
-      return new Set(graph.nodes.map((n) => n.id));
-    }
-    const subagentIds = new Set<string>();
-    const hasNonSubagentConnection = new Map<string, boolean>();
-    for (const node of graph.nodes) {
-      if (node.parent_id) {
-        subagentIds.add(node.id);
-      } else {
-        hasNonSubagentConnection.set(node.id, true);
+      for (const node of graph.nodes) {
+        kindVisible.add(node.id);
+      }
+    } else {
+      const subagentIds = new Set<string>();
+      const hasNonSubagentConnection = new Map<string, boolean>();
+      for (const node of graph.nodes) {
+        if (node.parent_id) {
+          subagentIds.add(node.id);
+        } else {
+          hasNonSubagentConnection.set(node.id, true);
+        }
+      }
+      for (const edge of graph.edges) {
+        if (edge.kind === "subagent") continue;
+        if (!enabledKinds.has(edge.kind)) continue;
+        if (!subagentIds.has(edge.source)) {
+          hasNonSubagentConnection.set(edge.source, true);
+        }
+        if (!subagentIds.has(edge.target)) {
+          hasNonSubagentConnection.set(edge.target, true);
+        }
+      }
+      for (const node of graph.nodes) {
+        if (hasNonSubagentConnection.get(node.id)) {
+          kindVisible.add(node.id);
+        }
       }
     }
-    for (const edge of graph.edges) {
-      if (edge.kind === "subagent") continue;
-      if (!enabledKinds.has(edge.kind)) continue;
-      if (!subagentIds.has(edge.source)) {
-        hasNonSubagentConnection.set(edge.source, true);
+    if (modelFilter) {
+      const modelMatch = new Set<string>();
+      for (const node of graph.nodes) {
+        if (node.model === modelFilter && kindVisible.has(node.id)) {
+          modelMatch.add(node.id);
+        }
       }
-      if (!subagentIds.has(edge.target)) {
-        hasNonSubagentConnection.set(edge.target, true);
-      }
+      return modelMatch;
     }
-    const visible = new Set<string>();
-    for (const node of graph.nodes) {
-      if (hasNonSubagentConnection.get(node.id)) {
-        visible.add(node.id);
-      }
-    }
-    return visible;
+    return kindVisible;
   }
 
   let visibleNodeIds = new Set<string>();
 
   function updateVisibility() {
-    visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds);
+    visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
     for (let i = 0; i < currentGraph.nodes.length; i++) {
       nodes.setVisible(i, visibleNodeIds.has(currentGraph.nodes[i]!.id));
     }
@@ -179,7 +206,7 @@ export async function mount(
     }
     nodes.flush();
 
-    visibleNodeIds = computeVisibleNodeIds(g, kinds);
+    visibleNodeIds = computeVisibleNodeIds(g, kinds, modelFilter);
     for (let i = 0; i < g.nodes.length; i++) {
       nodes.setVisible(i, visibleNodeIds.has(g.nodes[i]!.id));
     }
@@ -231,7 +258,7 @@ export async function mount(
             (e.source === result.node.id || e.target === result.node.id) &&
             kinds.has(e.kind),
         );
-        sidePanel.show(result.node, related);
+        sidePanel.show(result.node, related, currentGraph);
       },
       theme,
       (node) => visibleNodeIds.has(node.id),
@@ -310,7 +337,7 @@ export async function mount(
         const related = currentGraph.edges.filter(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
-        sidePanel.show(n, related);
+        sidePanel.show(n, related, currentGraph);
         emit("node-click", n.id);
       }
     }
@@ -335,12 +362,16 @@ export async function mount(
     { passive: false },
   );
 
+  let modelFilter: string | null = null;
+
   // Filter bar
   const filterBar = createFilterBar(
     element,
     kinds,
-    (newKinds) => {
-      kinds = newKinds;
+    initialGraph,
+    (state) => {
+      kinds = state.kinds;
+      modelFilter = state.model;
       updateVisibility();
     },
     theme,
@@ -402,7 +433,7 @@ export async function mount(
             (e) =>
               (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
           );
-          sidePanel.show(n, related);
+          sidePanel.show(n, related, currentGraph);
         }
       }
     },

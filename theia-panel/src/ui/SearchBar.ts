@@ -21,6 +21,9 @@ export function createSearchBar(
   const input = document.createElement("input");
   const dropdown = document.createElement("div");
 
+  let currentResults: SearchResult[] = [];
+  let selectedIndex = -1;
+
   function applyWrapperStyle() {
     wrapper.style.cssText = `
       position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
@@ -43,7 +46,7 @@ export function createSearchBar(
     dropdown.style.cssText = `
       position: absolute; top: calc(100% + 6px); left: 0; right: 0;
       background: ${themeBgAlpha(theme, 0.95)}; border: 1px solid #${theme.border};
-      overflow: hidden; display: none;
+      display: none;
       backdrop-filter: blur(6px); max-height: 240px; overflow-y: auto;
     `;
   }
@@ -64,12 +67,41 @@ export function createSearchBar(
   });
   input.addEventListener("blur", () => {
     input.style.borderColor = `#${theme.border}`;
-    if (!clickingDropdown) list.hide();
+    if (!clickingDropdown) hide();
     clickingDropdown = false;
   });
 
   wrapper.append(input, dropdown);
   container.appendChild(wrapper);
+
+  function select(index: number) {
+    const items = dropdown.querySelectorAll<HTMLElement>(".search-item");
+    for (let i = 0; i < items.length; i++) {
+      items[i]!.style.background =
+        i === index ? "rgba(255,255,255,0.1)" : "transparent";
+    }
+    selectedIndex = index;
+    if (index >= 0 && items[index]) {
+      items[index]!.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function commit(index: number) {
+    const result = currentResults[index];
+    if (result) {
+      onFocus(result);
+      input.value = "";
+      currentResults = [];
+      selectedIndex = -1;
+      dropdown.style.display = "none";
+    }
+  }
+
+  function hide() {
+    dropdown.style.display = "none";
+    currentResults = [];
+    selectedIndex = -1;
+  }
 
   function normalize(s: string) {
     return s.toLowerCase();
@@ -90,6 +122,8 @@ export function createSearchBar(
     if (!query.trim()) {
       dropdown.style.display = "none";
       dropdown.innerHTML = "";
+      currentResults = [];
+      selectedIndex = -1;
       return;
     }
     const resultByIndex = new Map<number, SearchResult>();
@@ -100,16 +134,18 @@ export function createSearchBar(
         resultByIndex.set(i, { node, index: i });
       }
     }
-    const results = Array.from(resultByIndex.values());
-    if (results.length === 0) {
+    currentResults = Array.from(resultByIndex.values());
+    if (currentResults.length === 0) {
       dropdown.style.display = "none";
       dropdown.innerHTML = "";
       return;
     }
-    dropdown.innerHTML = results
-      .map(
-        (r) => `
-      <div class="search-item" data-index="${r.index}" style="
+    dropdown.innerHTML =
+      `<div style="padding:6px 12px;font-size:10px;opacity:0.5;letter-spacing:0.5px">${currentResults.length} result${currentResults.length === 1 ? "" : "s"}</div>` +
+      currentResults
+        .map(
+          (r, ri) => `
+      <div class="search-item" data-result-index="${ri}" style="
         padding: 8px 12px; cursor: pointer;
         border-bottom: 1px solid rgba(255,255,255,0.05);
         transition: background 100ms;
@@ -119,37 +155,45 @@ export function createSearchBar(
         ${r.node.preview ? `<div style="opacity:0.5;font-size:10px;margin-top:2px">${escape(r.node.preview)}</div>` : ""}
       </div>
     `,
-      )
-      .join("");
-    for (const el of dropdown.querySelectorAll(".search-item")) {
-      const item = el as HTMLElement;
-      item.addEventListener("mouseenter", () => {
-        item.style.background = "rgba(255,255,255,0.06)";
+        )
+        .join("");
+    dropdown.style.display = "block";
+    selectedIndex = -1;
+
+    for (const el of dropdown.querySelectorAll<HTMLElement>(".search-item")) {
+      el.addEventListener("mouseenter", () => {
+        const ri = Number(el.dataset.resultIndex);
+        select(ri);
       });
-      item.addEventListener("mouseleave", () => {
-        item.style.background = "transparent";
+      el.addEventListener("mouseleave", () => {
+        el.style.background = "transparent";
       });
-      item.addEventListener("mousedown", (e) => {
+      el.addEventListener("mousedown", (e) => {
         e.preventDefault();
-        const idx = Number(item.dataset.index);
-        const result = resultByIndex.get(idx);
-        if (result) {
-          onFocus(result);
-          input.value = "";
-          dropdown.style.display = "none";
-        }
+        const ri = Number(el.dataset.resultIndex);
+        commit(ri);
       });
     }
-    dropdown.style.display = "block";
   }
 
   input.addEventListener("input", () => render(input.value));
 
-  const list = {
-    hide() {
-      dropdown.style.display = "none";
-    },
-  };
+  input.addEventListener("keydown", (e) => {
+    if (dropdown.style.display === "none") return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      select(Math.min(selectedIndex + 1, currentResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      select(Math.max(selectedIndex - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      commit(selectedIndex >= 0 ? selectedIndex : 0);
+    } else if (e.key === "Escape") {
+      hide();
+      input.blur();
+    }
+  });
 
   function updateTheme(newTheme: ThemeTokens) {
     theme = newTheme;
