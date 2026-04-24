@@ -83,11 +83,7 @@ dev-link: ## Symlink plugin source into ~/.hermes/plugins for dev
 	@cp plugin/src/style.css $(DIST_DIR)/dist/style.css
 	@cp plugin/api/__init__.py $(DIST_DIR)/__init__.py
 	@cp plugin/api/plugin_api.py $(DIST_DIR)/plugin_api.py
-	@cp plugin/api/graph_builder.py $(DIST_DIR)/graph_builder.py
 	@cp plugin/api/graph_data.py $(DIST_DIR)/graph_data.py
-	@cp plugin/api/graph_edges.py $(DIST_DIR)/graph_edges.py
-	@cp plugin/api/graph_projection.py $(DIST_DIR)/graph_projection.py
-	@cp plugin/api/graph_utils.py $(DIST_DIR)/graph_utils.py
 	@ln -sfn $(CURDIR)/dist/plugin $(HERMES_PLUGINS)/$(PLUGIN_NAME)
 	@echo "  Linked: $(HERMES_PLUGINS)/$(PLUGIN_NAME) -> $(CURDIR)/dist/plugin"
 
@@ -124,14 +120,10 @@ $(DIST_DIR)/.built: theia-panel/dist-embed/.built $(PLUGIN_SOURCES)
 	@cp plugin/manifest.json $(DIST_DIR)/manifest.json
 	@cp plugin/src/index.js $(DIST_DIR)/dist/index.js
 	@cp plugin/src/style.css $(DIST_DIR)/dist/style.css
-	@# Copy backend API modules (multi-file package)
+	@# Copy backend API modules
 	@cp plugin/api/__init__.py $(DIST_DIR)/__init__.py
 	@cp plugin/api/plugin_api.py $(DIST_DIR)/plugin_api.py
-	@cp plugin/api/graph_builder.py $(DIST_DIR)/graph_builder.py
 	@cp plugin/api/graph_data.py $(DIST_DIR)/graph_data.py
-	@cp plugin/api/graph_edges.py $(DIST_DIR)/graph_edges.py
-	@cp plugin/api/graph_projection.py $(DIST_DIR)/graph_projection.py
-	@cp plugin/api/graph_utils.py $(DIST_DIR)/graph_utils.py
 	@# Copy built panel
 	@cp -r theia-panel/dist-embed/* $(DIST_DIR)/panel/
 	@echo "  Plugin assembled: $(DIST_DIR)/"
@@ -211,11 +203,7 @@ test-plugin: ## Validate plugin structure
 	@test -f plugin/src/style.css || (echo '  FAIL: plugin/src/style.css missing' && exit 1)
 	@test -f plugin/api/__init__.py || (echo '  FAIL: plugin/api/__init__.py missing' && exit 1)
 	@test -f plugin/api/plugin_api.py || (echo '  FAIL: plugin/api/plugin_api.py missing' && exit 1)
-	@test -f plugin/api/graph_builder.py || (echo '  FAIL: plugin/api/graph_builder.py missing' && exit 1)
 	@test -f plugin/api/graph_data.py || (echo '  FAIL: plugin/api/graph_data.py missing' && exit 1)
-	@test -f plugin/api/graph_edges.py || (echo '  FAIL: plugin/api/graph_edges.py missing' && exit 1)
-	@test -f plugin/api/graph_projection.py || (echo '  FAIL: plugin/api/graph_projection.py missing' && exit 1)
-	@test -f plugin/api/graph_utils.py || (echo '  FAIL: plugin/api/graph_utils.py missing' && exit 1)
 	@echo "  Plugin structure: OK"
 
 # ---------------------------------------------------------------------------
