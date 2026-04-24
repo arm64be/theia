@@ -79,6 +79,7 @@ export function createFilterBar(
     "memory-share",
     "cross-search",
     "tool-overlap",
+    "subagent",
   ];
   const state = new Set(initial);
 

@@ -79,6 +79,78 @@ export async function mount(
   const isInteracting = () =>
     isMouseDown || performance.now() - lastWheelAt < 200;
 
+  function computeVisibleNodeIds(
+    graph: TheiaGraph,
+    enabledKinds: Set<string>,
+  ): Set<string> {
+    if (enabledKinds.has("subagent")) {
+      return new Set(graph.nodes.map((n) => n.id));
+    }
+    const subagentIds = new Set<string>();
+    const hasNonSubagentConnection = new Map<string, boolean>();
+    for (const node of graph.nodes) {
+      if (node.parent_id) {
+        subagentIds.add(node.id);
+      } else {
+        hasNonSubagentConnection.set(node.id, true);
+      }
+    }
+    for (const edge of graph.edges) {
+      if (edge.kind === "subagent") continue;
+      if (!enabledKinds.has(edge.kind)) continue;
+      if (!subagentIds.has(edge.source)) {
+        hasNonSubagentConnection.set(edge.source, true);
+      }
+      if (!subagentIds.has(edge.target)) {
+        hasNonSubagentConnection.set(edge.target, true);
+      }
+    }
+    const visible = new Set<string>();
+    for (const node of graph.nodes) {
+      if (hasNonSubagentConnection.get(node.id)) {
+        visible.add(node.id);
+      }
+    }
+    return visible;
+  }
+
+  let visibleNodeIds = new Set<string>();
+
+  function updateVisibility() {
+    visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds);
+    for (let i = 0; i < currentGraph.nodes.length; i++) {
+      nodes.setVisible(i, visibleNodeIds.has(currentGraph.nodes[i]!.id));
+    }
+    nodes.flush();
+
+    // Preserve current positions when reinitializing simulation with filtered edges
+    const oldPositions = new Map<string, { x: number; y: number; z: number }>();
+    for (const sn of simNodes) {
+      oldPositions.set(sn.id, { x: sn.x, y: sn.y, z: sn.z });
+    }
+    simulation.stop();
+    const simResult = createSimulation(currentGraph, kinds);
+    simulation = simResult.simulation;
+    simNodes = simResult.nodes;
+    simulation.stop();
+    for (const sn of simNodes) {
+      const old = oldPositions.get(sn.id);
+      if (old) {
+        sn.x = old.x;
+        sn.y = old.y;
+        sn.z = old.z;
+      }
+    }
+
+    const filteredNodeIndex = new Map<string, number>();
+    for (const [id, idx] of nodeIndex) {
+      if (visibleNodeIds.has(id)) {
+        filteredNodeIndex.set(id, idx);
+      }
+    }
+    edges.rebuild(currentGraph, kinds, filteredNodeIndex, nodePositions);
+  }
+
   function setupGraph(g: TheiaGraph) {
     simulation?.stop();
 
@@ -88,15 +160,15 @@ export async function mount(
     }
 
     currentGraph = g;
-    nodes = createNodes(g);
+    nodePositions = new Float32Array(g.nodes.length * 3);
+    nodes = createNodes(g, nodePositions);
     ctx.scene.add(nodes.mesh);
 
-    const simResult = createSimulation(g);
+    const simResult = createSimulation(g, kinds);
     simulation = simResult.simulation;
     simNodes = simResult.nodes;
     simulation.stop();
 
-    nodePositions = new Float32Array(simNodes.length * 3);
     nodeIndex = new Map(g.nodes.map((n, i) => [n.id, i]));
 
     // Pre-warm simulation so edge z-positions are 3D on first build
@@ -104,18 +176,28 @@ export async function mount(
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i]!;
       nodes.setPosition(i, sn.x, sn.y, sn.z);
-      nodePositions[i * 3 + 0] = sn.x;
-      nodePositions[i * 3 + 1] = sn.y;
-      nodePositions[i * 3 + 2] = sn.z;
     }
     nodes.flush();
 
-    edges.rebuild(g, kinds, nodeIndex, nodePositions);
+    visibleNodeIds = computeVisibleNodeIds(g, kinds);
+    for (let i = 0; i < g.nodes.length; i++) {
+      nodes.setVisible(i, visibleNodeIds.has(g.nodes[i]!.id));
+    }
+    nodes.flush();
+
+    const filteredNodeIndex = new Map<string, number>();
+    for (const [id, idx] of nodeIndex) {
+      if (visibleNodeIds.has(id)) {
+        filteredNodeIndex.set(id, idx);
+      }
+    }
+    edges.rebuild(g, kinds, filteredNodeIndex, nodePositions);
     post.resize();
 
     picker?.dispose();
     picker = createPicker(element, ctx.camera, nodes, nodePositions, {
       shouldBlock: isInteracting,
+      isVisible: (i) => visibleNodeIds.has(currentGraph.nodes[i]!.id),
     });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
@@ -140,16 +222,19 @@ export async function mount(
       currentGraph,
       (result) => {
         const idx = nodeIndex.get(result.node.id);
-        if (idx !== undefined) {
+        if (idx !== undefined && visibleNodeIds.has(result.node.id)) {
           const sn = simNodes[idx]!;
           ctx.focusOn(sn.x, sn.y, 1.5);
         }
         const related = currentGraph.edges.filter(
-          (e) => e.source === result.node.id || e.target === result.node.id,
+          (e) =>
+            (e.source === result.node.id || e.target === result.node.id) &&
+            kinds.has(e.kind),
         );
         sidePanel.show(result.node, related);
       },
       theme,
+      (node) => visibleNodeIds.has(node.id),
     );
   }
 
@@ -161,9 +246,6 @@ export async function mount(
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i]!;
       nodes.setPosition(i, sn.x, sn.y, sn.z);
-      nodePositions[i * 3 + 0] = sn.x;
-      nodePositions[i * 3 + 1] = sn.y;
-      nodePositions[i * 3 + 2] = sn.z;
     }
     nodes.flush();
     edges.updatePositions(nodePositions);
@@ -226,7 +308,7 @@ export async function mount(
       if (idx !== null) {
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
-          (e) => e.source === n.id || e.target === n.id,
+          (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
         sidePanel.show(n, related);
         emit("node-click", n.id);
@@ -259,7 +341,7 @@ export async function mount(
     kinds,
     (newKinds) => {
       kinds = newKinds;
-      edges.rebuild(currentGraph, kinds, nodeIndex, nodePositions);
+      updateVisibility();
     },
     theme,
   );
@@ -317,7 +399,8 @@ export async function mount(
         if (idx !== undefined) {
           const n = currentGraph.nodes[idx]!;
           const related = currentGraph.edges.filter(
-            (e) => e.source === n.id || e.target === n.id,
+            (e) =>
+              (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
           );
           sidePanel.show(n, related);
         }

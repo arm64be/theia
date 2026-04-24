@@ -13,6 +13,7 @@ export function createSearchBar(
   graph: TheiaGraph,
   onFocus: (result: SearchResult) => void,
   initialTheme: ThemeTokens,
+  isVisible?: (node: TheiaGraph["nodes"][number]) => boolean,
 ) {
   let theme = initialTheme;
 
@@ -94,6 +95,7 @@ export function createSearchBar(
     const resultByIndex = new Map<number, SearchResult>();
     for (let i = 0; i < graph.nodes.length; i++) {
       const node = graph.nodes[i]!;
+      if (isVisible && !isVisible(node)) continue;
       if (matches(node, query)) {
         resultByIndex.set(i, { node, index: i });
       }

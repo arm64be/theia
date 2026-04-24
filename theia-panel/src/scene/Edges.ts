@@ -32,6 +32,7 @@ const PALETTE_MAP: Record<GraphEdge["kind"], number> = {
   "memory-share": PALETTE.edgeMemory,
   "cross-search": PALETTE.edgeSearch,
   "tool-overlap": PALETTE.edgeOverlap,
+  subagent: PALETTE.edgeSubagent,
 };
 
 export interface EdgeLayer {

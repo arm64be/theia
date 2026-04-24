@@ -16,10 +16,8 @@ theia-panel/dist/
 
 # Generated
 theia-panel/public/graph.json
+theia-core/graph.json
 theia-panel/dist-embed/
-
-# Plugin build output
-dist/
 
 # Superpowers (brainstorming/plans sessions)
 .superpowers/

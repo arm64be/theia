@@ -68,6 +68,7 @@ def build_graph(
                 "initial_prompt": _extract_initial_prompt(sess),
                 "position": {"x": float(x), "y": float(y)},
                 "features": None,
+                "parent_id": sess.parent_id,
             }
         )
     session_ids = {sess.id for sess in sessions}

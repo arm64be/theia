@@ -129,12 +129,18 @@ function forceCollide(strength = 0.5) {
   return force;
 }
 
-export function createSimulation(graph: TheiaGraph) {
+export function createSimulation(
+  graph: TheiaGraph,
+  enabledKinds?: Set<string>,
+) {
   const spread = 1.8;
 
   const nodeIds = new Set(graph.nodes.map((n) => n.id));
   const safeEdges = graph.edges.filter(
-    (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
+    (e) =>
+      nodeIds.has(e.source) &&
+      nodeIds.has(e.target) &&
+      (!enabledKinds || enabledKinds.has(e.kind)),
   );
 
   // Compute node radii based on degree centrality

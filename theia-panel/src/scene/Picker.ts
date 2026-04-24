@@ -5,6 +5,7 @@ export interface PickerOptions {
   maxDistance?: number; // world units — nodes farther than this are ignored
   sizeScale?: number; // multiplier for projected node radius
   shouldBlock?: () => boolean;
+  isVisible?: (i: number) => boolean;
 }
 
 export function createPicker(
@@ -19,7 +20,7 @@ export function createPicker(
   const cameraPos = new THREE.Vector3();
   let hovered: number | null = null;
   const listeners: Array<(i: number | null) => void> = [];
-  const { maxDistance = 30, sizeScale = 1.1, shouldBlock } = options;
+  const { maxDistance = 30, sizeScale = 1.1, shouldBlock, isVisible } = options;
 
   function pickNDC(
     ndcX: number,
@@ -32,6 +33,7 @@ export function createPicker(
     camera.getWorldPosition(cameraPos);
 
     for (let i = 0; i < nodes.count; i++) {
+      if (isVisible && !isVisible(i)) continue;
       const x = nodePositions[i * 3 + 0];
       const y = nodePositions[i * 3 + 1];
       const z = nodePositions[i * 3 + 2];
