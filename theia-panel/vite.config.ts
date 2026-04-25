@@ -16,26 +16,28 @@ export default defineConfig(({ command }) => ({
           {
             name: "theia-graph",
             configureServer(server: any) {
+              function serveGraph(_req: any, res: any, _next: any) {
+                try {
+                  const data = readFileSync(
+                    resolve(THEIA_HOME, "theia-graph.json"),
+                    "utf-8",
+                  );
+                  res.setHeader("Content-Type", "application/json");
+                  res.end(data);
+                } catch {
+                  res.statusCode = 404;
+                  res.setHeader("Content-Type", "application/json");
+                  res.end(
+                    JSON.stringify({
+                      error: "theia-graph.json not found in " + THEIA_HOME,
+                    }),
+                  );
+                }
+              }
+              server.middlewares.use("/theia-graph.json", serveGraph);
               server.middlewares.use(
-                "/theia-graph.json",
-                (_req: any, res: any, next: any) => {
-                  try {
-                    const data = readFileSync(
-                      resolve(THEIA_HOME, "theia-graph.json"),
-                      "utf-8",
-                    );
-                    res.setHeader("Content-Type", "application/json");
-                    res.end(data);
-                  } catch {
-                    res.statusCode = 404;
-                    res.setHeader("Content-Type", "application/json");
-                    res.end(
-                      JSON.stringify({
-                        error: "theia-graph.json not found in " + THEIA_HOME,
-                      }),
-                    );
-                  }
-                },
+                "/api/plugins/theia-constellation/graph",
+                serveGraph,
               );
             },
           },

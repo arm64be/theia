@@ -25,10 +25,54 @@ export interface Controller {
   reload(graphUrl?: string): Promise<void>;
 }
 
+const VALID_KINDS: TheiaGraph["edges"][number]["kind"][] = [
+  "memory-share",
+  "cross-search",
+  "tool-overlap",
+  "subagent",
+  "cron-chain",
+];
+
 const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = [
   "memory-share",
   "cross-search",
 ];
+
+const STORAGE_KEY = "theia-constellation-filter";
+
+function loadFilterState(): {
+  kinds: Set<TheiaGraph["edges"][number]["kind"]>;
+  model: string | null;
+} | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const parsedKinds = Array.isArray(parsed?.kinds)
+      ? parsed.kinds.filter(
+          (k: unknown): k is TheiaGraph["edges"][number]["kind"] =>
+            (VALID_KINDS as readonly unknown[]).includes(k),
+        )
+      : DEFAULT_KINDS;
+    return {
+      kinds: new Set(parsedKinds.length > 0 ? parsedKinds : DEFAULT_KINDS),
+      model: typeof parsed?.model === "string" ? parsed.model : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveFilterState(kinds: Set<string>, model: string | null): void {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ kinds: Array.from(kinds), model }),
+    );
+  } catch {
+    /* quota exceeded, ignore */
+  }
+}
 
 export async function mount(
   element: HTMLElement,
@@ -60,7 +104,13 @@ export async function mount(
 
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
   let modelFilter: string | null = null;
+  const saved = loadFilterState();
+  if (saved) {
+    kinds = saved.kinds;
+    modelFilter = saved.model;
+  }
   let focusEnabled = false;
+  let focusFilter: Set<string> | null = null;
 
   // Mutable graph-specific state — closures capture the binding, not the value
   let currentGraph: TheiaGraph;
@@ -89,6 +139,15 @@ export async function mount(
     nodes.setHighlight(idx, false);
   }
 
+  function enterPanelMode(
+    node: TheiaGraph["nodes"][number],
+    related: TheiaGraph["edges"],
+  ) {
+    sidePanel.show(node, related);
+    searchBar.setPanelOpen(true);
+    filterBar.setSearchToggleVisible(true);
+  }
+
   const sidePanel = createSidePanel(element, theme, {
     onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
@@ -101,17 +160,20 @@ export async function mount(
       const related = currentGraph.edges.filter(
         (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
       );
-      sidePanel.show(n, related);
+      enterPanelMode(n, related);
       applyFocusModeIfEnabled(n.id);
       emit("node-click", targetId);
     },
     onClose: () => {
       clearSelected();
+      searchBar.setPanelOpen(false);
+      filterBar.setSearchToggleVisible(false);
       nodes.flush();
     },
     onFocusToggle: (enabled) => {
       focusEnabled = enabled;
       if (!focusEnabled) {
+        focusFilter = null;
         updateVisibility();
       } else {
         const id = sidePanel.currentNodeId();
@@ -214,7 +276,10 @@ export async function mount(
   }
 
   function applyFocusModeIfEnabled(selectedNodeId: string) {
-    if (!focusEnabled) return;
+    if (!focusEnabled) {
+      focusFilter = null;
+      return;
+    }
     const neighbors = new Set<string>();
     neighbors.add(selectedNodeId);
     for (const edge of currentGraph.edges) {
@@ -225,6 +290,7 @@ export async function mount(
         neighbors.add(edge.source);
       }
     }
+    focusFilter = neighbors;
     for (let i = 0; i < currentGraph.nodes.length; i++) {
       const id = currentGraph.nodes[i]!.id;
       nodes.setVisible(i, visibleNodeIds.has(id) && neighbors.has(id));
@@ -285,7 +351,12 @@ export async function mount(
     picker?.dispose();
     picker = createPicker(element, ctx.camera, nodes, nodePositions, {
       shouldBlock: isInteracting,
-      isVisible: (i) => visibleNodeIds.has(currentGraph.nodes[i]!.id),
+      isVisible: (i) => {
+        if (!visibleNodeIds.has(currentGraph.nodes[i]!.id)) return false;
+        if (focusFilter && !focusFilter.has(currentGraph.nodes[i]!.id))
+          return false;
+        return true;
+      },
     });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
@@ -322,7 +393,7 @@ export async function mount(
             (e.source === result.node.id || e.target === result.node.id) &&
             kinds.has(e.kind),
         );
-        sidePanel.show(result.node, related);
+        enterPanelMode(result.node, related);
       },
       theme,
       (node) => visibleNodeIds.has(node.id),
@@ -400,6 +471,7 @@ export async function mount(
   let dragMode: "rotate" | "pan" | null = null;
 
   element.addEventListener("mousedown", (e) => {
+    if ((e.target as HTMLElement).closest("[data-ui-overlay]")) return;
     if (e.button === 0) dragMode = "rotate";
     else if (e.button === 2) dragMode = "pan";
     else return;
@@ -427,7 +499,7 @@ export async function mount(
 
   element.addEventListener("mouseup", (e) => {
     const target = e.target as HTMLElement;
-    if (target.closest("aside")) {
+    if (target.closest("aside") || target.closest("[data-ui-overlay]")) {
       isMouseDown = false;
       hasDragged = false;
       dragMode = null;
@@ -441,7 +513,7 @@ export async function mount(
         const related = currentGraph.edges.filter(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
-        sidePanel.show(n, related);
+        enterPanelMode(n, related);
         applyFocusModeIfEnabled(n.id);
         emit("node-click", n.id);
       } else {
@@ -458,10 +530,11 @@ export async function mount(
     e.preventDefault();
   });
 
-  // Wheel zoom
+  // Wheel zoom — let overlay UI (side panel, filter bar, search bar) scroll naturally
   element.addEventListener(
     "wheel",
     (e) => {
+      if ((e.target as HTMLElement).closest("[data-ui-overlay]")) return;
       lastWheelAt = performance.now();
       e.preventDefault();
       const delta = e.deltaY > 0 ? 1.1 : 0.9;
@@ -478,11 +551,18 @@ export async function mount(
     (state) => {
       kinds = state.kinds;
       modelFilter = state.model;
+      saveFilterState(kinds, modelFilter);
+      focusFilter = null;
       updateVisibility();
       const id = sidePanel.currentNodeId();
       if (id) applyFocusModeIfEnabled(id);
     },
     theme,
+    modelFilter,
+    () => {
+      sidePanel.hide();
+      searchBar.input.focus();
+    },
   );
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
@@ -552,7 +632,7 @@ export async function mount(
             (e) =>
               (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
           );
-          sidePanel.show(n, related);
+          enterPanelMode(n, related);
           applyFocusModeIfEnabled(n.id);
         }
       }

@@ -65,6 +65,7 @@ export function createPicker(
 
   function onMove(evt: MouseEvent) {
     if (shouldBlock?.()) return;
+    if ((evt.target as HTMLElement).closest("[data-ui-overlay]")) return;
 
     const rect = container.getBoundingClientRect();
     ndc.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
