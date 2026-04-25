@@ -67,7 +67,7 @@ export function createFilterBar(
   function applyBarStyle() {
     bar.style.cssText = `
       position: absolute; top: 12px; left: 12px;
-      display: flex; gap: 14px; align-items: center;
+      display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
       padding: 6px 14px; background: ${themeBgAlpha(theme, 0.85)};
       border: 1px solid #${theme.border};
       font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);

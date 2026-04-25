@@ -26,9 +26,9 @@ export function createSearchBar(
 
   function applyWrapperStyle() {
     wrapper.style.cssText = `
-      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      position: absolute; top: 12px; left: 12px;
       z-index: 10; font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
-      color: #${theme.fg}; width: min(320px, 50vw);
+      color: #${theme.fg}; max-width: 320px; width: calc(100% - 24px);
     `;
   }
 

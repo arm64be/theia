@@ -54,7 +54,7 @@ export function createSidePanel(
 
   function applyPanelStyle() {
     el.style.cssText = `
-      position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 45vw);
+      position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 85vw);
       background: ${themeBgAlpha(theme, 0.95)}; border-left: 1px solid #${theme.border};
       color: #${theme.fg}; font: 13px/1.6 var(--theia-font, ui-monospace, monospace);
       transform: translateX(${currentId ? "0" : "100%"}); transition: transform 220ms ease-out;
