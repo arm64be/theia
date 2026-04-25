@@ -78,8 +78,12 @@ except ValueError as e:
 def _extract_host(host: str) -> str:
     """Extract hostname from a ``host[:port]`` string, handling IPv6."""
     host = host.strip()
+    if not host:
+        return "localhost"
     if host.startswith("["):
         host = host.split("]")[0][1:]
+        return host or "localhost"
+    if host.count(":") > 1:
         return host
     return host.split(":")[0]
 

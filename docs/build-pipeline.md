@@ -66,12 +66,14 @@ a custom middleware. `index.html` calls
 
 When `THEIA_ENV=development`, the plugin API's `/config` endpoint returns a
 `dev_panel_url` that the dashboard uses to load the panel iframe. The URL is
-resolved in the following order:
+resolved from the `THEIA_DEV_HOST` environment variable, falling back to
+`localhost`:
 
 1. **`THEIA_DEV_HOST`** env var — explicit override (e.g. `THEIA_DEV_HOST=192.168.1.50`)
-2. **`X-Forwarded-Host`** request header — respects reverse-proxy setups
-3. **`Host`** request header — fallback to the incoming request host
-4. **`localhost`** — ultimate fallback
+2. **`localhost`** — fallback when `THEIA_DEV_HOST` is unset
+
+The API does **not** trust `X-Forwarded-Host` or `Host` request headers for
+host resolution, preventing origin-steering attacks.
 
 Port is controlled by **`THEIA_DEV_PORT`** (default `5173`). Both the host
 and port resolution apply to any environment where `THEIA_ENV=development`.
@@ -83,6 +85,7 @@ The API validates the dev port before returning it:
 | Rule                      | Reason                                    |
 |---------------------------|-------------------------------------------|
 | Must be >= 1024           | Ports < 1024 require root privileges on Linux/macOS |
+| Must be <= 65535          | Valid TCP port range                      |
 | Must not be 9119          | Well-known Hermes internal port            |
 
 If validation fails, `dev_panel_url` is set to `null` and
