@@ -28,7 +28,8 @@ export interface ThemeTokens {
   radius: string;
 }
 
-export const FONT_STACK = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+export const FONT_STACK =
+  "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 const DEFAULTS: ThemeTokens = {
   bg: "07080d",
