@@ -215,6 +215,26 @@
     var selectedNode = selectedNodeState[0];
     var fs = useFullscreen(containerRef, iframeRef);
 
+    // Fill remaining viewport height so the graph isn't squished.
+    // The dashboard's Routes wrapper doesn't propagate flex height,
+    // so we compute it from the container's position in the viewport.
+    useEffect(function () {
+      function resizeContainer() {
+        var container = containerRef.current;
+        if (!container) return;
+        var top = container.getBoundingClientRect().top;
+        var height = window.innerHeight - top - 32; // 2rem bottom padding
+        if (height > 200) {
+          container.style.height = height + "px";
+        }
+      }
+      resizeContainer();
+      window.addEventListener("resize", resizeContainer);
+      return function () {
+        window.removeEventListener("resize", resizeContainer);
+      };
+    }, []);
+
     // Initial theme — used for the iframe URL on first load
     var initialThemeQuery = useMemo(function () {
       return buildThemeQuery(extractDashboardTheme());
@@ -266,7 +286,7 @@
           panelInfo.env.toUpperCase())
       : null;
 
-    return h("div", { className: "flex flex-col gap-6 min-h-0", style: { flex: 1 } },
+    return h("div", { className: "flex flex-col gap-6" },
 
       // Header
       h(Card, null,

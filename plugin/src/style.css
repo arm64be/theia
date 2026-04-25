@@ -4,8 +4,7 @@
 .theia-container {
   position: relative;
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  flex: none;
   overflow: clip;
   box-sizing: border-box;
   background: var(--background-base, #07080d);
