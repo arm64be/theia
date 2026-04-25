@@ -2,6 +2,7 @@ import type { TheiaGraph } from "../data/types";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
 import { escape } from "./utils";
+import { injectSearchBarStyles } from "./layoutStyles";
 
 export interface SearchResult {
   node: TheiaGraph["nodes"][number];
@@ -18,6 +19,7 @@ export function createSearchBar(
   let theme = initialTheme;
 
   const wrapper = document.createElement("div");
+  wrapper.classList.add("tp-search-bar");
   const input = document.createElement("input");
   const dropdown = document.createElement("div");
 
@@ -26,8 +28,9 @@ export function createSearchBar(
 
   function applyWrapperStyle() {
     wrapper.style.cssText = `
-      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-      z-index: 10; font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      position: absolute; top: 12px; right: calc((100% - min(320px, 50vw)) / 2); transform: none;
+      z-index: 12; margin-left: 12px;
+      font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
       color: #${theme.fg}; width: min(320px, 50vw);
     `;
   }
@@ -54,6 +57,7 @@ export function createSearchBar(
   applyWrapperStyle();
   applyInputStyle();
   applyDropdownStyle();
+  injectSearchBarStyles();
 
   input.type = "text";
   input.placeholder = "Search sessions\u2026";
