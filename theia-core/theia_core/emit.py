@@ -101,9 +101,7 @@ def build_graph(
         )
         # Surface up to 5 examples so users can spot which sessions are missing.
         for e, missing in dropped[:5]:
-            missing_ids = ", ".join(
-                f"{label}={getattr(e, label)}" for label in missing
-            )
+            missing_ids = ", ".join(f"{label}={getattr(e, label)}" for label in missing)
             print(
                 f"         [{e.kind}] {e.source} -> {e.target}  missing: {missing_ids}",
                 file=sys.stderr,
