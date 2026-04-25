@@ -365,7 +365,7 @@ export async function mount(
 
   element.addEventListener("mouseup", (e) => {
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
-      const idx = picker.pickAt(e.clientX, e.clientY, 0.8);
+      const idx = picker.pickAt(e.clientX, e.clientY, 1.0);
       if (idx !== null) {
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
