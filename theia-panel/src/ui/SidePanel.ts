@@ -187,6 +187,10 @@ export function createSidePanel(
   function hide() {
     currentId = null;
     el.style.transform = "translateX(100%)";
+    if (focusMode) {
+      focusMode = false;
+      onFocusToggle?.(false);
+    }
   }
 
   function currentNodeId() {

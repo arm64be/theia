@@ -447,6 +447,8 @@ export async function mount(
       kinds = state.kinds;
       modelFilter = state.model;
       updateVisibility();
+      const id = sidePanel.currentNodeId();
+      if (id) applyFocusModeIfEnabled(id);
     },
     theme,
   );
