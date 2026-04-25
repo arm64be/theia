@@ -57,6 +57,7 @@ export function createFilterBar(
   graph: TheiaGraph,
   onChange: (state: FilterState) => void,
   initialTheme: ThemeTokens,
+  initialModel?: string | null,
   onSearchToggle?: () => void,
 ) {
   let theme = initialTheme;
@@ -154,7 +155,7 @@ export function createFilterBar(
     "cron-chain": "Cron Chain",
   } satisfies Record<TheiaGraph["edges"][number]["kind"], string>;
   const state = new Set(initial);
-  let selectedModel: string | null = null;
+  let selectedModel: string | null = initialModel ?? null;
 
   function emitChange() {
     onChange({ kinds: new Set(state), model: selectedModel });

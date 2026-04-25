@@ -30,6 +30,36 @@ const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = [
   "cross-search",
 ];
 
+const STORAGE_KEY = "theia-constellation-filter";
+
+function loadFilterState(): {
+  kinds: Set<TheiaGraph["edges"][number]["kind"]>;
+  model: string | null;
+} | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      kinds: new Set(parsed.kinds ?? DEFAULT_KINDS),
+      model: parsed.model ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveFilterState(kinds: Set<string>, model: string | null): void {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ kinds: Array.from(kinds), model }),
+    );
+  } catch {
+    /* quota exceeded, ignore */
+  }
+}
+
 export async function mount(
   element: HTMLElement,
   graphUrl: string,
@@ -60,6 +90,11 @@ export async function mount(
 
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
   let modelFilter: string | null = null;
+  const saved = loadFilterState();
+  if (saved) {
+    kinds = saved.kinds;
+    modelFilter = saved.model;
+  }
   let focusEnabled = false;
   let focusFilter: Set<string> | null = null;
 
@@ -498,11 +533,13 @@ export async function mount(
     (state) => {
       kinds = state.kinds;
       modelFilter = state.model;
+      saveFilterState(kinds, modelFilter);
       updateVisibility();
       const id = sidePanel.currentNodeId();
       if (id) applyFocusModeIfEnabled(id);
     },
     theme,
+    modelFilter,
     () => {
       sidePanel.hide();
       searchBar.input.focus();
