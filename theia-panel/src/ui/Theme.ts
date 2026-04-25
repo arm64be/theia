@@ -35,7 +35,7 @@ const DEFAULTS: ThemeTokens = {
   midground: "cfd6e4",
   accent: "ffc477",
   border: "ffffff26",
-  font: "'Mondwest', ui-monospace, monospace",
+  font: "system-ui, -apple-system, sans-serif",
   radius: "0",
 };
 

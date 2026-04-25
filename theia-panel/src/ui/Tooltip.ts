@@ -33,7 +33,7 @@ export function createTooltip(
       position: absolute; pointer-events: none;
       padding: 10px 14px; background: ${themeBgAlpha(theme, 0.92)};
       border: 1px solid #${theme.border};
-      font: 12px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
+      font: 12px/1.4 var(--theia-font, system-ui, -apple-system, sans-serif); color: #${theme.fg};
       opacity: 0; transition: opacity 120ms;
       max-width: 320px; backdrop-filter: blur(4px);
     `;

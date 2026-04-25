@@ -70,7 +70,7 @@ export function createFilterBar(
       display: flex; gap: 14px; align-items: center;
       padding: 6px 14px; background: ${themeBgAlpha(theme, 0.85)};
       border: 1px solid #${theme.border};
-      font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      font: 10px/1.4 var(--theia-font, system-ui, -apple-system, sans-serif);
       letter-spacing: 0.05em; color: #${theme.fg};
       user-select: none; backdrop-filter: blur(6px); pointer-events: none;
     `;
@@ -175,7 +175,7 @@ export function createFilterBar(
     select.style.cssText = `
       pointer-events: auto; background: transparent;
       border: 1px solid #${theme.border}; color: #${theme.fg};
-      font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      font: 10px/1.4 var(--theia-font, system-ui, -apple-system, sans-serif);
       padding: 2px 4px; cursor: pointer;
       letter-spacing: 0.05em; text-transform: uppercase;
     `;
