@@ -35,7 +35,7 @@ log = logging.getLogger("theia-constellation")
 # ---------------------------------------------------------------------------
 
 THEIA_ENV = os.environ.get("THEIA_ENV", "production")
-THEIA_DEV_HOST = os.environ.get("THEIA_DEV_HOST", "")
+_THEIA_DEV_HOST_RAW = os.environ.get("THEIA_DEV_HOST", "")
 _THEIA_DEV_PORT_RAW = os.environ.get("THEIA_DEV_PORT", "5173")
 
 # ---------------------------------------------------------------------------
@@ -104,6 +104,22 @@ def _resolve_dev_url(host: str) -> str:
     return f"http://{formatted_host}:{_DEV_PORT}"
 
 
+# Validate THEIA_DEV_HOST at import time and cache result, mirroring port
+# validation.  This rejects empty hostnames (e.g. bare ":port" values) and
+# values that resolve to nothing after extraction.
+_THEIA_DEV_HOST: str | None = None
+_THEIA_DEV_HOST_ERROR: str | None = None
+
+_host_stripped = _THEIA_DEV_HOST_RAW.strip()
+if _host_stripped:
+    candidate = _extract_host(_host_stripped)
+    if not candidate:
+        _THEIA_DEV_HOST_ERROR = (
+            f"THEIA_DEV_HOST={_THEIA_DEV_HOST_RAW!r} resolved to empty hostname"
+        )
+    else:
+        _THEIA_DEV_HOST = _host_stripped
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -122,7 +138,7 @@ async def get_config(request: Request):
     config: dict = {"env": THEIA_ENV, "version": "0.1.0"}
 
     if THEIA_ENV == "development":
-        host = THEIA_DEV_HOST or "localhost"
+        host = _THEIA_DEV_HOST or "localhost"
 
         try:
             config["dev_panel_url"] = _resolve_dev_url(host)

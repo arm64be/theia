@@ -373,19 +373,22 @@
       let panelUrl =
         new URLSearchParams(window.location.search).get("panel") ||
         DEFAULT_PANEL_URL;
+      let parsed;
       try {
-        const parsed = new URL(panelUrl);
+        parsed = new URL(panelUrl);
         if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
           panelUrl = DEFAULT_PANEL_URL;
+          parsed = new URL(panelUrl);
         }
       } catch {
         panelUrl = DEFAULT_PANEL_URL;
+        parsed = new URL(panelUrl);
       }
-      const panelOrigin = new URL(panelUrl).origin;
+      const panelOrigin = parsed.origin;
 
       // ── Iframe setup ──────────────────────────────────────────────────────
       const iframe = document.getElementById("theia-iframe");
-      iframe.src = panelUrl + "/?graph=/graph.json";
+      iframe.src = new URL("/?graph=/graph.json", panelUrl).href;
 
       const loading = document.getElementById("iframe-loading");
 
