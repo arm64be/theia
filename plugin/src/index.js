@@ -314,7 +314,7 @@
             h("span", { className: "font-courier text-sm" }, selectedNode),
             h(Button, {
               onClick: function () {
-                window.location.hash = "#/sessions?id=" + selectedNode;
+                window.location.href = "/sessions?resume=" + selectedNode;
               },
               variant: "outline", size: "sm",
             }, "View in Sessions")
