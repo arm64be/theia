@@ -230,7 +230,7 @@ export function createSearchBar(
 
   function setPanelOpen(open: boolean) {
     panelOpen = open;
-    wrapper.style.display = panelOpen ? "none" : "";
+    wrapper.hidden = panelOpen;
     if (!panelOpen) applyWrapperStyle();
   }
 

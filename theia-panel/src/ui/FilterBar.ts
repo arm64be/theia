@@ -66,7 +66,6 @@ export function createFilterBar(
   const content = document.createElement("div");
   const toggles: Array<HTMLButtonElement & { _applyStyle: () => void }> = [];
   let select: HTMLSelectElement | null = null;
-  let separator: HTMLSpanElement | null = null;
   let dropdownOpen = false;
   let showSearchToggle = false;
 
@@ -132,9 +131,12 @@ export function createFilterBar(
     `;
     for (const child of content.children) {
       if (child.tagName === "LABEL") {
-        (child as HTMLElement).style.cssText = `
+        const el = child as HTMLElement;
+        const kind = el.dataset.kind;
+        el.style.cssText = `
           display: flex; gap: 10px; align-items: center; cursor: pointer;
           transition: color 100ms;
+          color: ${kind && state.has(kind as TheiaGraph["edges"][number]["kind"]) ? `#${theme.fg}` : `#${theme.fg2}`};
         `;
       }
     }
@@ -176,6 +178,7 @@ export function createFilterBar(
       label.style.color = on ? `#${theme.fg}` : `#${theme.fg2}`;
     };
 
+    label.dataset.kind = kind;
     const toggle = createToggle(state.has(kind), theme, (next) => {
       if (next) state.add(kind);
       else state.delete(kind);
@@ -191,29 +194,32 @@ export function createFilterBar(
   function closeDropdown() {
     if (!dropdownOpen) return;
     dropdownOpen = false;
+    document.removeEventListener("pointerdown", onDocumentClick);
     applyBarStyle();
   }
 
   btn.onclick = () => {
     dropdownOpen = !dropdownOpen;
+    if (dropdownOpen) {
+      document.addEventListener("pointerdown", onDocumentClick);
+    } else {
+      document.removeEventListener("pointerdown", onDocumentClick);
+    }
     applyBarStyle();
   };
 
   searchToggle.onclick = () => onSearchToggle?.();
 
-  function onDocumentClick(e: MouseEvent) {
-    if (dropdownOpen && !bar.contains(e.target as Node)) {
+  function onDocumentClick(e: PointerEvent) {
+    if (!bar.contains(e.target as Node)) {
       closeDropdown();
     }
   }
-  document.addEventListener("click", onDocumentClick);
 
   let currentGraph = graph;
 
   function rebuildModelSelect() {
-    if (separator) separator.remove();
     if (select) select.remove();
-    separator = null;
     select = null;
 
     const models = new Set<string>();
@@ -296,7 +302,7 @@ export function createFilterBar(
     updateGraph,
     setSearchToggleVisible,
     dispose: () => {
-      document.removeEventListener("click", onDocumentClick);
+      document.removeEventListener("pointerdown", onDocumentClick);
       container.removeChild(bar);
     },
   };

@@ -25,6 +25,14 @@ export interface Controller {
   reload(graphUrl?: string): Promise<void>;
 }
 
+const VALID_KINDS: TheiaGraph["edges"][number]["kind"][] = [
+  "memory-share",
+  "cross-search",
+  "tool-overlap",
+  "subagent",
+  "cron-chain",
+];
+
 const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = [
   "memory-share",
   "cross-search",
@@ -40,9 +48,14 @@ function loadFilterState(): {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    const parsedKinds = Array.isArray(parsed?.kinds)
+      ? parsed.kinds.filter((k: unknown): k is TheiaGraph["edges"][number]["kind"] =>
+          (VALID_KINDS as readonly unknown[]).includes(k),
+        )
+      : DEFAULT_KINDS;
     return {
-      kinds: new Set(parsed.kinds ?? DEFAULT_KINDS),
-      model: parsed.model ?? null,
+      kinds: new Set(parsedKinds.length > 0 ? parsedKinds : DEFAULT_KINDS),
+      model: typeof parsed?.model === "string" ? parsed.model : null,
     };
   } catch {
     return null;
@@ -125,6 +138,12 @@ export async function mount(
     nodes.setHighlight(idx, false);
   }
 
+  function enterPanelMode(node: TheiaGraph["nodes"][number], related: TheiaGraph["edges"]) {
+    sidePanel.show(node, related);
+    searchBar.setPanelOpen(true);
+    filterBar.setSearchToggleVisible(true);
+  }
+
   const sidePanel = createSidePanel(element, theme, {
     onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
@@ -137,9 +156,7 @@ export async function mount(
       const related = currentGraph.edges.filter(
         (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
       );
-      sidePanel.show(n, related);
-      searchBar.setPanelOpen(true);
-      filterBar.setSearchToggleVisible(true);
+      enterPanelMode(n, related);
       applyFocusModeIfEnabled(n.id);
       emit("node-click", targetId);
     },
@@ -152,6 +169,7 @@ export async function mount(
     onFocusToggle: (enabled) => {
       focusEnabled = enabled;
       if (!focusEnabled) {
+        focusFilter = null;
         updateVisibility();
       } else {
         const id = sidePanel.currentNodeId();
@@ -217,7 +235,6 @@ export async function mount(
   let visibleNodeIds = new Set<string>();
 
   function updateVisibility() {
-    focusFilter = null;
     visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
     for (let i = 0; i < currentGraph.nodes.length; i++) {
       nodes.setVisible(i, visibleNodeIds.has(currentGraph.nodes[i]!.id));
@@ -372,9 +389,7 @@ export async function mount(
             (e.source === result.node.id || e.target === result.node.id) &&
             kinds.has(e.kind),
         );
-        sidePanel.show(result.node, related);
-        searchBar.setPanelOpen(true);
-        filterBar.setSearchToggleVisible(true);
+        enterPanelMode(result.node, related);
       },
       theme,
       (node) => visibleNodeIds.has(node.id),
@@ -494,9 +509,7 @@ export async function mount(
         const related = currentGraph.edges.filter(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
-        sidePanel.show(n, related);
-        searchBar.setPanelOpen(true);
-        filterBar.setSearchToggleVisible(true);
+        enterPanelMode(n, related);
         applyFocusModeIfEnabled(n.id);
         emit("node-click", n.id);
       } else {
@@ -535,6 +548,7 @@ export async function mount(
       kinds = state.kinds;
       modelFilter = state.model;
       saveFilterState(kinds, modelFilter);
+      focusFilter = null;
       updateVisibility();
       const id = sidePanel.currentNodeId();
       if (id) applyFocusModeIfEnabled(id);
@@ -614,9 +628,7 @@ export async function mount(
             (e) =>
               (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
           );
-          sidePanel.show(n, related);
-          searchBar.setPanelOpen(true);
-          filterBar.setSearchToggleVisible(true);
+          enterPanelMode(n, related);
           applyFocusModeIfEnabled(n.id);
         }
       }
