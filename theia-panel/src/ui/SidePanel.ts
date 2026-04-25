@@ -46,8 +46,10 @@ function renderSummaryBlock(
 export function createSidePanel(
   container: HTMLElement,
   initialTheme: ThemeTokens,
-  onNavigate?: (nodeId: string) => void,
-  onClose?: () => void,
+  callbacks?: {
+    onNavigate?: (nodeId: string) => void;
+    onClose?: () => void;
+  },
 ) {
   let theme = initialTheme;
   const el = document.createElement("aside");
@@ -94,8 +96,8 @@ export function createSidePanel(
   }
 
   function handleNavClick(targetId: string) {
-    if (onNavigate) {
-      onNavigate(targetId);
+    if (callbacks?.onNavigate) {
+      callbacks.onNavigate(targetId);
     }
   }
 
@@ -131,7 +133,7 @@ export function createSidePanel(
       <div style="margin:20px 0 0;border-top:1px solid #${theme.border}"></div>
       <h4 style="margin:10px 0 8px;font-size:10px;letter-spacing:0.12em;opacity:0.5;text-transform:uppercase">Connections</h4>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${relatedEdges.length === 0 ? '<div style="opacity:0.5;font-size:11px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme, !!onNavigate)).join("")}
+        ${relatedEdges.length === 0 ? '<div style="opacity:0.5;font-size:11px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme, !!callbacks?.onNavigate)).join("")}
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
@@ -175,7 +177,7 @@ export function createSidePanel(
   function hide() {
     currentId = null;
     el.style.transform = "translateX(100%)";
-    onClose?.();
+    callbacks?.onClose?.();
   }
 
   function currentNodeId() {

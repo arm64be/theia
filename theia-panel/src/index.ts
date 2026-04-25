@@ -76,29 +76,37 @@ export async function mount(
   function clearSelected() {
     if (selectedIdx !== null) {
       nodes.setSelected(selectedIdx, false);
+      nodes.setHighlight(selectedIdx, false);
       selectedIdx = null;
     }
   }
 
-  const sidePanel = createSidePanel(element, theme, (targetId) => {
-    const idx = nodeIndex.get(targetId);
-    if (idx === undefined || !visibleNodeIds.has(targetId)) return;
-    const sn = simNodes[idx];
-    if (!sn) return;
+  function select(idx: number) {
     clearSelected();
     selectedIdx = idx;
     nodes.setSelected(idx, true);
     nodes.setHighlight(idx, false);
-    ctx.focusOn(sn.x, sn.y, 1.5);
-    const n = currentGraph.nodes[idx]!;
-    const related = currentGraph.edges.filter(
-      (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
-    );
-    sidePanel.show(n, related);
-    emit("node-click", targetId);
-  }, () => {
-    clearSelected();
-    nodes.flush();
+  }
+
+  const sidePanel = createSidePanel(element, theme, {
+    onNavigate: (targetId) => {
+      const idx = nodeIndex.get(targetId);
+      if (idx === undefined || !visibleNodeIds.has(targetId)) return;
+      const sn = simNodes[idx];
+      if (!sn) return;
+      select(idx);
+      ctx.focusOn(sn.x, sn.y, 1.5);
+      const n = currentGraph.nodes[idx]!;
+      const related = currentGraph.edges.filter(
+        (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
+      );
+      sidePanel.show(n, related);
+      emit("node-click", targetId);
+    },
+    onClose: () => {
+      clearSelected();
+      nodes.flush();
+    },
   });
 
   let lastMouse = { x: 0, y: 0 };
@@ -384,16 +392,16 @@ export async function mount(
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
       const idx = picker.pickAt(e.clientX, e.clientY, 1.0);
       if (idx !== null) {
-        clearSelected();
-        selectedIdx = idx;
-        nodes.setSelected(idx, true);
-        nodes.setHighlight(idx, false);
+        select(idx);
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
         sidePanel.show(n, related);
         emit("node-click", n.id);
+      } else {
+        clearSelected();
+        sidePanel.hide();
       }
     }
     isMouseDown = false;
