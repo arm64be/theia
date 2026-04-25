@@ -18,14 +18,15 @@ def detect_memory_share(sessions: Iterable[Session]) -> list[Edge]:
                 continue
             if event.memory_id in last_writer:
                 last_id, last_sal = last_writer[event.memory_id]
-                edges.append(
-                    Edge(
-                        source=last_id,
-                        target=sess.id,
-                        kind="memory-share",
-                        weight=min(1.0, max(last_sal, event.salience)),
-                        evidence={"memory_id": event.memory_id},
+                if last_id != sess.id:
+                    edges.append(
+                        Edge(
+                            source=last_id,
+                            target=sess.id,
+                            kind="memory-share",
+                            weight=min(1.0, max(last_sal, event.salience)),
+                            evidence={"memory_id": event.memory_id},
+                        )
                     )
-                )
             last_writer[event.memory_id] = (sess.id, event.salience)
     return edges

@@ -89,14 +89,19 @@ def _infer_memory_events(tool_calls: list[ToolCall]) -> list[MemoryEvent]:
             args = {}
         action = str(args.get("action", "")).lower()
         write_actions = {"write", "store", "save", "add", "replace", "remove"}
-        kind = "write" if action in write_actions else "read"
+        has_content = "content" in args or "old_text" in args
+        kind = "write" if (action in write_actions) or (not action and has_content) else "read"
 
-        mem_id = str(args.get("memory_id", args.get("id", "")))
+        mem_id = str(args.get("memory_id", args.get("id", args.get("target", ""))))
         if not mem_id:
             content = ""
             if action in ("add", "replace") and "content" in args:
                 content = str(args["content"])
             elif action in ("replace", "remove") and "old_text" in args:
+                content = str(args["old_text"])
+            elif "content" in args:
+                content = str(args["content"])
+            elif "old_text" in args:
                 content = str(args["old_text"])
             mem_id = hashlib.sha256(content.encode()).hexdigest()[:16] if content else "unknown"
         events.append(MemoryEvent(kind=kind, memory_id=mem_id, raw=tc.raw))
