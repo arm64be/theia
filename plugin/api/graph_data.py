@@ -18,7 +18,11 @@ log = logging.getLogger("theia-constellation")
 
 def _theia_home() -> Path:
     """Resolve data root: $THEIA_HOME, $HERMES_HOME, or ~/.hermes (by priority)."""
-    return Path(os.environ.get("THEIA_HOME") or os.environ.get("HERMES_HOME") or Path.home() / ".hermes")
+    return Path(
+        os.environ.get("THEIA_HOME")
+        or os.environ.get("HERMES_HOME")
+        or Path.home() / ".hermes"
+    )
 
 
 # ---------------------------------------------------------------------------
