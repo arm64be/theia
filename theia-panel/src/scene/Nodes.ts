@@ -93,6 +93,7 @@ export interface NodeLayer {
   count: number;
   setPosition(i: number, x: number, y: number, z: number): void;
   setHighlight(i: number, on: boolean): void;
+  setSelected(i: number, on: boolean): void;
   setVisible(i: number, visible: boolean): void;
   setTime(t: number): void;
   setCameraPosition(pos: THREE.Vector3): void;
@@ -120,6 +121,7 @@ export function createNodes(
   const mesh = new THREE.InstancedMesh(geometry, material, n);
   const dummy = new THREE.Object3D();
   const highlightColor = new THREE.Color(PALETTE.nodeHighlight);
+  const selectedColor = new THREE.Color(PALETTE.nodeSelected);
 
   // Precompute per-node size, color, and wave offset for spatial twinkling
   const nodeSizes = new Float32Array(n);
@@ -153,6 +155,7 @@ export function createNodes(
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
   const highlighted = new Set<number>();
+  const selected = new Set<number>();
   const visibleFlags = new Array(n).fill(true);
 
   return {
@@ -173,6 +176,10 @@ export function createNodes(
       if (on) highlighted.add(i);
       else highlighted.delete(i);
     },
+    setSelected(i, on) {
+      if (on) selected.add(i);
+      else selected.delete(i);
+    },
     setVisible(i, visible) {
       visibleFlags[i] = visible;
       const sz = visible ? nodeSizes[i]! : 0;
@@ -189,6 +196,15 @@ export function createNodes(
     setTime(t: number) {
       const colorAttr = mesh.instanceColor!;
       for (let i = 0; i < n; i++) {
+        if (selected.has(i)) {
+          colorAttr.setXYZ(
+            i,
+            selectedColor.r,
+            selectedColor.g,
+            selectedColor.b,
+          );
+          continue;
+        }
         if (highlighted.has(i)) {
           colorAttr.setXYZ(
             i,

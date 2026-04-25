@@ -71,16 +71,31 @@ export async function mount(
   let simulation: ReturnType<typeof createSimulation>["simulation"];
   let picker: ReturnType<typeof createPicker>;
   let searchBar: ReturnType<typeof createSearchBar>;
+  let selectedIdx: number | null = null;
 
   const tooltip = createTooltip(element, theme);
-  const sidePanel = createSidePanel(
-    element,
-    theme,
-    (targetId) => {
+  function clearSelected() {
+    if (selectedIdx !== null) {
+      nodes.setSelected(selectedIdx, false);
+      nodes.setHighlight(selectedIdx, false);
+      selectedIdx = null;
+    }
+  }
+
+  function select(idx: number) {
+    clearSelected();
+    selectedIdx = idx;
+    nodes.setSelected(idx, true);
+    nodes.setHighlight(idx, false);
+  }
+
+  const sidePanel = createSidePanel(element, theme, {
+    onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
       if (idx === undefined || !visibleNodeIds.has(targetId)) return;
       const sn = simNodes[idx];
       if (!sn) return;
+      select(idx);
       ctx.focusOn(sn.x, sn.y, 1.5);
       const n = currentGraph.nodes[idx]!;
       const related = currentGraph.edges.filter(
@@ -90,7 +105,11 @@ export async function mount(
       applyFocusModeIfEnabled(n.id);
       emit("node-click", targetId);
     },
-    (enabled) => {
+    onClose: () => {
+      clearSelected();
+      nodes.flush();
+    },
+    onFocusToggle: (enabled) => {
       focusEnabled = enabled;
       if (!focusEnabled) {
         updateVisibility();
@@ -99,7 +118,7 @@ export async function mount(
         if (id) applyFocusModeIfEnabled(id);
       }
     },
-  );
+  });
 
   let lastMouse = { x: 0, y: 0 };
   let lastWheelAt = 0;
@@ -272,15 +291,17 @@ export async function mount(
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
       element.style.cursor = idx === null ? "" : "pointer";
       edges.setHoverNode(nodeId);
-      if (idx === null) {
-        tooltip.hide();
-      } else {
-        nodes.setHighlight(idx, true);
-        nodes.flush();
-        tooltip.show(currentGraph.nodes[idx]!, lastMouse.x, lastMouse.y);
-      }
       for (let i = 0; i < nodes.count; i++) {
-        if (i !== idx) nodes.setHighlight(i, false);
+        if (i === idx) {
+          nodes.setHighlight(i, true);
+        } else if (i !== selectedIdx) {
+          nodes.setHighlight(i, false);
+        }
+      }
+      if (idx !== null) {
+        tooltip.show(currentGraph.nodes[idx]!, lastMouse.x, lastMouse.y);
+      } else {
+        tooltip.hide();
       }
       nodes.flush();
       emit("node-hover", idx === null ? null : currentGraph.nodes[idx]!.id);
@@ -408,6 +429,7 @@ export async function mount(
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
       const idx = picker.pickAt(e.clientX, e.clientY, 1.0);
       if (idx !== null) {
+        select(idx);
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
@@ -415,6 +437,9 @@ export async function mount(
         sidePanel.show(n, related);
         applyFocusModeIfEnabled(n.id);
         emit("node-click", n.id);
+      } else {
+        clearSelected();
+        sidePanel.hide();
       }
     }
     isMouseDown = false;
@@ -509,9 +534,12 @@ export async function mount(
       filterBar.updateGraph(newGraph);
 
       ctx.setCameraState(cameraState);
+      clearSelected();
       if (selectedId !== null) {
         const idx = nodeIndex.get(selectedId);
         if (idx !== undefined) {
+          selectedIdx = idx;
+          nodes.setSelected(idx, true);
           const n = currentGraph.nodes[idx]!;
           const related = currentGraph.edges.filter(
             (e) =>
