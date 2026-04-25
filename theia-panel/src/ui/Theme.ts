@@ -28,6 +28,9 @@ export interface ThemeTokens {
   radius: string;
 }
 
+export const FONT_STACK =
+  "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
 const DEFAULTS: ThemeTokens = {
   bg: "07080d",
   fg: "cfd6e4",
@@ -35,7 +38,7 @@ const DEFAULTS: ThemeTokens = {
   midground: "cfd6e4",
   accent: "ffc477",
   border: "ffffff26",
-  font: "'Mondwest', ui-monospace, monospace",
+  font: FONT_STACK,
   radius: "0",
 };
 

@@ -1,6 +1,6 @@
 import type { TheiaGraph } from "../data/types";
 import type { ThemeTokens } from "./Theme";
-import { themeBgAlpha } from "./Theme";
+import { themeBgAlpha, FONT_STACK } from "./Theme";
 import { escape } from "./utils";
 
 export interface SearchResult {
@@ -27,7 +27,7 @@ export function createSearchBar(
   function applyWrapperStyle() {
     wrapper.style.cssText = `
       position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-      z-index: 10; font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      z-index: 10; font: 13px/1.4 var(--theia-font, ${FONT_STACK});
       color: #${theme.fg}; width: min(320px, 50vw);
     `;
   }

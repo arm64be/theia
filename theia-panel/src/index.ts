@@ -11,7 +11,7 @@ import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSearchBar } from "./ui/SearchBar";
 import { createSidePanel } from "./ui/SidePanel";
-import { readTheme, applyTheme, onThemeMessage } from "./ui/Theme";
+import { readTheme, applyTheme, onThemeMessage, FONT_STACK } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
 
 export interface PanelOptions {
@@ -272,7 +272,7 @@ export async function mount(
     el.style.cssText = `
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
-      font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      font: 13px/1.4 var(--theia-font, ${FONT_STACK});
       letter-spacing: 0.05em; z-index: 20; transition: opacity 300ms;
     `;
     el.textContent = text;

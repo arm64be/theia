@@ -1,6 +1,6 @@
 import type { TheiaGraph } from "../data/types";
 import type { ThemeTokens } from "./Theme";
-import { themeBgAlpha } from "./Theme";
+import { themeBgAlpha, FONT_STACK } from "./Theme";
 import { escape, truncate } from "./utils";
 
 const TOOLTIP_MAX_CHARS = 180;
@@ -33,7 +33,7 @@ export function createTooltip(
       position: absolute; pointer-events: none;
       padding: 10px 14px; background: ${themeBgAlpha(theme, 0.92)};
       border: 1px solid #${theme.border};
-      font: 12px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace); color: #${theme.fg};
+      font: 12px/1.4 var(--theia-font, ${FONT_STACK}); color: #${theme.fg};
       opacity: 0; transition: opacity 120ms;
       max-width: 320px; backdrop-filter: blur(4px);
     `;
