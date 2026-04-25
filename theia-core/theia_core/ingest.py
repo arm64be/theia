@@ -182,19 +182,30 @@ def _build_preview(messages: list[dict[str, Any]]) -> str:
 def _extract_cron_job_id(session_id: str) -> str | None:
     """Extract cron job ID from a cron-spawned session ID.
 
-    Cron session IDs follow the pattern ``cron_<job_id>_<timestamp>``,
-    e.g. ``cron_8974a4d0b3cc_20260330_171037``.
+    Cron session IDs follow the pattern
+    ``cron_<job_id>_<YYYYMMDD>_<HHMMSS>``,
+    e.g. ``cron_8974a4d0b3cc_20260330_171037`` -> ``8974a4d0b3cc``.
 
     Uses ``rsplit`` from the right so that the job ID itself may
-    contain underscores (e.g. ``cron_my_job_20260330_171037``).
+    contain underscores (e.g. ``cron_my_job_20260330_171037`` ->
+    ``my_job``).  Returns ``None`` if the trailing date/time segments
+    are missing or malformed.
     """
     if not session_id.startswith("cron_"):
         return None
     rest = session_id[len("cron_"):]
-    parts = rest.rsplit("_", 1)
-    if len(parts) < 2:
+    parts = rest.rsplit("_", 2)
+    if len(parts) != 3:
         return None
-    return parts[0]
+    job_id, date_part, time_part = parts
+    if not (
+        len(date_part) == 8
+        and date_part.isdigit()
+        and len(time_part) == 6
+        and time_part.isdigit()
+    ):
+        return None
+    return job_id or None
 
 
 def load_sessions(db_path: Path, include_children: bool = True) -> list[Session]:
