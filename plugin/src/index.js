@@ -314,7 +314,10 @@
             h("span", { className: "font-courier text-sm" }, selectedNode),
             h(Button, {
               onClick: function () {
-                window.location.href = "/sessions?resume=" + selectedNode;
+                // Navigate to sessions page with resume session id (see issue #24)
+                var url = "/sessions?resume=" + encodeURIComponent(selectedNode);
+                history.pushState({}, "", url);
+                window.dispatchEvent(new PopStateEvent("popstate"));
               },
               variant: "outline", size: "sm",
             }, "View in Sessions")
