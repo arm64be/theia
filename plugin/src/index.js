@@ -314,10 +314,7 @@
         h(Badge, { variant: "outline", className: "font-courier text-xs truncate max-w-[24ch]" }, selectedNode),
         h(Button, {
           onClick: function () {
-            // issue #24: use pushState to avoid full-page reload for BrowserRouter
-            var url = "#/sessions?id=" + encodeURIComponent(selectedNode);
-            history.pushState({}, "", url);
-            window.dispatchEvent(new PopStateEvent("popstate"));
+            window.location.href = "/sessions?resume=" + encodeURIComponent(selectedNode);
           },
           variant: "outline", size: "sm",
         }, "View in Sessions")
