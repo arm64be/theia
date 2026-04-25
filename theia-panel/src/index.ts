@@ -513,10 +513,11 @@ export async function mount(
     e.preventDefault();
   });
 
-  // Wheel zoom
+  // Wheel zoom — let overlay UI (side panel, filter bar, search bar) scroll naturally
   element.addEventListener(
     "wheel",
     (e) => {
+      if ((e.target as HTMLElement).closest("[data-ui-overlay]")) return;
       lastWheelAt = performance.now();
       e.preventDefault();
       const delta = e.deltaY > 0 ? 1.1 : 0.9;
