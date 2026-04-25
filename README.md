@@ -14,10 +14,12 @@ $HOME/.hermes/
   theia-graph.json    ← generated constellation graph
 ```
 
-Override the home directory with `THEIA_HOME`:
+Override the home directory with `THEIA_HOME` (or `HERMES_HOME` as fallback):
 
 ```bash
 export THEIA_HOME=/custom/path
+# or
+export HERMES_HOME=/custom/path
 ```
 
 See [`docs/superpowers/specs/2026-04-21-theia-design.md`](docs/superpowers/specs/2026-04-21-theia-design.md).

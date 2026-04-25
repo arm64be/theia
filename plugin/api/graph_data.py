@@ -2,7 +2,8 @@
 
 Locates and loads the pre-built graph JSON produced by ``theia-core``.
 The graph is generated offline (or via ``theia-core --watch``) and written
-to ``$THEIA_HOME/theia-graph.json``.  This module simply reads that file.
+to ``$THEIA_HOME/theia-graph.json`` (with ``$HERMES_HOME`` as fallback).
+This module simply reads that file.
 """
 
 from __future__ import annotations
@@ -16,14 +17,14 @@ log = logging.getLogger("theia-constellation")
 
 
 def _theia_home() -> Path:
-    """Resolve $THEIA_HOME (default: ~/.hermes/) for the running dashboard."""
+    """Resolve data root: $THEIA_HOME, $HERMES_HOME, or ~/.hermes (by priority)."""
     return Path(os.environ.get("THEIA_HOME") or os.environ.get("HERMES_HOME") or Path.home() / ".hermes")
 
 
 # ---------------------------------------------------------------------------
 # Search paths for the pre-built graph file, checked in order.
 #
-#   1. Default theia-core output:        $THEIA_HOME/theia-graph.json
+#   1. Default theia-core output:        $THEIA_HOME or $HERMES_HOME / theia-graph.json
 #   2. Plugin data dir (bundled fallback): <plugin>/data/graph.json
 #
 # The first path is the canonical location written by ``theia-core --watch``
