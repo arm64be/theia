@@ -25,7 +25,39 @@ import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from .graph_data import load_graph
+# Resolve ``load_graph`` in a way that works regardless of how this module
+# is imported by the host dashboard.
+#
+# The Hermes plugin loader has historically used
+# ``importlib.util.spec_from_file_location`` with a flat module name and no
+# parent package, which makes the relative form ``from .graph_data import ...``
+# raise ``ImportError: attempted relative import with no known parent package``.
+# When that import fails the FastAPI router never registers, the ``/graph``
+# route falls through to the SPA catch-all, and the frontend tries to
+# ``JSON.parse`` an HTML page (issue #66).
+#
+# The proper fix is to upstream the package-aware loader patch
+# (``submodule_search_locations`` + synthetic parent package), but until that
+# reaches every Hermes install we keep this module portable: prefer the
+# relative import when we *are* loaded as part of a package, and fall back
+# to a direct file load otherwise.
+try:
+    from .graph_data import load_graph  # noqa: F401  (preferred path)
+except ImportError:  # pragma: no cover - exercised on un-patched Hermes loaders
+    import importlib.util
+    from pathlib import Path
+
+    _graph_data_path = Path(__file__).with_name("graph_data.py")
+    _spec = importlib.util.spec_from_file_location(
+        "_theia_constellation_graph_data", _graph_data_path
+    )
+    if _spec is None or _spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(
+            f"Cannot load graph_data module from {_graph_data_path}"
+        ) from None
+    _graph_data = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_graph_data)
+    load_graph = _graph_data.load_graph
 
 router = APIRouter()
 log = logging.getLogger("theia-constellation")
