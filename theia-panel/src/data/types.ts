@@ -40,6 +40,8 @@ export interface TheiaGraph {
       | "subagent"
       | "cron-chain";
     weight: number;
-    evidence?: Record<string, unknown>;
+    evidence?: {
+      [k: string]: unknown;
+    };
   }[];
 }
