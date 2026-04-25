@@ -40,16 +40,14 @@ REPO_TAG="main"  # pin to a release tag or commit SHA for production
 # ---------------------------------------------------------------------------
 if [ -z "${BASH_SOURCE[0]:-}" ]; then
     TMPDIR="$(mktemp -d)"
-    ARCHIVE_URL="${REPO_URL}/archive/${REPO_TAG}.tar.gz"
 
     echo ""
-    echo "  Downloading Theia from ${ARCHIVE_URL} ..."
+    echo "  Cloning Theia from ${REPO_URL} ..."
     echo ""
 
-    curl -fsSL "$ARCHIVE_URL" | tar xz -C "$TMPDIR"
+    git clone --depth 1 --branch "$REPO_TAG" "$REPO_URL" "$TMPDIR"
 
-    REPODIR="${TMPDIR}/theia-${REPO_TAG}"
-    exec bash "${REPODIR}/install.sh" "$@"
+    exec bash "${TMPDIR}/install.sh" "$@"
 fi
 HERMES_HOME="${THEIA_HOME:-${HERMES_HOME:-${HOME}/.hermes}}"
 INSTALL_DIR="${HERMES_HOME}/hermes-theia"
