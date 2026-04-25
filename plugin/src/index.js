@@ -91,7 +91,7 @@
     var accent   = toHex(cssVar("--color-warning") || cssVar("--midground-base"), "ffc477");
     var border   = toHex(cssVar("--color-border"), "ffffff26");
     var font     = root.getPropertyValue("font-family").trim()
-      || "'Mondwest', ui-monospace, monospace";
+      || "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
     return { bg, fg, fg2, midground, accent, border, font, radius: "0" };
   }
 
