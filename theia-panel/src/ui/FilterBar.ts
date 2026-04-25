@@ -57,6 +57,7 @@ export function createFilterBar(
   graph: TheiaGraph,
   onChange: (state: FilterState) => void,
   initialTheme: ThemeTokens,
+  onSearchToggle?: () => void,
 ) {
   let theme = initialTheme;
   const bar = document.createElement("div");
@@ -66,16 +67,20 @@ export function createFilterBar(
   let select: HTMLSelectElement | null = null;
   let separator: HTMLSpanElement | null = null;
   let dropdownOpen = false;
+  let showSearchToggle = false;
 
   const btn = document.createElement("button");
   btn.textContent = "Filters";
+
+  const searchToggle = document.createElement("button");
+  searchToggle.textContent = "\u2315";
 
   const dropdown = document.createElement("div");
 
   function applyBarStyle() {
     bar.style.cssText = `
       position: absolute; top: 12px; left: 12px; z-index: 13;
-      display: flex; flex-direction: column; align-items: flex-start;
+      display: flex; flex-direction: row; align-items: stretch;
     `;
     const bgAlpha = dropdownOpen ? 0.95 : 0.85;
     const borderColor = dropdownOpen ? theme.accent : theme.border;
@@ -91,6 +96,22 @@ export function createFilterBar(
       user-select: none;
       backdrop-filter: blur(6px);
       text-transform: uppercase;
+      transition: background 100ms, border-color 100ms;
+    `;
+    searchToggle.style.cssText = `
+      display: ${showSearchToggle ? "inline-flex" : "none"};
+      align-items: center; justify-content: center;
+      width: 28px;
+      margin-left: 4px;
+      padding: 6px 0;
+      background: ${themeBgAlpha(theme, 0.85)};
+      border: 1px solid #${theme.border};
+      color: #${theme.fg};
+      font: 10px/1.4 var(--theia-font, ${FONT_STACK});
+      cursor: pointer;
+      user-select: none;
+      outline: none;
+      backdrop-filter: blur(6px);
       transition: background 100ms, border-color 100ms;
     `;
     dropdown.style.cssText = `
@@ -177,6 +198,8 @@ export function createFilterBar(
     applyBarStyle();
   };
 
+  searchToggle.onclick = () => onSearchToggle?.();
+
   function onDocumentClick(e: MouseEvent) {
     if (dropdownOpen && !bar.contains(e.target as Node)) {
       closeDropdown();
@@ -246,9 +269,14 @@ export function createFilterBar(
 
   applyBarStyle();
   dropdown.appendChild(content);
-  bar.append(btn, dropdown);
+  bar.append(btn, searchToggle, dropdown);
   rebuildModelSelect();
   container.appendChild(bar);
+
+  function setSearchToggleVisible(visible: boolean) {
+    showSearchToggle = visible;
+    applyBarStyle();
+  }
 
   function updateGraph(newGraph: TheiaGraph) {
     currentGraph = newGraph;
@@ -265,6 +293,7 @@ export function createFilterBar(
   return {
     updateTheme,
     updateGraph,
+    setSearchToggleVisible,
     dispose: () => {
       document.removeEventListener("click", onDocumentClick);
       container.removeChild(bar);

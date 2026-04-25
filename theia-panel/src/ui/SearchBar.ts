@@ -44,6 +44,7 @@ export function createSearchBar(
 
   let currentResults: SearchResult[] = [];
   let selectedIndex = -1;
+  let panelOpen = false;
 
   function applyWrapperStyle() {
     wrapper.style.cssText = `
@@ -227,6 +228,12 @@ export function createSearchBar(
     }
   });
 
+  function setPanelOpen(open: boolean) {
+    panelOpen = open;
+    wrapper.style.display = panelOpen ? "none" : "";
+    if (!panelOpen) applyWrapperStyle();
+  }
+
   function updateTheme(newTheme: ThemeTokens) {
     theme = newTheme;
     applyWrapperStyle();
@@ -239,5 +246,5 @@ export function createSearchBar(
     container.removeChild(wrapper);
   }
 
-  return { updateTheme, dispose, input };
+  return { updateTheme, setPanelOpen, dispose, input };
 }

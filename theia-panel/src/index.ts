@@ -103,11 +103,15 @@ export async function mount(
         (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
       );
       sidePanel.show(n, related);
+      searchBar.setPanelOpen(true);
+      filterBar.setSearchToggleVisible(true);
       applyFocusModeIfEnabled(n.id);
       emit("node-click", targetId);
     },
     onClose: () => {
       clearSelected();
+      searchBar.setPanelOpen(false);
+      filterBar.setSearchToggleVisible(false);
       nodes.flush();
     },
     onFocusToggle: (enabled) => {
@@ -334,6 +338,8 @@ export async function mount(
             kinds.has(e.kind),
         );
         sidePanel.show(result.node, related);
+        searchBar.setPanelOpen(true);
+        filterBar.setSearchToggleVisible(true);
       },
       theme,
       (node) => visibleNodeIds.has(node.id),
@@ -454,6 +460,8 @@ export async function mount(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
         sidePanel.show(n, related);
+        searchBar.setPanelOpen(true);
+        filterBar.setSearchToggleVisible(true);
         applyFocusModeIfEnabled(n.id);
         emit("node-click", n.id);
       } else {
@@ -495,6 +503,10 @@ export async function mount(
       if (id) applyFocusModeIfEnabled(id);
     },
     theme,
+    () => {
+      sidePanel.hide();
+      searchBar.input.focus();
+    },
   );
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
@@ -565,6 +577,8 @@ export async function mount(
               (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
           );
           sidePanel.show(n, related);
+          searchBar.setPanelOpen(true);
+          filterBar.setSearchToggleVisible(true);
           applyFocusModeIfEnabled(n.id);
         }
       }
