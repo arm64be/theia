@@ -6,6 +6,16 @@ Visualize Hermes agent sessions as a semantic constellation.
 - `theia-panel/` — TypeScript panel: `theia-graph.json` → three.js constellation
 - `schemas/graph.schema.json` — contract between the two halves
 
+## Install
+
+The fastest way to install theia:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arm64be/theia/main/install.sh | sh
+```
+
+See [`docs/quick-start.md`](docs/quick-start.md) for alternative install methods, prerequisites, and configuration.
+
 ## Documentation
 
 | Document | Description |
