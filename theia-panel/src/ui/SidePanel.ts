@@ -79,6 +79,7 @@ export function createSidePanel(
 ) {
   let theme = initialTheme;
   const el = document.createElement("aside");
+  el.dataset.uiOverlay = "";
   let currentId: string | null = null;
   let focusMode = false;
 
