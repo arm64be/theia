@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from itertools import pairwise
 
 from theia_core.detect import Edge
 from theia_core.ingest import Session
@@ -28,7 +29,7 @@ def detect_cron_chain(sessions: list[Session]) -> list[Edge]:
     edges: list[Edge] = []
     for job_id, group in by_job.items():
         group.sort(key=lambda s: s.started_at)
-        for prev_sess, next_sess in zip(group, group[1:]):
+        for prev_sess, next_sess in pairwise(group):
             hours = (next_sess.started_at - prev_sess.started_at).total_seconds() / 3600
             weight = max(_MIN_WEIGHT, min(1.0, 1.0 / (1.0 + hours * _FALLOFF_PER_HOUR)))
             edges.append(
