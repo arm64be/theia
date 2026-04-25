@@ -53,8 +53,10 @@ export function createSidePanel(
   let currentId: string | null = null;
 
   function applyPanelStyle() {
+    const narrow = window.matchMedia("(max-width: 900px)").matches;
+    const panelWidth = narrow ? "min(320px, 85vw)" : "min(420px, 45vw)";
     el.style.cssText = `
-      position: absolute; top: 0; right: 0; bottom: 0; width: min(320px, 85vw);
+      position: absolute; top: 0; right: 0; bottom: 0; width: ${panelWidth};
       background: ${themeBgAlpha(theme, 0.95)}; border-left: 1px solid #${theme.border};
       color: #${theme.fg}; font: 13px/1.6 var(--theia-font, ui-monospace, monospace);
       transform: translateX(${currentId ? "0" : "100%"}); transition: transform 220ms ease-out;
