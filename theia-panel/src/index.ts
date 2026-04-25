@@ -61,6 +61,7 @@ export async function mount(
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
   let modelFilter: string | null = null;
   let focusEnabled = false;
+  let focusFilter: Set<string> | null = null;
 
   // Mutable graph-specific state — closures capture the binding, not the value
   let currentGraph: TheiaGraph;
@@ -177,6 +178,7 @@ export async function mount(
   let visibleNodeIds = new Set<string>();
 
   function updateVisibility() {
+    focusFilter = null;
     visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
     for (let i = 0; i < currentGraph.nodes.length; i++) {
       nodes.setVisible(i, visibleNodeIds.has(currentGraph.nodes[i]!.id));
@@ -214,7 +216,10 @@ export async function mount(
   }
 
   function applyFocusModeIfEnabled(selectedNodeId: string) {
-    if (!focusEnabled) return;
+    if (!focusEnabled) {
+      focusFilter = null;
+      return;
+    }
     const neighbors = new Set<string>();
     neighbors.add(selectedNodeId);
     for (const edge of currentGraph.edges) {
@@ -225,6 +230,7 @@ export async function mount(
         neighbors.add(edge.source);
       }
     }
+    focusFilter = neighbors;
     for (let i = 0; i < currentGraph.nodes.length; i++) {
       const id = currentGraph.nodes[i]!.id;
       nodes.setVisible(i, visibleNodeIds.has(id) && neighbors.has(id));
@@ -285,7 +291,12 @@ export async function mount(
     picker?.dispose();
     picker = createPicker(element, ctx.camera, nodes, nodePositions, {
       shouldBlock: isInteracting,
-      isVisible: (i) => visibleNodeIds.has(currentGraph.nodes[i]!.id),
+      isVisible: (i) => {
+        if (!visibleNodeIds.has(currentGraph.nodes[i]!.id)) return false;
+        if (focusFilter && !focusFilter.has(currentGraph.nodes[i]!.id))
+          return false;
+        return true;
+      },
     });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
@@ -400,6 +411,7 @@ export async function mount(
   let dragMode: "rotate" | "pan" | null = null;
 
   element.addEventListener("mousedown", (e) => {
+    if ((e.target as HTMLElement).closest("[data-ui-overlay]")) return;
     if (e.button === 0) dragMode = "rotate";
     else if (e.button === 2) dragMode = "pan";
     else return;
@@ -427,7 +439,7 @@ export async function mount(
 
   element.addEventListener("mouseup", (e) => {
     const target = e.target as HTMLElement;
-    if (target.closest("aside")) {
+    if (target.closest("aside") || target.closest("[data-ui-overlay]")) {
       isMouseDown = false;
       hasDragged = false;
       dragMode = null;

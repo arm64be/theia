@@ -11,7 +11,7 @@ function injectSearchBarStyles(): void {
   const style = document.createElement("style");
   style.textContent = `
     .tp-search-bar {
-      transition: right 220ms ease-out, width 220ms ease-out;
+      transition: right 100ms ease-out, width 100ms ease-out;
     }
     @media (prefers-reduced-motion: reduce) {
       .tp-search-bar {
@@ -37,6 +37,7 @@ export function createSearchBar(
   let theme = initialTheme;
 
   const wrapper = document.createElement("div");
+  wrapper.dataset.uiOverlay = "";
   wrapper.classList.add("tp-search-bar");
   const input = document.createElement("input");
   const dropdown = document.createElement("div");

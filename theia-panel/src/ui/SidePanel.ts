@@ -89,7 +89,7 @@ export function createSidePanel(
       position: absolute; top: 0; right: 0; bottom: 0; width: ${panelWidth};
       background: ${themeBgAlpha(theme, 0.95)}; border-left: 1px solid #${theme.border};
       color: #${theme.fg}; font: 13px/1.6 var(--theia-font, ${FONT_STACK});
-      transform: translateX(${currentId ? "0" : "100%"}); transition: transform 220ms ease-out;
+      transform: translateX(${currentId ? "0" : "100%"}); transition: transform 100ms ease-out;
       padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
       box-sizing: border-box; outline: none;
     `;
