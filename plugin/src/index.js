@@ -304,25 +304,20 @@
         })
       ),
 
-      // Selected node info
-      selectedNode && h(Card, null,
-        h(CardHeader, null,
-          h(CardTitle, { className: "text-base" }, "Selected Session")
-        ),
-        h(CardContent, null,
-          h("div", { className: "flex items-center gap-3" },
-            h("span", { className: "font-courier text-sm" }, selectedNode),
-            h(Button, {
-              onClick: function () {
-                // Navigate to sessions page with resume session id (see issue #24)
-                var url = "/sessions?resume=" + encodeURIComponent(selectedNode);
-                history.pushState({}, "", url);
-                window.dispatchEvent(new PopStateEvent("popstate"));
-              },
-              variant: "outline", size: "sm",
-            }, "View in Sessions")
-          )
-        )
+      // Selected node — compact inline row
+      selectedNode && h("div", {
+        role: "status",
+        "aria-label": "Selected session " + selectedNode,
+        "data-testid": "selected-session-row",
+        className: "flex items-center gap-2",
+      },
+        h(Badge, { variant: "outline", className: "font-courier text-xs truncate max-w-[24ch]" }, selectedNode),
+        h(Button, {
+          onClick: function () {
+            window.location.hash = "#/sessions?id=" + selectedNode;
+          },
+          variant: "outline", size: "sm",
+        }, "View in Sessions")
       )
     );
   }
