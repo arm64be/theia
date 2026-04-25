@@ -34,6 +34,7 @@ const PALETTE_MAP: Record<GraphEdge["kind"], number> = {
   "cross-search": PALETTE.edgeSearch,
   "tool-overlap": PALETTE.edgeOverlap,
   subagent: PALETTE.edgeSubagent,
+  "cron-chain": PALETTE.edgeCronChain,
 };
 
 export interface EdgeLayer {

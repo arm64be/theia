@@ -7,7 +7,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "generate-types": "json2ts -i ../schemas/graph.schema.json -o src/data/types.ts --additionalProperties false",
+    "generate-types": "json2ts -i ../schemas/graph.schema.json -o src/data/types.ts --additionalProperties false && prettier --write src/data/types.ts",
     "format": "prettier --write src index.html",
     "format:check": "prettier --check src index.html"
   },

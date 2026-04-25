@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-EdgeKind = Literal["memory-share", "cross-search", "tool-overlap", "subagent"]
+EdgeKind = Literal["memory-share", "cross-search", "tool-overlap", "subagent", "cron-chain"]
 
 
 @dataclass(frozen=True)

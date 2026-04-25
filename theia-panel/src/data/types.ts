@@ -33,8 +33,15 @@ export interface TheiaGraph {
   edges: {
     source: string;
     target: string;
-    kind: "memory-share" | "cross-search" | "tool-overlap" | "subagent";
+    kind:
+      | "memory-share"
+      | "cross-search"
+      | "tool-overlap"
+      | "subagent"
+      | "cron-chain";
     weight: number;
-    evidence?: Record<string, unknown>;
+    evidence?: {
+      [k: string]: unknown;
+    };
   }[];
 }

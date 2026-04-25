@@ -62,7 +62,7 @@
         "properties": {
           "source": { "type": "string" },
           "target": { "type": "string" },
-          "kind": { "enum": ["memory-share", "cross-search", "tool-overlap", "subagent"] },
+          "kind": { "enum": ["memory-share", "cross-search", "tool-overlap", "subagent", "cron-chain"] },
           "weight": { "type": "number", "minimum": 0, "maximum": 1 },
           "evidence": { "type": "object", "additionalProperties": true }
         }

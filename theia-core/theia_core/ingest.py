@@ -44,6 +44,7 @@ class Session:
     preview: str = ""
     raw: dict[str, Any] = field(default_factory=dict)
     parent_id: str | None = None
+    cron_job_id: str | None = None
 
 
 def _parse_iso(s: str) -> datetime:
@@ -178,6 +179,32 @@ def _build_preview(messages: list[dict[str, Any]]) -> str:
     return ""
 
 
+def _extract_cron_job_id(session_id: str) -> str | None:
+    """Extract cron job ID from a cron-spawned session ID.
+
+    Cron session IDs follow the pattern
+    ``cron_<job_id>_<YYYYMMDD>_<HHMMSS>``,
+    e.g. ``cron_8974a4d0b3cc_20260330_171037`` -> ``8974a4d0b3cc``.
+
+    Uses ``rsplit`` from the right so that the job ID itself may
+    contain underscores (e.g. ``cron_my_job_20260330_171037`` ->
+    ``my_job``).  Returns ``None`` if the trailing date/time segments
+    are missing or malformed.
+    """
+    if not session_id.startswith("cron_"):
+        return None
+    rest = session_id[len("cron_") :]
+    parts = rest.rsplit("_", 2)
+    if len(parts) != 3:
+        return None
+    job_id, date_part, time_part = parts
+    if not (
+        len(date_part) == 8 and date_part.isdigit() and len(time_part) == 6 and time_part.isdigit()
+    ):
+        return None
+    return job_id or None
+
+
 def load_sessions(db_path: Path, include_children: bool = True) -> list[Session]:
     """Load sessions from a Hermes SQLite database.
 
@@ -254,6 +281,8 @@ def load_sessions(db_path: Path, include_children: bool = True) -> list[Session]
             ended_at = _datetime_from_timestamp(row["ended_at"])
             duration_sec = max(0.0, (ended_at - started_at).total_seconds())
 
+            cron_job_id = _extract_cron_job_id(session_id)
+
             sessions.append(
                 Session(
                     id=session_id,
@@ -268,6 +297,7 @@ def load_sessions(db_path: Path, include_children: bool = True) -> list[Session]
                     preview=preview,
                     raw={"db_row": dict(row), "messages": messages},
                     parent_id=row["parent_session_id"],
+                    cron_job_id=cron_job_id,
                 )
             )
 
