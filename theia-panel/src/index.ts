@@ -49,8 +49,9 @@ function loadFilterState(): {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     const parsedKinds = Array.isArray(parsed?.kinds)
-      ? parsed.kinds.filter((k: unknown): k is TheiaGraph["edges"][number]["kind"] =>
-          (VALID_KINDS as readonly unknown[]).includes(k),
+      ? parsed.kinds.filter(
+          (k: unknown): k is TheiaGraph["edges"][number]["kind"] =>
+            (VALID_KINDS as readonly unknown[]).includes(k),
         )
       : DEFAULT_KINDS;
     return {
@@ -138,7 +139,10 @@ export async function mount(
     nodes.setHighlight(idx, false);
   }
 
-  function enterPanelMode(node: TheiaGraph["nodes"][number], related: TheiaGraph["edges"]) {
+  function enterPanelMode(
+    node: TheiaGraph["nodes"][number],
+    related: TheiaGraph["edges"],
+  ) {
     sidePanel.show(node, related);
     searchBar.setPanelOpen(true);
     filterBar.setSearchToggleVisible(true);
