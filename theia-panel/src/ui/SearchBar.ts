@@ -2,7 +2,25 @@ import type { TheiaGraph } from "../data/types";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
 import { escape } from "./utils";
-import { injectSearchBarStyles } from "./layoutStyles";
+
+let searchBarStylesInjected = false;
+
+function injectSearchBarStyles(): void {
+  if (searchBarStylesInjected) return;
+  searchBarStylesInjected = true;
+  const style = document.createElement("style");
+  style.textContent = `
+    .tp-search-bar {
+      transition: right 220ms ease-out, width 220ms ease-out;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tp-search-bar {
+        transition: none !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 export interface SearchResult {
   node: TheiaGraph["nodes"][number];
@@ -29,7 +47,7 @@ export function createSearchBar(
   function applyWrapperStyle() {
     wrapper.style.cssText = `
       position: absolute; top: 12px; right: calc((100% - min(320px, 50vw)) / 2); transform: none;
-      z-index: 12; margin-left: 12px;
+      z-index: 12;
       font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
       color: #${theme.fg}; width: min(320px, 50vw);
     `;
