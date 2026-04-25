@@ -304,22 +304,15 @@
         })
       ),
 
-      // Selected node info
-      selectedNode && h(Card, null,
-        h(CardHeader, null,
-          h(CardTitle, { className: "text-base" }, "Selected Session")
-        ),
-        h(CardContent, null,
-          h("div", { className: "flex items-center gap-3" },
-            h("span", { className: "font-courier text-sm" }, selectedNode),
-            h(Button, {
-              onClick: function () {
-                window.location.hash = "#/sessions?id=" + selectedNode;
-              },
-              variant: "outline", size: "sm",
-            }, "View in Sessions")
-          )
-        )
+      // Selected node — compact inline row
+      selectedNode && h("div", { className: "flex items-center gap-2" },
+        h(Badge, { variant: "outline", className: "font-courier text-xs" }, selectedNode),
+        h(Button, {
+          onClick: function () {
+            window.location.hash = "#/sessions?id=" + selectedNode;
+          },
+          variant: "outline", size: "sm",
+        }, "View in Sessions")
       )
     );
   }
