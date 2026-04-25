@@ -1,4 +1,5 @@
 import type { TheiaGraph } from "../data/types";
+import { ensureLayoutStyles } from "./layoutStyles";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
 import { escape, truncate } from "./utils";
@@ -48,18 +49,22 @@ export function createSidePanel(
   initialTheme: ThemeTokens,
   onNavigate?: (nodeId: string) => void,
 ) {
+  ensureLayoutStyles();
+
   let theme = initialTheme;
   const el = document.createElement("aside");
+  el.classList.add("tp-side-panel");
   let currentId: string | null = null;
 
+  // Position, sizing, padding, transform/transition live in .tp-side-panel
+  // (see layoutStyles.ts). Inline styles cover only theme-derived
+  // properties; show()/hide() toggle the .tp-side-panel--open class on this
+  // element and the .tp-panel-open class on the container so SearchBar can
+  // react to the open state via pure CSS.
   function applyPanelStyle() {
     el.style.cssText = `
-      position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 45vw);
       background: ${themeBgAlpha(theme, 0.95)}; border-left: 1px solid #${theme.border};
       color: #${theme.fg}; font: 13px/1.6 var(--theia-font, ui-monospace, monospace);
-      transform: translateX(${currentId ? "0" : "100%"}); transition: transform 220ms ease-out;
-      padding: 20px 22px; overflow-y: auto; overscroll-behavior: contain;
-      box-sizing: border-box; outline: none;
     `;
   }
   applyPanelStyle();
@@ -87,7 +92,8 @@ export function createSidePanel(
     lastNode = node;
     lastEdges = relatedEdges;
     renderContent();
-    el.style.transform = "translateX(0)";
+    el.classList.add("tp-side-panel--open");
+    container.classList.add("tp-panel-open");
     el.focus({ preventScroll: true });
     scrollTop();
   }
@@ -173,7 +179,8 @@ export function createSidePanel(
 
   function hide() {
     currentId = null;
-    el.style.transform = "translateX(100%)";
+    el.classList.remove("tp-side-panel--open");
+    container.classList.remove("tp-panel-open");
   }
 
   function currentNodeId() {
@@ -187,6 +194,7 @@ export function createSidePanel(
     }
   }
   function dispose() {
+    container.classList.remove("tp-panel-open");
     container.removeChild(el);
   }
 

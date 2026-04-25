@@ -1,4 +1,5 @@
 import type { TheiaGraph } from "../data/types";
+import { ensureLayoutStyles } from "./layoutStyles";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
 
@@ -58,21 +59,25 @@ export function createFilterBar(
   onChange: (state: FilterState) => void,
   initialTheme: ThemeTokens,
 ) {
+  ensureLayoutStyles();
+
   let theme = initialTheme;
   const bar = document.createElement("div");
+  bar.classList.add("tp-filter-bar");
   const toggles: Array<HTMLButtonElement & { _applyStyle: () => void }> = [];
   let select: HTMLSelectElement | null = null;
   let separator: HTMLSpanElement | null = null;
 
+  // Position, display, flex-wrap, padding and pointer-events live in
+  // .tp-filter-bar (see layoutStyles.ts). Only theme-derived properties are
+  // assigned inline so theme switches don't have to touch the layout rules.
   function applyBarStyle() {
     bar.style.cssText = `
-      position: absolute; top: 12px; left: 12px;
-      display: flex; gap: 14px; align-items: center;
-      padding: 6px 14px; background: ${themeBgAlpha(theme, 0.85)};
+      background: ${themeBgAlpha(theme, 0.85)};
       border: 1px solid #${theme.border};
       font: 10px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
       letter-spacing: 0.05em; color: #${theme.fg};
-      user-select: none; backdrop-filter: blur(6px); pointer-events: none;
+      user-select: none; backdrop-filter: blur(6px);
     `;
   }
   applyBarStyle();

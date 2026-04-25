@@ -1,4 +1,5 @@
 import type { TheiaGraph } from "../data/types";
+import { ensureLayoutStyles } from "./layoutStyles";
 import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha } from "./Theme";
 import { escape } from "./utils";
@@ -15,21 +16,25 @@ export function createSearchBar(
   initialTheme: ThemeTokens,
   isVisible?: (node: TheiaGraph["nodes"][number]) => boolean,
 ) {
+  ensureLayoutStyles();
+
   let theme = initialTheme;
 
   const wrapper = document.createElement("div");
+  wrapper.classList.add("tp-search-bar");
   const input = document.createElement("input");
   const dropdown = document.createElement("div");
+  dropdown.classList.add("tp-search-dropdown");
+  dropdown.style.display = "none";
 
   let currentResults: SearchResult[] = [];
   let selectedIndex = -1;
 
+  // Position, width, font and dropdown placement live in .tp-search-bar /
+  // .tp-search-dropdown (see layoutStyles.ts). Inline styles cover only
+  // theme-derived properties so theme changes don't disturb the layout.
   function applyWrapperStyle() {
-    wrapper.style.cssText = `
-      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-      z-index: 10; font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
-      color: #${theme.fg}; width: min(320px, 50vw);
-    `;
+    wrapper.style.color = `#${theme.fg}`;
   }
 
   function applyInputStyle() {
@@ -43,11 +48,12 @@ export function createSearchBar(
   }
 
   function applyDropdownStyle() {
+    // Preserve dynamic display state across theme updates.
+    const display = dropdown.style.display;
     dropdown.style.cssText = `
-      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
       background: ${themeBgAlpha(theme, 0.95)}; border: 1px solid #${theme.border};
-      display: none;
-      backdrop-filter: blur(6px); max-height: 240px; overflow-y: auto;
+      backdrop-filter: blur(6px);
+      display: ${display || "none"};
     `;
   }
 
