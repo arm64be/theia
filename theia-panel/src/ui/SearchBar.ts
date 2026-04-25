@@ -39,8 +39,7 @@ export function createSearchBar(
 
   function applyInputStyle() {
     input.style.cssText = `
-      width: 100%; box-sizing: border-box;
-      padding: 8px 12px; background: ${themeBgAlpha(theme, 0.85)};
+      background: ${themeBgAlpha(theme, 0.85)};
       border: 1px solid #${theme.border};
       color: #${theme.fg}; font: inherit; outline: none;
       backdrop-filter: blur(4px);

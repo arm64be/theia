@@ -22,23 +22,32 @@ export function ensureLayoutStyles(): void {
   style.dataset.theia = "panel-layout";
   style.textContent = `
     /* Filter bar — top-left. Wraps to multiple rows when toggles + model
-       dropdown can't fit, so it never overflows its background. */
+       dropdown can't fit, so it never overflows its background. min-height
+       matches the search bar so both align on the top row. */
     .tp-filter-bar {
       position: absolute; top: 12px; left: 12px; z-index: 11;
       display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
-      padding: 6px 14px;
+      padding: 0 14px;
+      min-height: 32px;
       max-width: calc(100% - 24px);
       pointer-events: none;
       box-sizing: border-box;
     }
     .tp-filter-bar > * { pointer-events: auto; }
 
-    /* Search bar — top-right by default; width clamps so it never reaches
-       across into the filter bar even on mid-width viewports. */
+    /* Search bar — top-right by default, height matches filter bar so the
+       two are visually aligned. width clamps so it never reaches across
+       into the filter bar even on mid-width viewports. */
     .tp-search-bar {
       position: absolute; top: 12px; right: 12px; z-index: 10;
       width: clamp(180px, 30vw, 320px);
+      height: 32px;
       font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      box-sizing: border-box;
+    }
+    .tp-search-bar > input {
+      width: 100%; height: 100%;
+      padding: 0 12px;
       box-sizing: border-box;
     }
     .tp-search-dropdown {
@@ -66,21 +75,13 @@ export function ensureLayoutStyles(): void {
       width: clamp(180px, calc(55vw - 36px), 320px);
     }
 
-    /* Narrow viewports: shrink the panel and stack the search bar at the
-       bottom-left when the panel is open — there is no longer room for both
-       filter bar and search bar on the top row. */
+    /* Below this width, the filter bar + panel + search bar can't all share
+       the canvas without becoming unusable. Shrink the panel and just hide
+       the search bar — the user can close the panel to search again, which
+       is cleaner than cramming it into a sliver. */
     @media (max-width: 900px) {
       .tp-side-panel { width: min(320px, 85vw); }
-
-      .tp-panel-open .tp-search-bar {
-        top: auto; right: auto; bottom: 12px; left: 12px;
-        width: clamp(180px, calc(100% - min(320px, 85vw) - 24px), 320px);
-      }
-      /* Bottom-anchored search => dropdown must open upward. */
-      .tp-panel-open .tp-search-bar .tp-search-dropdown {
-        top: auto;
-        bottom: calc(100% + 6px);
-      }
+      .tp-panel-open .tp-search-bar { display: none; }
     }
   `;
   document.head.appendChild(style);
