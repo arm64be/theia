@@ -32,7 +32,7 @@ export function createScene(container: HTMLElement): SceneContext {
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(w, h, false);
+  renderer.setSize(w, h, true);
   renderer.domElement.style.display = "block";
   container.appendChild(renderer.domElement);
 
@@ -61,7 +61,7 @@ export function createScene(container: HTMLElement): SceneContext {
     const a = w2 / h2;
     camera.aspect = a;
     camera.updateProjectionMatrix();
-    renderer.setSize(w2, h2, false);
+    renderer.setSize(w2, h2, true);
   };
 
   const ro = new ResizeObserver(resize);
