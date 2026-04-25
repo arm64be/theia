@@ -298,6 +298,7 @@ export function createPost(
     edgesTarget.setSize(w2 * dpr2, h2 * dpr2);
     preBloomTarget.setSize(w2 * dpr2, h2 * dpr2);
     sceneTarget.setSize(w2 * dpr2, h2 * dpr2);
+    ditherTarget.setSize(w2 * dpr2, h2 * dpr2);
     composer.setSize(w2, h2);
     bloom.setSize(w2, h2);
   }
