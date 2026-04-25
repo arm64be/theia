@@ -358,7 +358,7 @@
           </div>
           <iframe
             id="theia-iframe"
-            src="http://localhost:5173/?graph=/graph.json"
+            src="about:blank"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope"
             loading="eager"
           ></iframe>
@@ -367,7 +367,29 @@
     </div>
 
     <script>
+      // ── Configuration ─────────────────────────────────────────────────────
+      // Dev panel URL — override via query param: ?panel=http://host:port
+      const DEFAULT_PANEL_URL = "http://localhost:5173";
+      let panelUrl =
+        new URLSearchParams(window.location.search).get("panel") ||
+        DEFAULT_PANEL_URL;
+      let parsed;
+      try {
+        parsed = new URL(panelUrl);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          panelUrl = DEFAULT_PANEL_URL;
+          parsed = new URL(panelUrl);
+        }
+      } catch {
+        panelUrl = DEFAULT_PANEL_URL;
+        parsed = new URL(panelUrl);
+      }
+      const panelOrigin = parsed.origin;
+
+      // ── Iframe setup ──────────────────────────────────────────────────────
       const iframe = document.getElementById("theia-iframe");
+      iframe.src = new URL("/?graph=/graph.json", panelUrl).href;
+
       const loading = document.getElementById("iframe-loading");
 
       // Update iframe source display
@@ -394,7 +416,7 @@
 
       // Listen for postMessage from the theia panel
       window.addEventListener("message", (event) => {
-        if (event.origin !== "http://localhost:5173") return;
+        if (event.origin !== panelOrigin) return;
 
         if (event.data?.type === "node-click") {
           console.log("[dashboard] node clicked:", event.data.nodeId);
