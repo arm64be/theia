@@ -193,16 +193,13 @@ def _extract_cron_job_id(session_id: str) -> str | None:
     """
     if not session_id.startswith("cron_"):
         return None
-    rest = session_id[len("cron_"):]
+    rest = session_id[len("cron_") :]
     parts = rest.rsplit("_", 2)
     if len(parts) != 3:
         return None
     job_id, date_part, time_part = parts
     if not (
-        len(date_part) == 8
-        and date_part.isdigit()
-        and len(time_part) == 6
-        and time_part.isdigit()
+        len(date_part) == 8 and date_part.isdigit() and len(time_part) == 6 and time_part.isdigit()
     ):
         return None
     return job_id or None
