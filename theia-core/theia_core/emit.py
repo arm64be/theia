@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import functools
 import json
+import sys
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -77,7 +79,38 @@ def build_graph(
             }
         )
     session_ids = {sess.id for sess in sessions}
-    valid_edges = [e for e in edges if e.source in session_ids and e.target in session_ids]
+    valid_edges: list[Edge] = []
+    dropped: list[tuple[Edge, list[str]]] = []
+    for e in edges:
+        missing = [
+            label
+            for label, sid in (("source", e.source), ("target", e.target))
+            if sid not in session_ids
+        ]
+        if missing:
+            dropped.append((e, missing))
+        else:
+            valid_edges.append(e)
+
+    if dropped:
+        by_kind: Counter[str] = Counter(e.kind for e, _ in dropped)
+        summary = ", ".join(f"{kind}={count}" for kind, count in sorted(by_kind.items()))
+        print(
+            f"warning: dropped {len(dropped)} edge(s) with unknown endpoints ({summary})",
+            file=sys.stderr,
+        )
+        # Surface up to 5 examples so users can spot which sessions are missing.
+        for e, missing in dropped[:5]:
+            missing_ids = ", ".join(
+                f"{label}={getattr(e, label)}" for label in missing
+            )
+            print(
+                f"         [{e.kind}] {e.source} -> {e.target}  missing: {missing_ids}",
+                file=sys.stderr,
+            )
+        if len(dropped) > 5:
+            print(f"         ...and {len(dropped) - 5} more", file=sys.stderr)
+
     return {
         "meta": {
             "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
