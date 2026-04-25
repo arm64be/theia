@@ -305,8 +305,13 @@
       ),
 
       // Selected node — compact inline row
-      selectedNode && h("div", { className: "flex items-center gap-2" },
-        h(Badge, { variant: "outline", className: "font-courier text-xs" }, selectedNode),
+      selectedNode && h("div", {
+        role: "status",
+        "aria-label": "Selected session " + selectedNode,
+        "data-testid": "selected-session-row",
+        className: "flex items-center gap-2",
+      },
+        h(Badge, { variant: "outline", className: "font-courier text-xs truncate max-w-[24ch]" }, selectedNode),
         h(Button, {
           onClick: function () {
             window.location.hash = "#/sessions?id=" + selectedNode;
