@@ -131,7 +131,7 @@ export function createSidePanel(
       </dl>
       <div style="margin:20px 0 0;border-top:1px solid #${theme.border}"></div>
       <label style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;cursor:pointer;user-select:none;color:#${theme.fg}">
-        <input type="checkbox" data-focus-toggle ${focusMode ? 'checked' : ''} style="accent-color:#${theme.accent}">
+        <input type="checkbox" data-focus-toggle ${focusMode ? "checked" : ""} style="accent-color:#${theme.accent}">
         Focus on connected nodes
       </label>
       <h4 style="margin:0 0 8px;font-size:10px;letter-spacing:0.12em;opacity:0.5;text-transform:uppercase">Connections</h4>
@@ -139,7 +139,9 @@ export function createSidePanel(
         ${relatedEdges.length === 0 ? '<div style="opacity:0.5;font-size:11px">No connections</div>' : relatedEdges.map((e) => renderEdge(node, e, theme, !!onNavigate)).join("")}
       </div>
     `;
-    const focusToggle = el.querySelector("[data-focus-toggle]") as HTMLInputElement;
+    const focusToggle = el.querySelector(
+      "[data-focus-toggle]",
+    ) as HTMLInputElement;
     if (focusToggle) {
       focusToggle.onchange = () => {
         focusMode = focusToggle.checked;
