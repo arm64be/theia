@@ -1,5 +1,7 @@
 # theia
 
+![theia icon](icon.png)
+
 Visualize Hermes agent sessions as a semantic constellation.
 
 - `theia-core/` — Python build tool: Hermes SQLite DB → `theia-graph.json`
@@ -42,6 +44,7 @@ theia/
 │   ├── sessions/            # Sample Hermes session JSONs
 │   └── graph.json           # Canonical golden fixture
 ├── docs/                    # Documentation
+├── icon.png                 # Project icon
 ├── install.sh               # One-command installer
 └── Makefile                 # Build targets
 ```
