@@ -50,7 +50,7 @@ export function createSidePanel(
     onNavigate?: (nodeId: string) => void;
     onClose?: () => void;
     onFocusToggle?: (enabled: boolean) => void;
-  }
+  },
 ) {
   let theme = initialTheme;
   const el = document.createElement("aside");
