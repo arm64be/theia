@@ -363,9 +363,19 @@ export async function mount(
     }
   });
 
-  element.addEventListener("mouseup", (e) => {
+  element.addEventListener("mouseup", () => {
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
-      const idx = picker.pickAt(e.clientX, e.clientY, 0.35);
+      // Click target is whatever is currently hovered — and only that.
+      // The hover picker (Picker.onMove, radius 1.0) drives the tooltip
+      // and pointer cursor, so the user already has a clear visual cue
+      // for what they are about to click. A fresh pickAt here at any
+      // radius can disagree with the hover state — different radius,
+      // fresh hit test against a still-settling simulation — producing
+      // the "tooltip says hovered but click does nothing" symptom on
+      // first load (#20), or worse, a neighbour the user wasn't aiming
+      // at. If nothing is hovered, the click is a no-op rather than a
+      // positional guess.
+      const idx = picker.currentHovered();
       if (idx !== null) {
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
