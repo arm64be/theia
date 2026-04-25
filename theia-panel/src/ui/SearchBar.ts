@@ -3,6 +3,25 @@ import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha, FONT_STACK } from "./Theme";
 import { escape } from "./utils";
 
+let searchBarStylesInjected = false;
+
+function injectSearchBarStyles(): void {
+  if (searchBarStylesInjected) return;
+  searchBarStylesInjected = true;
+  const style = document.createElement("style");
+  style.textContent = `
+    .tp-search-bar {
+      transition: right 220ms ease-out, width 220ms ease-out;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tp-search-bar {
+        transition: none !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 export interface SearchResult {
   node: TheiaGraph["nodes"][number];
   index: number;
@@ -18,6 +37,7 @@ export function createSearchBar(
   let theme = initialTheme;
 
   const wrapper = document.createElement("div");
+  wrapper.classList.add("tp-search-bar");
   const input = document.createElement("input");
   const dropdown = document.createElement("div");
 
@@ -26,8 +46,9 @@ export function createSearchBar(
 
   function applyWrapperStyle() {
     wrapper.style.cssText = `
-      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-      z-index: 10; font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      position: absolute; top: 12px; right: calc((100% - min(320px, 50vw)) / 2); transform: none;
+      z-index: 12;
+      font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
       color: #${theme.fg}; width: min(320px, 50vw);
     `;
   }
@@ -54,6 +75,7 @@ export function createSearchBar(
   applyWrapperStyle();
   applyInputStyle();
   applyDropdownStyle();
+  injectSearchBarStyles();
 
   input.type = "text";
   input.placeholder = "Search sessions\u2026";
