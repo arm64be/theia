@@ -47,6 +47,7 @@ export function createSidePanel(
   container: HTMLElement,
   initialTheme: ThemeTokens,
   onNavigate?: (nodeId: string) => void,
+  onClose?: () => void,
 ) {
   let theme = initialTheme;
   const el = document.createElement("aside");
@@ -174,6 +175,7 @@ export function createSidePanel(
   function hide() {
     currentId = null;
     el.style.transform = "translateX(100%)";
+    onClose?.();
   }
 
   function currentNodeId() {

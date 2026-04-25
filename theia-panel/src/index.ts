@@ -70,13 +70,25 @@ export async function mount(
   let simulation: ReturnType<typeof createSimulation>["simulation"];
   let picker: ReturnType<typeof createPicker>;
   let searchBar: ReturnType<typeof createSearchBar>;
+  let selectedIdx: number | null = null;
 
   const tooltip = createTooltip(element, theme);
+  function clearSelected() {
+    if (selectedIdx !== null) {
+      nodes.setSelected(selectedIdx, false);
+      selectedIdx = null;
+    }
+  }
+
   const sidePanel = createSidePanel(element, theme, (targetId) => {
     const idx = nodeIndex.get(targetId);
     if (idx === undefined || !visibleNodeIds.has(targetId)) return;
     const sn = simNodes[idx];
     if (!sn) return;
+    clearSelected();
+    selectedIdx = idx;
+    nodes.setSelected(idx, true);
+    nodes.setHighlight(idx, false);
     ctx.focusOn(sn.x, sn.y, 1.5);
     const n = currentGraph.nodes[idx]!;
     const related = currentGraph.edges.filter(
@@ -84,6 +96,9 @@ export async function mount(
     );
     sidePanel.show(n, related);
     emit("node-click", targetId);
+  }, () => {
+    clearSelected();
+    nodes.flush();
   });
 
   let lastMouse = { x: 0, y: 0 };
@@ -231,15 +246,17 @@ export async function mount(
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
       element.style.cursor = idx === null ? "" : "pointer";
       edges.setHoverNode(nodeId);
-      if (idx === null) {
-        tooltip.hide();
-      } else {
-        nodes.setHighlight(idx, true);
-        nodes.flush();
-        tooltip.show(currentGraph.nodes[idx]!, lastMouse.x, lastMouse.y);
-      }
       for (let i = 0; i < nodes.count; i++) {
-        if (i !== idx) nodes.setHighlight(i, false);
+        if (i === idx) {
+          nodes.setHighlight(i, true);
+        } else if (i !== selectedIdx) {
+          nodes.setHighlight(i, false);
+        }
+      }
+      if (idx !== null) {
+        tooltip.show(currentGraph.nodes[idx]!, lastMouse.x, lastMouse.y);
+      } else {
+        tooltip.hide();
       }
       nodes.flush();
       emit("node-hover", idx === null ? null : currentGraph.nodes[idx]!.id);
@@ -367,6 +384,10 @@ export async function mount(
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
       const idx = picker.pickAt(e.clientX, e.clientY, 1.0);
       if (idx !== null) {
+        clearSelected();
+        selectedIdx = idx;
+        nodes.setSelected(idx, true);
+        nodes.setHighlight(idx, false);
         const n = currentGraph.nodes[idx]!;
         const related = currentGraph.edges.filter(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
@@ -465,9 +486,12 @@ export async function mount(
       filterBar.updateGraph(newGraph);
 
       ctx.setCameraState(cameraState);
+      clearSelected();
       if (selectedId !== null) {
         const idx = nodeIndex.get(selectedId);
         if (idx !== undefined) {
+          selectedIdx = idx;
+          nodes.setSelected(idx, true);
           const n = currentGraph.nodes[idx]!;
           const related = currentGraph.edges.filter(
             (e) =>

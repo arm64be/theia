@@ -3,6 +3,7 @@ export const PALETTE = {
   background: 0x07080d,
   nodeBase: 0xffc477, // warm amber
   nodeHighlight: 0xffffff,
+  nodeSelected: 0x66d9ef,
   edgeMemory: 0xffb366, // warm amber
   edgeSearch: 0x66d9ef, // cool cyan
   edgeOverlap: 0xb089ff, // muted violet
