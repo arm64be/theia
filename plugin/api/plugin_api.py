@@ -21,11 +21,18 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
+from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from .graph_data import load_graph
+# Hermes loads this module via importlib (not as a package), so relative
+# imports won't work. Add the plugin dir to sys.path for sibling imports.
+_api_dir = str(Path(__file__).resolve().parent)
+if _api_dir not in sys.path:
+    sys.path.insert(0, _api_dir)
+from graph_data import load_graph  # noqa: E402
 
 router = APIRouter()
 log = logging.getLogger("theia-constellation")
