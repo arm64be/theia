@@ -8,6 +8,7 @@ export const PALETTE = {
   edgeSearch: 0x66d9ef, // cool cyan
   edgeOverlap: 0xb089ff, // muted violet
   edgeSubagent: 0x7ce38b, // soft green
+  edgeCronChain: 0xff6b6b, // coral red
 } as const;
 
 export const SIZES = {
@@ -19,5 +20,6 @@ export const SIZES = {
     "cross-search": 0.5,
     "tool-overlap": 0.12,
     subagent: 0.35,
+    "cron-chain": 0.45,
   },
 } as const;

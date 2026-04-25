@@ -132,7 +132,7 @@ export async function mount(
     modelFilter?: string | null,
   ): Set<string> {
     const kindVisible = new Set<string>();
-    if (enabledKinds.has("subagent")) {
+    if (enabledKinds.has("subagent") || enabledKinds.has("cron-chain")) {
       for (const node of graph.nodes) {
         kindVisible.add(node.id);
       }

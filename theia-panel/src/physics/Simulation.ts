@@ -182,11 +182,13 @@ export function createSimulation(
     "cross-search": 0.25,
     "memory-share": 0.3,
     "tool-overlap": 0.04,
+    "cron-chain": 0.15,
   };
   const kindDistance: Record<string, number> = {
     "cross-search": 1.2,
     "memory-share": 0.9,
     "tool-overlap": 2.2,
+    "cron-chain": 1.6,
   };
 
   const linkForce = forceLink<PhysicsNode, PhysicsLink>(links)

@@ -280,6 +280,13 @@ function renderEdge(
     detail = `<div style="${detailAttrStyle(theme)}">
       ${label}: <span style="color:#${theme.accent}">${escape(String(displayId ?? "?"))}</span>
     </div>`;
+  } else if (e.kind === "cron-chain") {
+    const jobId = ev.cron_job_id;
+    const intervalHours = ev.interval_hours;
+    detail = `<div style="${detailAttrStyle(theme)}">
+      cron job: <span style="color:#${theme.accent}">${escape(String(jobId ?? "?"))}</span>
+      ${intervalHours !== undefined ? `\u00b7 interval ${Number(intervalHours).toFixed(1)}h` : ""}
+    </div>`;
   }
 
   return `

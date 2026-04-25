@@ -7,6 +7,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from theia_core.detect.cron import detect_cron_chain
 from theia_core.detect.cross_search import detect_cross_search
 from theia_core.detect.memory_share import detect_memory_share
 from theia_core.detect.subagent import detect_subagent
@@ -34,6 +35,7 @@ def _build(
 ) -> dict[str, Any]:
     edges = detect_memory_share(sessions) + detect_cross_search(sessions)
     edges += detect_subagent(sessions)
+    edges += detect_cron_chain(sessions)
     if not disable_tool_overlap:
         edges += detect_tool_overlap(sessions)
 
