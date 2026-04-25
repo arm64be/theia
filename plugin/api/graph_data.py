@@ -17,7 +17,7 @@ log = logging.getLogger("theia-constellation")
 
 def _theia_home() -> Path:
     """Resolve $THEIA_HOME (default: ~/.hermes/) for the running dashboard."""
-    return Path(os.environ.get("THEIA_HOME", Path.home() / ".hermes"))
+    return Path(os.environ.get("THEIA_HOME") or os.environ.get("HERMES_HOME") or Path.home() / ".hermes")
 
 
 # ---------------------------------------------------------------------------

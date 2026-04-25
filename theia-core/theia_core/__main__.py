@@ -19,7 +19,7 @@ from theia_core.watch import watch_db
 
 
 def _theia_home() -> Path:
-    return Path(os.environ.get("THEIA_HOME", Path.home() / ".hermes"))
+    return Path(os.environ.get("THEIA_HOME") or os.environ.get("HERMES_HOME") or Path.home() / ".hermes")
 
 
 def _build(
