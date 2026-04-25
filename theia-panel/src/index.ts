@@ -60,6 +60,7 @@ export async function mount(
 
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
   let modelFilter: string | null = null;
+  let focusEnabled = false;
 
   // Mutable graph-specific state — closures capture the binding, not the value
   let currentGraph: TheiaGraph;
@@ -72,19 +73,33 @@ export async function mount(
   let searchBar: ReturnType<typeof createSearchBar>;
 
   const tooltip = createTooltip(element, theme);
-  const sidePanel = createSidePanel(element, theme, (targetId) => {
-    const idx = nodeIndex.get(targetId);
-    if (idx === undefined || !visibleNodeIds.has(targetId)) return;
-    const sn = simNodes[idx];
-    if (!sn) return;
-    ctx.focusOn(sn.x, sn.y, 1.5);
-    const n = currentGraph.nodes[idx]!;
-    const related = currentGraph.edges.filter(
-      (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
-    );
-    sidePanel.show(n, related);
-    emit("node-click", targetId);
-  });
+  const sidePanel = createSidePanel(
+    element,
+    theme,
+    (targetId) => {
+      const idx = nodeIndex.get(targetId);
+      if (idx === undefined || !visibleNodeIds.has(targetId)) return;
+      const sn = simNodes[idx];
+      if (!sn) return;
+      ctx.focusOn(sn.x, sn.y, 1.5);
+      const n = currentGraph.nodes[idx]!;
+      const related = currentGraph.edges.filter(
+        (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
+      );
+      sidePanel.show(n, related);
+      applyFocusModeIfEnabled(n.id);
+      emit("node-click", targetId);
+    },
+    (enabled) => {
+      focusEnabled = enabled;
+      if (!focusEnabled) {
+        updateVisibility();
+      } else {
+        const id = sidePanel.currentNodeId();
+        if (id) applyFocusModeIfEnabled(id);
+      }
+    },
+  );
 
   let lastMouse = { x: 0, y: 0 };
   let lastWheelAt = 0;
@@ -173,6 +188,32 @@ export async function mount(
     const filteredNodeIndex = new Map<string, number>();
     for (const [id, idx] of nodeIndex) {
       if (visibleNodeIds.has(id)) {
+        filteredNodeIndex.set(id, idx);
+      }
+    }
+    edges.rebuild(currentGraph, kinds, filteredNodeIndex, nodePositions);
+  }
+
+  function applyFocusModeIfEnabled(selectedNodeId: string) {
+    if (!focusEnabled) return;
+    const neighbors = new Set<string>();
+    neighbors.add(selectedNodeId);
+    for (const edge of currentGraph.edges) {
+      if (!kinds.has(edge.kind)) continue;
+      if (edge.source === selectedNodeId) {
+        neighbors.add(edge.target);
+      } else if (edge.target === selectedNodeId) {
+        neighbors.add(edge.source);
+      }
+    }
+    for (let i = 0; i < currentGraph.nodes.length; i++) {
+      const id = currentGraph.nodes[i]!.id;
+      nodes.setVisible(i, visibleNodeIds.has(id) && neighbors.has(id));
+    }
+    nodes.flush();
+    const filteredNodeIndex = new Map<string, number>();
+    for (const [id, idx] of nodeIndex) {
+      if (neighbors.has(id) && visibleNodeIds.has(id)) {
         filteredNodeIndex.set(id, idx);
       }
     }
@@ -372,6 +413,7 @@ export async function mount(
           (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
         );
         sidePanel.show(n, related);
+        applyFocusModeIfEnabled(n.id);
         emit("node-click", n.id);
       }
     }
@@ -474,6 +516,7 @@ export async function mount(
               (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
           );
           sidePanel.show(n, related);
+          applyFocusModeIfEnabled(n.id);
         }
       }
     },
