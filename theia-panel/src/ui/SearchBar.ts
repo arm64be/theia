@@ -48,7 +48,7 @@ export function createSearchBar(
     wrapper.style.cssText = `
       position: absolute; top: 12px; right: calc((100% - min(320px, 50vw)) / 2); transform: none;
       z-index: 12;
-      font: 13px/1.4 'Mondwest', var(--theia-font, ui-monospace, monospace);
+      font: 13px/1.4 var(--theia-font, ${FONT_STACK});
       color: #${theme.fg}; width: min(320px, 50vw);
     `;
   }
