@@ -82,7 +82,7 @@ The API validates the dev port before returning it:
 
 | Rule                      | Reason                                    |
 |---------------------------|-------------------------------------------|
-| Must be >= 1024           | Ports < 1024 are system-reserved          |
+| Must be >= 1024           | Ports < 1024 require root privileges on Linux/macOS |
 | Must not be 9119          | Well-known Hermes internal port            |
 
 If validation fails, `dev_panel_url` is set to `null` and

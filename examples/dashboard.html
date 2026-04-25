@@ -370,9 +370,17 @@
       // ── Configuration ─────────────────────────────────────────────────────
       // Dev panel URL — override via query param: ?panel=http://host:port
       const DEFAULT_PANEL_URL = "http://localhost:5173";
-      const panelUrl =
+      let panelUrl =
         new URLSearchParams(window.location.search).get("panel") ||
         DEFAULT_PANEL_URL;
+      try {
+        const parsed = new URL(panelUrl);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          panelUrl = DEFAULT_PANEL_URL;
+        }
+      } catch {
+        panelUrl = DEFAULT_PANEL_URL;
+      }
       const panelOrigin = new URL(panelUrl).origin;
 
       // ── Iframe setup ──────────────────────────────────────────────────────

@@ -11,10 +11,10 @@ Environment modes:
   - development: Returns dev_panel_url pointing at Vite dev server
 
 Set THEIA_ENV to control the mode (default: "production").
-Set THEIA_DEV_HOST to override the Vite dev server host (default: derived
-  from incoming request headers).
+Set THEIA_DEV_HOST to override the Vite dev server host (default: localhost).
 Set THEIA_DEV_PORT to control the Vite dev server port (default: 5173).
-Port validation rejects ports < 1024 and well-known Hermes ports (e.g. 9119).
+Port validation rejects privileged ports (< 1024), ports > 65535, and
+well-known Hermes ports (e.g. 9119).
 """
 
 from __future__ import annotations
@@ -36,13 +36,16 @@ log = logging.getLogger("theia-constellation")
 
 THEIA_ENV = os.environ.get("THEIA_ENV", "production")
 THEIA_DEV_HOST = os.environ.get("THEIA_DEV_HOST", "")
-THEIA_DEV_PORT = os.environ.get("THEIA_DEV_PORT", "5173")
+_THEIA_DEV_PORT_RAW = os.environ.get("THEIA_DEV_PORT", "5173")
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_BLOCKED_PORTS: set[int] = {9119}
+_BLOCKED_PORTS: frozenset[int] = frozenset({9119})
+
+_DEV_PORT: int | None = None
+_DEV_PORT_ERROR: str | None = None
 
 
 def _validate_port(port: str | int) -> int:
@@ -57,17 +60,44 @@ def _validate_port(port: str | int) -> int:
 
     if p < 1024:
         raise ValueError(f"Port {p} is reserved (must be >= 1024)")
+    if p > 65535:
+        raise ValueError(f"Port {p} is out of range (must be <= 65535)")
     if p in _BLOCKED_PORTS:
         raise ValueError(f"Port {p} is blocked (well-known Hermes port)")
 
     return p
 
 
+try:
+    _DEV_PORT = _validate_port(_THEIA_DEV_PORT_RAW)
+except ValueError as e:
+    _DEV_PORT_ERROR = str(e)
+    log.warning("Invalid THEIA_DEV_PORT configuration: %s", _DEV_PORT_ERROR)
+
+
+def _extract_host(host: str) -> str:
+    """Extract hostname from a ``host[:port]`` string, handling IPv6."""
+    host = host.strip()
+    if host.startswith("["):
+        host = host.split("]")[0][1:]
+        return host
+    return host.split(":")[0]
+
+
+def _format_host_for_url(host: str) -> str:
+    """Wrap IPv6 addresses in brackets for URL use."""
+    if ":" in host and not host.startswith("["):
+        return f"[{host}]"
+    return host
+
+
 def _resolve_dev_url(host: str) -> str:
     """Build dev panel URL from configuration or request host."""
-    port = _validate_port(THEIA_DEV_PORT)
-    resolved_host = THEIA_DEV_HOST or host
-    return f"http://{resolved_host}:{port}"
+    if _DEV_PORT_ERROR:
+        raise ValueError(_DEV_PORT_ERROR)
+    clean_host = _extract_host(host)
+    formatted_host = _format_host_for_url(clean_host)
+    return f"http://{formatted_host}:{_DEV_PORT}"
 
 
 # ---------------------------------------------------------------------------
@@ -81,20 +111,18 @@ async def get_config(request: Request):
 
     In development mode, returns dev_panel_url so the frontend JS
     can proxy the iframe to the Vite dev server for hot-reload.
-    The host is derived from the incoming request headers
-    (``x-forwarded-host`` or ``host``), overridable via ``THEIA_DEV_HOST``.
+    The host defaults to ``localhost`` and can be overridden via
+    ``THEIA_DEV_HOST``.  Request headers are never trusted for
+    host resolution.
     """
     config: dict = {"env": THEIA_ENV, "version": "0.1.0"}
 
     if THEIA_ENV == "development":
-        forwarded = request.headers.get("x-forwarded-host", "")
-        raw_host = request.headers.get("host", "localhost")
-        host = (forwarded or raw_host).split(":")[0]
+        host = THEIA_DEV_HOST or "localhost"
 
         try:
             config["dev_panel_url"] = _resolve_dev_url(host)
         except ValueError as e:
-            log.warning("Invalid dev port configuration: %s", e)
             config["dev_panel_url"] = None
             config["dev_panel_error"] = str(e)
 
