@@ -30,6 +30,27 @@ set -euo pipefail
 # Config
 # ---------------------------------------------------------------------------
 REPO_URL="https://github.com/arm64be/theia"
+REPO_TAG="main"  # pin to a release tag or commit SHA for production
+
+# ---------------------------------------------------------------------------
+# Curl-pipe bootstrap: when BASH_SOURCE is empty the script was piped via
+#   curl -fsSL https://raw.githubusercontent.com/arm64be/theia/main/install.sh | bash
+# Download a tarball of the repo into a temp directory and re-exec from
+# there so the full checkout (theia-core, theia-panel, plugin) is available.
+# ---------------------------------------------------------------------------
+if [ -z "${BASH_SOURCE[0]:-}" ]; then
+    TMPDIR="$(mktemp -d)"
+    ARCHIVE_URL="${REPO_URL}/archive/${REPO_TAG}.tar.gz"
+
+    echo ""
+    echo "  Downloading Theia from ${ARCHIVE_URL} ..."
+    echo ""
+
+    curl -fsSL "$ARCHIVE_URL" | tar xz -C "$TMPDIR"
+
+    REPODIR="${TMPDIR}/theia-${REPO_TAG}"
+    exec bash "${REPODIR}/install.sh" "$@"
+fi
 HERMES_HOME="${THEIA_HOME:-${HERMES_HOME:-${HOME}/.hermes}}"
 INSTALL_DIR="${HERMES_HOME}/hermes-theia"
 VENV_DIR="${INSTALL_DIR}/.venv"
@@ -57,9 +78,6 @@ Options:
   --no-service     Skip the watcher service prompt
   --no-update      Don't git-pull if the repo is already cloned
   -h, --help       Show this help and exit
-
-Tip: pipe-from-curl users can pass flags via:
-     curl -fsSL .../install.sh | bash -s -- --no-service
 EOF
 }
 
@@ -88,7 +106,9 @@ ok()   { printf "${GREEN}[ OK ]${RESET}  %s\n" "$*"; }
 warn() { printf "${YELLOW}[WARN]${RESET}  %s\n" "$*" >&2; }
 err()  { printf "${RED}[ERR ]${RESET}  %s\n" "$*" >&2; }
 
-trap 'err "Installation failed at line $LINENO."; err "To retry: rm -rf ${INSTALL_DIR} && bash install.sh"; exit 1' ERR
+ORIG_INSTALL_DIR="${INSTALL_DIR}"
+_FRESH_CLONE=false
+trap 'err "Installation failed at line $LINENO."; if $_FRESH_CLONE; then err "To retry: rm -rf ${ORIG_INSTALL_DIR} && bash install.sh"; else err "Check the messages above and fix any issues, then re-run bash install.sh"; fi; exit 1' ERR
 
 # ---------------------------------------------------------------------------
 # OS detection
@@ -158,7 +178,8 @@ clone_repo() {
 
     info "Cloning ${REPO_URL} -> ${INSTALL_DIR}..."
     mkdir -p "$(dirname "$INSTALL_DIR")"
-    git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
+    git clone --depth 1 --branch "$REPO_TAG" "$REPO_URL" "$INSTALL_DIR"
+    _FRESH_CLONE=true
     ok "Repository cloned"
 }
 
