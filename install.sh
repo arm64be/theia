@@ -27,6 +27,32 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
+# Curl-pipe detection: if stdin is not a tty and we can't find a local git
+# repo, the user likely ran something like:
+#   curl -fsSL https://raw.githubusercontent.com/arm64be/theia/main/install.sh | bash
+# That won't work because install.sh needs the full checkout.  Guide them.
+# ---------------------------------------------------------------------------
+if [ ! -t 0 ] && [ ! -d "$(cd "$(dirname "${BASH_SOURCE[0]:-}")" && pwd 2>/dev/null)/.git" ]; then
+    echo ""
+    echo "  Detected pipe-from-curl / non-interactive install."
+    echo ""
+    echo "  Theia's install.sh is NOT designed to run standalone — it needs the"
+    echo "  entire repository (theia-core, theia-panel, plugin files)."
+    echo ""
+    echo "  Please clone the repo first:"
+    echo ""
+    echo "    git clone https://github.com/arm64be/theia.git"
+    echo "    cd theia"
+    echo "    bash install.sh"
+    echo ""
+    echo "  If you want to pass flags, append them after the script path:"
+    echo ""
+    echo "    bash install.sh --dev --no-service"
+    echo ""
+    exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 REPO_URL="https://github.com/arm64be/theia"
