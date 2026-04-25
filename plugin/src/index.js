@@ -266,7 +266,7 @@
           panelInfo.env.toUpperCase())
       : null;
 
-    return h("div", { className: "flex flex-col gap-6" },
+    return h("div", { className: "flex flex-col gap-6 min-h-0", style: { flex: 1 } },
 
       // Header
       h(Card, null,
