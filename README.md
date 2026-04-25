@@ -22,7 +22,7 @@ cd theia-core && pip install -e ".[dev]" && cd ..
 cd theia-panel && npm ci && cd ..
 
 # 4. Generate a graph from your Hermes database
-python -m theia_core --watch
+theia-core --watch
 
 # 5. Start the dev server
 cd theia-panel && npm run dev
@@ -166,7 +166,7 @@ git pull --ff-only
 cd theia-core && pip install -e ".[dev]" && cd ..
 
 # Reinstall panel (if dependencies changed)
-cd theia-panel && npm ci && cd ..
+cd theia-panel && npm install && cd ..
 
 # Regenerate TS types from schema (if schema changed)
 cd theia-panel && npm run generate-types && cd ..
