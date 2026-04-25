@@ -30,7 +30,7 @@ set -euo pipefail
 # Config
 # ---------------------------------------------------------------------------
 REPO_URL="https://github.com/arm64be/theia"
-HERMES_HOME="${THEIA_HOME:-${HOME}/.hermes}"
+HERMES_HOME="${THEIA_HOME:-${HERMES_HOME:-${HOME}/.hermes}}"
 INSTALL_DIR="${HERMES_HOME}/hermes-theia"
 VENV_DIR="${INSTALL_DIR}/.venv"
 PLUGINS_DIR="${HERMES_HOME}/plugins"

@@ -2,7 +2,7 @@
 
 Both `theia-core` and `theia-panel` expect a `.hermes` directory (default
 `$HOME/.hermes`) containing session archives and the generated graph. Override
-with the `THEIA_HOME` environment variable.
+with `THEIA_HOME` (or `HERMES_HOME` as fallback).
 
 ## Mount surface
 

@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 
 const THEIA_HOME =
-  process.env.THEIA_HOME || resolve(process.env.HOME || "/", ".hermes");
+  process.env.THEIA_HOME || process.env.HERMES_HOME || resolve(process.env.HOME || "/", ".hermes");
 
 export default defineConfig(({ command }) => ({
   server: {
