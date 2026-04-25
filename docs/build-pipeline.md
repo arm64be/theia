@@ -62,6 +62,33 @@ During `vite` serve, the dev server reads `theia-graph.json` from
 a custom middleware. `index.html` calls
 `mount(document.getElementById("app"), "/theia-graph.json")`.
 
+### Dev URL resolution
+
+When `THEIA_ENV=development`, the plugin API's `/config` endpoint returns a
+`dev_panel_url` that the dashboard uses to load the panel iframe. The URL is
+resolved in the following order:
+
+1. **`THEIA_DEV_HOST`** env var — explicit override (e.g. `THEIA_DEV_HOST=192.168.1.50`)
+2. **`X-Forwarded-Host`** request header — respects reverse-proxy setups
+3. **`Host`** request header — fallback to the incoming request host
+4. **`localhost`** — ultimate fallback
+
+Port is controlled by **`THEIA_DEV_PORT`** (default `5173`). Both the host
+and port resolution apply to any environment where `THEIA_ENV=development`.
+
+### Port validation
+
+The API validates the dev port before returning it:
+
+| Rule                      | Reason                                    |
+|---------------------------|-------------------------------------------|
+| Must be >= 1024           | Ports < 1024 are system-reserved          |
+| Must not be 9119          | Well-known Hermes internal port            |
+
+If validation fails, `dev_panel_url` is set to `null` and
+`dev_panel_error` contains the reason. This prevents the dashboard from
+loading a misconfigured panel.
+
 ## 4. `theia-panel` library build
 
 ```bash

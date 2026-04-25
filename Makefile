@@ -69,10 +69,10 @@ dev: dev-link ## Start dev environment (Vite hot-reload + plugin symlink)
 	@echo "    Panel:     http://localhost:$(DEV_PORT)"
 	@echo "    Dashboard: run 'THEIA_ENV=development hermes dashboard'"
 	@echo ""
-	THEIA_ENV=development cd theia-panel && npx vite --host 127.0.0.1 --port $(DEV_PORT)
+	THEIA_ENV=development cd theia-panel && npx vite --host 0.0.0.0 --port $(DEV_PORT)
 
 dev-panel: ## Start panel dev server only
-	cd theia-panel && npx vite --host 127.0.0.1 --port $(DEV_PORT)
+	cd theia-panel && npx vite --host 0.0.0.0 --port $(DEV_PORT)
 
 dev-link: ## Symlink plugin source into ~/.hermes/plugins for dev
 	@mkdir -p $(HERMES_PLUGINS)
