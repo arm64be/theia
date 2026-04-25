@@ -427,7 +427,12 @@ export async function mount(
 
   element.addEventListener("mouseup", (e) => {
     const target = e.target as HTMLElement;
-    if (target.closest("aside")) return;
+    if (target.closest("aside")) {
+      isMouseDown = false;
+      hasDragged = false;
+      dragMode = null;
+      return;
+    }
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
       const idx = picker.pickAt(e.clientX, e.clientY, 1.0);
       if (idx !== null) {

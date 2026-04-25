@@ -100,6 +100,8 @@ export function createSidePanel(
 
   const focusStyle = document.createElement("style");
   focusStyle.textContent = `aside:focus-visible { outline: 1px solid #${theme.accent} !important; }
+[data-focus-toggle]:checked { background: #${theme.accent} !important; border-color: #${theme.accent} !important; }
+[data-focus-toggle]:focus-visible { outline: 1px solid #${theme.accent}; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   aside { transition: none !important; }
 }`;
@@ -164,7 +166,7 @@ export function createSidePanel(
       </dl>
       <div style="margin:20px 0 0;border-top:1px solid #${theme.border}"></div>
       <label style="display:flex;align-items:center;gap:6px;padding:8px 0;font-size:11px;cursor:pointer;user-select:none;color:#${theme.fg}">
-        <input type="checkbox" data-focus-toggle ${focusMode ? "checked" : ""} style="accent-color:#${theme.accent}">
+        <input type="checkbox" data-focus-toggle ${focusMode ? "checked" : ""} style="appearance:none;width:14px;height:14px;margin:0;flex-shrink:0;border:1px solid #${theme.border};border-radius:${theme.radius};background:#${theme.bg};cursor:pointer;transition:background .15s,border-color .15s">
         Focus on connected nodes
       </label>
       <h4 style="margin:0 0 8px;font-size:10px;letter-spacing:0.12em;opacity:0.5;text-transform:uppercase">Connections</h4>
