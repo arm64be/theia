@@ -312,9 +312,13 @@ function renderEdge(
     const ev = (e.evidence ?? {}) as CronChainEvidence;
     const jobId = ev.cron_job_id;
     const intervalHours = ev.interval_hours;
+    const intervalText =
+      typeof intervalHours === "number" && Number.isFinite(intervalHours)
+        ? `\u00b7 interval ${intervalHours.toFixed(1)}h`
+        : "";
     detail = `<div style="${detailAttrStyle(theme)}">
       cron job: <span style="color:#${theme.accent}">${escape(String(jobId ?? "?"))}</span>
-      ${intervalHours !== undefined ? `\u00b7 interval ${Number(intervalHours).toFixed(1)}h` : ""}
+      ${intervalText}
     </div>`;
   }
 
