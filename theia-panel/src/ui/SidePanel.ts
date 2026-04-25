@@ -3,6 +3,31 @@ import type { ThemeTokens } from "./Theme";
 import { themeBgAlpha, FONT_STACK } from "./Theme";
 import { escape, truncate } from "./utils";
 
+interface MemoryShareEvidence {
+  memory_id?: unknown;
+  salience?: unknown;
+  read_count?: unknown;
+}
+interface CrossSearchEvidence {
+  query?: unknown;
+  hit_rank?: unknown;
+  hits?: unknown;
+}
+interface ToolOverlapEvidence {
+  shared_tools?: unknown;
+  jaccard?: unknown;
+  skill_name?: unknown;
+  link_type?: unknown;
+  web_key?: unknown;
+}
+interface SubagentEvidence {
+  child_session_id?: unknown;
+}
+interface CronChainEvidence {
+  cron_job_id?: unknown;
+  interval_hours?: unknown;
+}
+
 const SUMMARY_MAX_CHARS = 280;
 
 /** Approximate the dashboard's `bg-card` pattern: blend midground into bg at 4%. */
@@ -230,11 +255,11 @@ function renderEdge(
   const isSource = e.source === node.id;
   const otherId = isSource ? e.target : e.source;
   const direction = isSource ? "\u2192" : "\u2190";
-  const ev = (e.evidence ?? {}) as Record<string, unknown>;
   const color = `#${theme.accent}`;
 
   let detail = "";
   if (e.kind === "memory-share") {
+    const ev = (e.evidence ?? {}) as MemoryShareEvidence;
     const memId = ev.memory_id;
     const salience = ev.salience;
     const readCount = ev.read_count;
@@ -244,6 +269,7 @@ function renderEdge(
       ${readCount !== undefined ? `\u00b7 reads ${readCount}` : ""}
     </div>`;
   } else if (e.kind === "cross-search") {
+    const ev = (e.evidence ?? {}) as CrossSearchEvidence;
     const query = ev.query;
     const hitRank = ev.hit_rank;
     const hits = ev.hits;
@@ -253,6 +279,7 @@ function renderEdge(
       ${hits !== undefined ? `\u00b7 ${hits} hit${Number(hits) === 1 ? "" : "s"}` : ""}
     </div>`;
   } else if (e.kind === "tool-overlap") {
+    const ev = (e.evidence ?? {}) as ToolOverlapEvidence;
     const sharedTools = ev.shared_tools;
     const jaccard = ev.jaccard;
     const skillName = ev.skill_name;
@@ -274,6 +301,7 @@ function renderEdge(
       </div>`;
     }
   } else if (e.kind === "subagent") {
+    const ev = (e.evidence ?? {}) as SubagentEvidence;
     const isChild = node.id === e.target;
     const label = isChild ? "parent" : "child";
     const displayId = isChild ? e.source : ev.child_session_id;
@@ -281,6 +309,7 @@ function renderEdge(
       ${label}: <span style="color:#${theme.accent}">${escape(String(displayId ?? "?"))}</span>
     </div>`;
   } else if (e.kind === "cron-chain") {
+    const ev = (e.evidence ?? {}) as CronChainEvidence;
     const jobId = ev.cron_job_id;
     const intervalHours = ev.interval_hours;
     detail = `<div style="${detailAttrStyle(theme)}">

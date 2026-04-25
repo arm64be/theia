@@ -21,7 +21,7 @@ def detect_cron_chain(sessions: list[Session]) -> list[Edge]:
     edges: list[Edge] = []
     for job_id, group in by_job.items():
         group.sort(key=lambda s: s.started_at)
-        for prev_sess, next_sess in zip(group, group[1:], strict=True):
+        for prev_sess, next_sess in zip(group, group[1:]):
             hours = (next_sess.started_at - prev_sess.started_at).total_seconds() / 3600
             weight = max(0.1, min(1.0, 1.0 / (1.0 + hours * 0.1)))
             edges.append(

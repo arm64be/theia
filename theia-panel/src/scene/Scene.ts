@@ -85,14 +85,7 @@ export function createScene(container: HTMLElement): SceneContext {
       const rotateSpeed = 0.005;
       theta -= dxPixel * rotateSpeed;
       phi -= dyPixel * rotateSpeed;
-      if (phi < 0) {
-        phi = -phi;
-        theta += Math.PI;
-      } else if (phi > Math.PI) {
-        phi = 2 * Math.PI - phi;
-        theta += Math.PI;
-      }
-      phi = Math.max(0.001, Math.min(Math.PI - 0.001, phi));
+      phi = Math.max(0.01, Math.min(Math.PI - 0.01, phi));
       updateCamera();
     },
     focusOn(x: number, y: number, targetZoom?: number) {

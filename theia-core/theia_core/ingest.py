@@ -184,13 +184,17 @@ def _extract_cron_job_id(session_id: str) -> str | None:
 
     Cron session IDs follow the pattern ``cron_<job_id>_<timestamp>``,
     e.g. ``cron_8974a4d0b3cc_20260330_171037``.
+
+    Uses ``rsplit`` from the right so that the job ID itself may
+    contain underscores (e.g. ``cron_my_job_20260330_171037``).
     """
     if not session_id.startswith("cron_"):
         return None
-    parts = session_id.split("_", 2)
-    if len(parts) < 3:
+    rest = session_id[len("cron_"):]
+    parts = rest.rsplit("_", 1)
+    if len(parts) < 2:
         return None
-    return parts[1]
+    return parts[0]
 
 
 def load_sessions(db_path: Path, include_children: bool = True) -> list[Session]:
