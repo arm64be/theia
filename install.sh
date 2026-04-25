@@ -39,6 +39,11 @@ REPO_TAG="main"  # pin to a release tag or commit SHA for production
 # there so the full checkout (theia-core, theia-panel, plugin) is available.
 # ---------------------------------------------------------------------------
 if [ -z "${BASH_SOURCE[0]:-}" ]; then
+    if ! command -v git >/dev/null 2>&1; then
+        echo "error: git is required to install Theia. Install git and re-run." >&2
+        exit 1
+    fi
+
     TMPDIR="$(mktemp -d)"
 
     echo ""
