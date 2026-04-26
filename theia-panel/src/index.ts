@@ -13,6 +13,7 @@ import { createSearchBar } from "./ui/SearchBar";
 import { createSidePanel } from "./ui/SidePanel";
 import { readTheme, applyTheme, onThemeMessage, FONT_STACK } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
+import { startDebugInstrumentation } from "./util/debugInstrument";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -71,6 +72,10 @@ export async function mount(
 
   element.style.position ||= "relative";
   element.style.overflow = "hidden";
+
+  // Diagnostic logging for arm64be/theia#69 — only emits when the
+  // panel URL has `?debug=1` (or localStorage["theia-debug"] === "1").
+  const stopDebug = startDebugInstrumentation(element);
 
   const ctx = createScene(element);
   ctx.setZoom(0.5);
@@ -567,6 +572,7 @@ export async function mount(
   return {
     destroy() {
       disposed = true;
+      stopDebug();
       stopThemeListener();
       simulation.stop();
       nodes.dispose();

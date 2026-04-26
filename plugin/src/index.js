@@ -168,6 +168,59 @@
     return selectionState;
   }
 
+  /**
+   * Mirror the panel's debug snapshots (theia#69 instrumentation) into
+   * the host console alongside the dashboard's own DPR / font-size /
+   * iframe geometry.  Active only when `?theia-debug=1` is on the
+   * dashboard URL or `localStorage.theia-debug === "1"`.
+   *
+   * The point is to compare the iframe's reported geometry against
+   * what the dashboard sees from the outside — that's the only way to
+   * confirm whether the ~125% scaling lives in the iframe DOM or in
+   * the browser's compositor.
+   */
+  function useDebugMirror(iframeRef) {
+    useEffect(function () {
+      var enabled = false;
+      try {
+        enabled =
+          new URLSearchParams(window.location.search).get("theia-debug") === "1" ||
+          window.localStorage.getItem("theia-debug") === "1";
+      } catch (_) { enabled = false; }
+      if (!enabled) return;
+
+      function logHostState(label) {
+        var iframe = iframeRef.current;
+        var rect = iframe ? iframe.getBoundingClientRect() : null;
+        // eslint-disable-next-line no-console
+        console.info("[theia-debug:host]", {
+          label: label,
+          devicePixelRatio: window.devicePixelRatio,
+          rootFontSizePx: parseFloat(getComputedStyle(document.documentElement).fontSize),
+          innerSize: { width: window.innerWidth, height: window.innerHeight },
+          iframeRect: rect ? { width: rect.width, height: rect.height } : null,
+          iframeAttr: iframe ? { width: iframe.width, height: iframe.height } : null,
+        });
+      }
+
+      function onMessage(event) {
+        if (event.data && event.data.type === "theia-debug-info") {
+          // eslint-disable-next-line no-console
+          console.info("[theia-debug:iframe]", event.data);
+          logHostState("after-iframe-snapshot");
+        }
+      }
+      window.addEventListener("message", onMessage);
+      logHostState("mount");
+      var onResize = function () { logHostState("host-resize"); };
+      window.addEventListener("resize", onResize);
+      return function () {
+        window.removeEventListener("message", onMessage);
+        window.removeEventListener("resize", onResize);
+      };
+    }, []);
+  }
+
   /** Track fullscreen state and nudge the iframe to resize. */
   function useFullscreen(containerRef, iframeRef) {
     var fsState = useState(false);
@@ -214,6 +267,7 @@
     var selectedNodeState = useNodeSelection();
     var selectedNode = selectedNodeState[0];
     var fs = useFullscreen(containerRef, iframeRef);
+    useDebugMirror(iframeRef);
 
     // Fill remaining viewport height so the graph isn't squished.
     // The dashboard's Routes wrapper doesn't propagate flex height,
