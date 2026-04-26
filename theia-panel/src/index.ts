@@ -470,6 +470,12 @@ export async function mount(
   let mouseDownPos = { x: 0, y: 0 };
   let dragMode: "rotate" | "pan" | null = null;
 
+  function resetDrag() {
+    isMouseDown = false;
+    hasDragged = false;
+    dragMode = null;
+  }
+
   element.addEventListener("mousedown", (e) => {
     if ((e.target as HTMLElement).closest("[data-ui-overlay]")) return;
     if (e.button === 0) dragMode = "rotate";
@@ -500,9 +506,7 @@ export async function mount(
   element.addEventListener("mouseup", (e) => {
     const target = e.target as HTMLElement;
     if (target.closest("aside") || target.closest("[data-ui-overlay]")) {
-      isMouseDown = false;
-      hasDragged = false;
-      dragMode = null;
+      resetDrag();
       return;
     }
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
@@ -521,10 +525,11 @@ export async function mount(
         sidePanel.hide();
       }
     }
-    isMouseDown = false;
-    hasDragged = false;
-    dragMode = null;
+    resetDrag();
   });
+
+  // Catch mouseup outside the element/viewport to prevent stuck drag states
+  window.addEventListener("mouseup", resetDrag);
 
   element.addEventListener("contextmenu", (e) => {
     e.preventDefault();
@@ -585,6 +590,7 @@ export async function mount(
   return {
     destroy() {
       disposed = true;
+      window.removeEventListener("mouseup", resetDrag);
       stopThemeListener();
       simulation.stop();
       nodes.dispose();
