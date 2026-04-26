@@ -148,6 +148,17 @@ export async function mount(
     filterBar.setSearchToggleVisible(true);
   }
 
+  function onFocusToggle(enabled: boolean) {
+    focusEnabled = enabled;
+    if (!focusEnabled) {
+      focusFilter = null;
+      updateVisibility();
+    } else {
+      const id = sidePanel.currentNodeId();
+      if (id) applyFocusModeIfEnabled(id);
+    }
+  }
+
   const sidePanel = createSidePanel(element, theme, {
     onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
@@ -165,20 +176,16 @@ export async function mount(
       emit("node-click", targetId);
     },
     onClose: () => {
+      if (focusEnabled) {
+        focusEnabled = false;
+        focusFilter = null;
+        updateVisibility();
+        filterBar.setFocusEnabled(false);
+      }
       clearSelected();
       searchBar.setPanelOpen(false);
       filterBar.setSearchToggleVisible(false);
       nodes.flush();
-    },
-    onFocusToggle: (enabled) => {
-      focusEnabled = enabled;
-      if (!focusEnabled) {
-        focusFilter = null;
-        updateVisibility();
-      } else {
-        const id = sidePanel.currentNodeId();
-        if (id) applyFocusModeIfEnabled(id);
-      }
     },
   });
 
@@ -563,6 +570,8 @@ export async function mount(
       sidePanel.hide();
       searchBar.input.focus();
     },
+    onFocusToggle,
+    focusEnabled,
   );
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
