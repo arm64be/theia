@@ -148,6 +148,17 @@ export async function mount(
     filterBar.setSearchToggleVisible(true);
   }
 
+  function onFocusToggle(enabled: boolean) {
+    focusEnabled = enabled;
+    if (!focusEnabled) {
+      focusFilter = null;
+      updateVisibility();
+    } else {
+      const id = sidePanel.currentNodeId();
+      if (id) applyFocusModeIfEnabled(id);
+    }
+  }
+
   const sidePanel = createSidePanel(element, theme, {
     onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
@@ -165,20 +176,14 @@ export async function mount(
       emit("node-click", targetId);
     },
     onClose: () => {
+      if (focusEnabled) {
+        onFocusToggle(false);
+        filterBar.setFocusEnabled(false);
+      }
       clearSelected();
       searchBar.setPanelOpen(false);
       filterBar.setSearchToggleVisible(false);
       nodes.flush();
-    },
-    onFocusToggle: (enabled) => {
-      focusEnabled = enabled;
-      if (!focusEnabled) {
-        focusFilter = null;
-        updateVisibility();
-      } else {
-        const id = sidePanel.currentNodeId();
-        if (id) applyFocusModeIfEnabled(id);
-      }
     },
   });
 
@@ -563,10 +568,14 @@ export async function mount(
       if (id) applyFocusModeIfEnabled(id);
     },
     theme,
-    modelFilter,
-    () => {
-      sidePanel.hide();
-      searchBar.input.focus();
+    {
+      initialModel: modelFilter,
+      onSearchToggle: () => {
+        sidePanel.hide();
+        searchBar.input.focus();
+      },
+      onFocusToggle,
+      initialFocusEnabled: focusEnabled,
     },
   );
 

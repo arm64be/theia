@@ -29,7 +29,7 @@ export interface ThemeTokens {
 }
 
 export const FONT_STACK =
-  "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 const DEFAULTS: ThemeTokens = {
   bg: "07080d",

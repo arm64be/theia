@@ -51,15 +51,23 @@ export interface FilterState {
   model: string | null;
 }
 
+export interface FilterBarOptions {
+  initialModel?: string | null;
+  onSearchToggle?: () => void;
+  onFocusToggle?: (enabled: boolean) => void;
+  initialFocusEnabled?: boolean;
+}
+
 export function createFilterBar(
   container: HTMLElement,
   initial: Set<TheiaGraph["edges"][number]["kind"]>,
   graph: TheiaGraph,
   onChange: (state: FilterState) => void,
   initialTheme: ThemeTokens,
-  initialModel?: string | null,
-  onSearchToggle?: () => void,
+  options: FilterBarOptions = {},
 ) {
+  const { initialModel, onSearchToggle, onFocusToggle, initialFocusEnabled } =
+    options;
   let theme = initialTheme;
   const bar = document.createElement("div");
   bar.dataset.uiOverlay = "";
@@ -68,6 +76,7 @@ export function createFilterBar(
   let select: HTMLSelectElement | null = null;
   let dropdownOpen = false;
   let showSearchToggle = false;
+  let focusEnabled = initialFocusEnabled ?? false;
 
   const btn = document.createElement("button");
   btn.textContent = "Filters";
@@ -274,10 +283,51 @@ export function createFilterBar(
     };
   }
 
+  let focusToggleEl: HTMLLabelElement | null = null;
+  let focusCb: HTMLInputElement | null = null;
+
+  function applyFocusToggleStyle() {
+    if (!focusToggleEl || !focusCb) return;
+    focusToggleEl.style.cssText = `
+      display: flex; gap: 10px; align-items: center; cursor: pointer;
+      letter-spacing: 0.05em;
+      color: ${focusEnabled ? `#${theme.fg}` : `#${theme.fg2}`};
+      margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid #${theme.border};
+    `;
+    focusCb.style.cssText = `
+      appearance: none; width: 14px; height: 14px; margin: 0; flex-shrink: 0;
+      border: 1px solid #${theme.border};
+      border-radius: ${theme.radius};
+      background: ${focusEnabled ? `#${theme.accent}` : `#${theme.bg}`};
+      cursor: pointer; transition: background .15s, border-color .15s;
+    `;
+    focusToggleEl.style.color = focusEnabled ? `#${theme.fg}` : `#${theme.fg2}`;
+  }
+
+  function initFocusToggle() {
+    focusToggleEl = document.createElement("label");
+    focusCb = document.createElement("input");
+    focusCb.type = "checkbox";
+    focusCb.checked = focusEnabled;
+    focusCb.onchange = () => {
+      focusEnabled = focusCb!.checked;
+      applyFocusToggleStyle();
+      onFocusToggle?.(focusEnabled);
+    };
+    focusToggleEl.append(
+      focusCb,
+      document.createTextNode("Focus on connected nodes"),
+    );
+    applyFocusToggleStyle();
+    content.append(focusToggleEl);
+  }
+
   applyBarStyle();
   dropdown.appendChild(content);
   bar.append(btn, searchToggle, dropdown);
   rebuildModelSelect();
+  initFocusToggle();
   container.appendChild(bar);
 
   function setSearchToggleVisible(visible: boolean) {
@@ -290,17 +340,27 @@ export function createFilterBar(
     rebuildModelSelect();
   }
 
+  function setFocusEnabled(enabled: boolean) {
+    focusEnabled = enabled;
+    if (focusCb) {
+      focusCb.checked = enabled;
+    }
+    applyFocusToggleStyle();
+  }
+
   function updateTheme(newTheme: ThemeTokens) {
     theme = newTheme;
     applyBarStyle();
     for (const t of toggles) t._applyStyle();
     applySelectStyle();
+    applyFocusToggleStyle();
   }
 
   return {
     updateTheme,
     updateGraph,
     setSearchToggleVisible,
+    setFocusEnabled,
     dispose: () => {
       document.removeEventListener("pointerdown", onDocumentClick);
       container.removeChild(bar);
