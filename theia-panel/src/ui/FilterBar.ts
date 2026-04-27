@@ -51,17 +51,22 @@ export interface FilterState {
   model: string | null;
 }
 
+export interface FilterBarOptions {
+  initialModel?: string | null;
+  onSearchToggle?: () => void;
+  onFocusToggle?: (enabled: boolean) => void;
+  initialFocusEnabled?: boolean;
+}
+
 export function createFilterBar(
   container: HTMLElement,
   initial: Set<TheiaGraph["edges"][number]["kind"]>,
   graph: TheiaGraph,
   onChange: (state: FilterState) => void,
   initialTheme: ThemeTokens,
-  initialModel?: string | null,
-  onSearchToggle?: () => void,
-  onFocusToggle?: (enabled: boolean) => void,
-  initialFocusEnabled?: boolean,
+  options: FilterBarOptions = {},
 ) {
+  const { initialModel, onSearchToggle, onFocusToggle, initialFocusEnabled } = options;
   let theme = initialTheme;
   const bar = document.createElement("div");
   bar.dataset.uiOverlay = "";
@@ -278,40 +283,44 @@ export function createFilterBar(
   }
 
   let focusToggleEl: HTMLLabelElement | null = null;
+  let focusCb: HTMLInputElement | null = null;
 
-  function rebuildFocusToggle() {
-    if (focusToggleEl) focusToggleEl.remove();
-    focusToggleEl = document.createElement("label");
+  function applyFocusToggleStyle() {
+    if (!focusToggleEl || !focusCb) return;
     focusToggleEl.style.cssText = `
       display: flex; gap: 10px; align-items: center; cursor: pointer;
-      font: 10px/1.4 var(--theia-font, ${FONT_STACK});
       letter-spacing: 0.05em;
       color: ${focusEnabled ? `#${theme.fg}` : `#${theme.fg2}`};
       margin-top: 8px; padding-top: 8px;
       border-top: 1px solid #${theme.border};
     `;
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = focusEnabled;
-    cb.style.cssText = `
+    focusCb.style.cssText = `
       appearance: none; width: 14px; height: 14px; margin: 0; flex-shrink: 0;
       border: 1px solid #${theme.border};
       border-radius: ${theme.radius};
       background: ${focusEnabled ? `#${theme.accent}` : `#${theme.bg}`};
       cursor: pointer; transition: background .15s, border-color .15s;
     `;
-    cb.onchange = () => {
-      focusEnabled = cb.checked;
-      cb.style.background = focusEnabled ? `#${theme.accent}` : `#${theme.bg}`;
-      focusToggleEl!.style.color = focusEnabled
-        ? `#${theme.fg}`
-        : `#${theme.fg2}`;
+    focusToggleEl.style.color = focusEnabled
+      ? `#${theme.fg}`
+      : `#${theme.fg2}`;
+  }
+
+  function initFocusToggle() {
+    focusToggleEl = document.createElement("label");
+    focusCb = document.createElement("input");
+    focusCb.type = "checkbox";
+    focusCb.checked = focusEnabled;
+    focusCb.onchange = () => {
+      focusEnabled = focusCb!.checked;
+      applyFocusToggleStyle();
       onFocusToggle?.(focusEnabled);
     };
     focusToggleEl.append(
-      cb,
+      focusCb,
       document.createTextNode("Focus on connected nodes"),
     );
+    applyFocusToggleStyle();
     content.append(focusToggleEl);
   }
 
@@ -319,7 +328,7 @@ export function createFilterBar(
   dropdown.appendChild(content);
   bar.append(btn, searchToggle, dropdown);
   rebuildModelSelect();
-  rebuildFocusToggle();
+  initFocusToggle();
   container.appendChild(bar);
 
   function setSearchToggleVisible(visible: boolean) {
@@ -334,13 +343,10 @@ export function createFilterBar(
 
   function setFocusEnabled(enabled: boolean) {
     focusEnabled = enabled;
-    if (focusToggleEl) {
-      const cb = focusToggleEl.querySelector(
-        "input[type=checkbox]",
-      ) as HTMLInputElement;
-      if (cb) cb.checked = enabled;
-      focusToggleEl.style.color = enabled ? `#${theme.fg}` : `#${theme.fg2}`;
+    if (focusCb) {
+      focusCb.checked = enabled;
     }
+    applyFocusToggleStyle();
   }
 
   function updateTheme(newTheme: ThemeTokens) {
@@ -348,7 +354,7 @@ export function createFilterBar(
     applyBarStyle();
     for (const t of toggles) t._applyStyle();
     applySelectStyle();
-    rebuildFocusToggle();
+    applyFocusToggleStyle();
   }
 
   return {

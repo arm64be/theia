@@ -177,9 +177,7 @@ export async function mount(
     },
     onClose: () => {
       if (focusEnabled) {
-        focusEnabled = false;
-        focusFilter = null;
-        updateVisibility();
+        onFocusToggle(false);
         filterBar.setFocusEnabled(false);
       }
       clearSelected();
@@ -565,13 +563,15 @@ export async function mount(
       if (id) applyFocusModeIfEnabled(id);
     },
     theme,
-    modelFilter,
-    () => {
-      sidePanel.hide();
-      searchBar.input.focus();
+    {
+      initialModel: modelFilter,
+      onSearchToggle: () => {
+        sidePanel.hide();
+        searchBar.input.focus();
+      },
+      onFocusToggle,
+      initialFocusEnabled: focusEnabled,
     },
-    onFocusToggle,
-    focusEnabled,
   );
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
