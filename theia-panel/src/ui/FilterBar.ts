@@ -66,7 +66,8 @@ export function createFilterBar(
   initialTheme: ThemeTokens,
   options: FilterBarOptions = {},
 ) {
-  const { initialModel, onSearchToggle, onFocusToggle, initialFocusEnabled } = options;
+  const { initialModel, onSearchToggle, onFocusToggle, initialFocusEnabled } =
+    options;
   let theme = initialTheme;
   const bar = document.createElement("div");
   bar.dataset.uiOverlay = "";
@@ -301,9 +302,7 @@ export function createFilterBar(
       background: ${focusEnabled ? `#${theme.accent}` : `#${theme.bg}`};
       cursor: pointer; transition: background .15s, border-color .15s;
     `;
-    focusToggleEl.style.color = focusEnabled
-      ? `#${theme.fg}`
-      : `#${theme.fg2}`;
+    focusToggleEl.style.color = focusEnabled ? `#${theme.fg}` : `#${theme.fg2}`;
   }
 
   function initFocusToggle() {
