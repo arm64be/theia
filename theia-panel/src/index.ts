@@ -96,11 +96,12 @@ export async function mount(
   edgesScene.add(edges.group);
 
   const post = createPost(ctx.renderer, ctx.scene, ctx.camera, element);
-  const originalResize = ctx.resize;
-  ctx.resize = () => {
-    originalResize();
-    post.resize();
-  };
+  // Run the post-processing resize after the base scene resize. Must
+  // use ctx.onResize — replacing ctx.resize from outside would not
+  // affect the internal ResizeObserver, leaving post render-targets at
+  // the wrong size when the container resizes (causing blur during
+  // fullscreen toggle in particular). See Scene.ts for the rationale.
+  ctx.onResize(() => post.resize());
 
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
   let modelFilter: string | null = null;
