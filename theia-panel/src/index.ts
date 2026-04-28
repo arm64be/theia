@@ -110,6 +110,7 @@ export async function mount(
     modelFilter = saved.model;
   }
   let focusEnabled = false;
+  let searchFocusEnabled = false;
   let focusFilter: Set<string> | null = null;
 
   // Mutable graph-specific state — closures capture the binding, not the value
@@ -157,6 +158,13 @@ export async function mount(
       const id = sidePanel.currentNodeId();
       if (id) applyFocusModeIfEnabled(id);
     }
+  }
+
+  function onSearchFocusToggle(enabled: boolean) {
+    searchFocusEnabled = enabled;
+    updateVisibility();
+    const id = sidePanel.currentNodeId();
+    if (id) applyFocusModeIfEnabled(id);
   }
 
   const sidePanel = createSidePanel(element, theme, {
@@ -245,6 +253,17 @@ export async function mount(
 
   function updateVisibility() {
     visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
+    if (searchFocusEnabled && searchBar) {
+      const query = searchBar.input.value.trim();
+      if (query) {
+        const matchedIds = searchBar.getMatchedNodeIds(query);
+        const filtered = new Set<string>();
+        for (const id of visibleNodeIds) {
+          if (matchedIds.has(id)) filtered.add(id);
+        }
+        visibleNodeIds = filtered;
+      }
+    }
     for (let i = 0; i < currentGraph.nodes.length; i++) {
       nodes.setVisible(i, visibleNodeIds.has(currentGraph.nodes[i]!.id));
     }
@@ -403,6 +422,13 @@ export async function mount(
       theme,
       (node) => visibleNodeIds.has(node.id),
     );
+    searchBar.input.addEventListener("input", () => {
+      if (searchFocusEnabled) {
+        updateVisibility();
+        const id = sidePanel.currentNodeId();
+        if (id) applyFocusModeIfEnabled(id);
+      }
+    });
   }
 
   function createLoadingOverlay(text: string): { remove(): void } {
@@ -576,6 +602,8 @@ export async function mount(
       },
       onFocusToggle,
       initialFocusEnabled: focusEnabled,
+      onSearchFocusToggle,
+      initialSearchFocusEnabled: searchFocusEnabled,
     },
   );
 

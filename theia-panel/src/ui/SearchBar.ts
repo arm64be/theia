@@ -246,5 +246,17 @@ export function createSearchBar(
     container.removeChild(wrapper);
   }
 
-  return { updateTheme, setPanelOpen, dispose, input };
+  function getMatchedNodeIds(query: string): Set<string> {
+    const ids = new Set<string>();
+    if (!query.trim()) return ids;
+    for (let i = 0; i < graph.nodes.length; i++) {
+      const node = graph.nodes[i]!;
+      if (matches(node, query)) {
+        ids.add(node.id);
+      }
+    }
+    return ids;
+  }
+
+  return { updateTheme, setPanelOpen, dispose, input, getMatchedNodeIds };
 }
