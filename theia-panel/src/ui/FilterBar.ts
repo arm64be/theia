@@ -56,6 +56,8 @@ export interface FilterBarOptions {
   onSearchToggle?: () => void;
   onFocusToggle?: (enabled: boolean) => void;
   initialFocusEnabled?: boolean;
+  onSearchFocusToggle?: (enabled: boolean) => void;
+  initialSearchFocusEnabled?: boolean;
 }
 
 export function createFilterBar(
@@ -66,8 +68,14 @@ export function createFilterBar(
   initialTheme: ThemeTokens,
   options: FilterBarOptions = {},
 ) {
-  const { initialModel, onSearchToggle, onFocusToggle, initialFocusEnabled } =
-    options;
+  const {
+    initialModel,
+    onSearchToggle,
+    onFocusToggle,
+    initialFocusEnabled,
+    onSearchFocusToggle,
+    initialSearchFocusEnabled,
+  } = options;
   let theme = initialTheme;
   const bar = document.createElement("div");
   bar.dataset.uiOverlay = "";
@@ -77,6 +85,7 @@ export function createFilterBar(
   let dropdownOpen = false;
   let showSearchToggle = false;
   let focusEnabled = initialFocusEnabled ?? false;
+  let searchFocusEnabled = initialSearchFocusEnabled ?? false;
 
   const btn = document.createElement("button");
   btn.textContent = "Filters";
@@ -286,6 +295,8 @@ export function createFilterBar(
 
   let focusToggleEl: HTMLLabelElement | null = null;
   let focusCb: HTMLInputElement | null = null;
+  let searchFocusToggleEl: HTMLLabelElement | null = null;
+  let searchFocusCb: HTMLInputElement | null = null;
 
   function applyFocusToggleStyle() {
     if (!focusToggleEl || !focusCb) return;
@@ -304,6 +315,18 @@ export function createFilterBar(
       cursor: pointer; transition: background .15s, border-color .15s;
     `;
     focusToggleEl.style.color = focusEnabled ? `#${theme.fg}` : `#${theme.fg2}`;
+  }
+
+  function applySearchFocusToggleStyle() {
+    if (!searchFocusToggleEl || !searchFocusCb) return;
+    searchFocusToggleEl.style.color = searchFocusEnabled
+      ? `#${theme.fg}`
+      : `#${theme.fg2}`;
+    searchFocusCb.style.borderColor = `#${theme.border}`;
+    searchFocusCb.style.borderRadius = theme.radius;
+    searchFocusCb.style.background = searchFocusEnabled
+      ? `#${theme.accent}`
+      : `#${theme.bg}`;
   }
 
   function initFocusToggle() {
@@ -325,11 +348,39 @@ export function createFilterBar(
     content.append(focusToggleEl);
   }
 
+  function initSearchFocusToggle() {
+    searchFocusToggleEl = document.createElement("label");
+    searchFocusToggleEl.style.cssText = `
+      display: flex; gap: 10px; align-items: center; cursor: pointer;
+      letter-spacing: 0.05em;
+    `;
+    searchFocusCb = document.createElement("input");
+    searchFocusCb.type = "checkbox";
+    searchFocusCb.checked = searchFocusEnabled;
+    searchFocusCb.style.cssText = `
+      appearance: none; width: 14px; height: 14px; margin: 0; flex-shrink: 0;
+      border: 1px solid;
+      cursor: pointer; transition: background .15s, border-color .15s;
+    `;
+    searchFocusCb.onchange = () => {
+      searchFocusEnabled = searchFocusCb!.checked;
+      applySearchFocusToggleStyle();
+      onSearchFocusToggle?.(searchFocusEnabled);
+    };
+    searchFocusToggleEl.append(
+      searchFocusCb,
+      document.createTextNode("Focus on search"),
+    );
+    applySearchFocusToggleStyle();
+    content.append(searchFocusToggleEl);
+  }
+
   applyBarStyle();
   dropdown.appendChild(content);
   bar.append(btn, searchToggle, dropdown);
   rebuildModelSelect();
   initFocusToggle();
+  if (onSearchFocusToggle) initSearchFocusToggle();
   container.appendChild(bar);
 
   function setSearchToggleVisible(visible: boolean) {
@@ -350,12 +401,21 @@ export function createFilterBar(
     applyFocusToggleStyle();
   }
 
+  function setSearchFocusEnabled(enabled: boolean) {
+    searchFocusEnabled = enabled;
+    if (searchFocusCb) {
+      searchFocusCb.checked = enabled;
+    }
+    applySearchFocusToggleStyle();
+  }
+
   function updateTheme(newTheme: ThemeTokens) {
     theme = newTheme;
     applyBarStyle();
     for (const t of toggles) t._applyStyle();
     applySelectStyle();
     applyFocusToggleStyle();
+    applySearchFocusToggleStyle();
   }
 
   return {
@@ -363,6 +423,7 @@ export function createFilterBar(
     updateGraph,
     setSearchToggleVisible,
     setFocusEnabled,
+    setSearchFocusEnabled,
     dispose: () => {
       document.removeEventListener("pointerdown", onDocumentClick);
       container.removeChild(bar);

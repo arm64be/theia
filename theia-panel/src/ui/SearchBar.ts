@@ -45,6 +45,8 @@ export function createSearchBar(
   let currentResults: SearchResult[] = [];
   let selectedIndex = -1;
   let panelOpen = false;
+  let matchedCacheQuery = "";
+  let matchedCacheIds: Set<string> | null = null;
 
   function applyWrapperStyle() {
     wrapper.style.cssText = `
@@ -150,16 +152,23 @@ export function createSearchBar(
       dropdown.innerHTML = "";
       currentResults = [];
       selectedIndex = -1;
+      matchedCacheQuery = "";
+      matchedCacheIds = new Set();
       return;
     }
     const resultByIndex = new Map<number, SearchResult>();
+    const matchedIds = new Set<string>();
     for (let i = 0; i < graph.nodes.length; i++) {
       const node = graph.nodes[i]!;
-      if (isVisible && !isVisible(node)) continue;
       if (matches(node, query)) {
-        resultByIndex.set(i, { node, index: i });
+        matchedIds.add(node.id);
+        if (!isVisible || isVisible(node)) {
+          resultByIndex.set(i, { node, index: i });
+        }
       }
     }
+    matchedCacheQuery = query.trim();
+    matchedCacheIds = matchedIds;
     currentResults = Array.from(resultByIndex.values());
     if (currentResults.length === 0) {
       dropdown.innerHTML = `<div style="padding:12px;opacity:0.4;font-size:12px;text-align:center;color:#${theme.fg2}">No results found</div>`;
@@ -246,5 +255,23 @@ export function createSearchBar(
     container.removeChild(wrapper);
   }
 
-  return { updateTheme, setPanelOpen, dispose, input };
+  function getMatchedNodeIds(query: string): Set<string> {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) return new Set();
+    if (matchedCacheIds && matchedCacheQuery === normalizedQuery) {
+      return new Set(matchedCacheIds);
+    }
+    const ids = new Set<string>();
+    for (let i = 0; i < graph.nodes.length; i++) {
+      const node = graph.nodes[i]!;
+      if (matches(node, normalizedQuery)) {
+        ids.add(node.id);
+      }
+    }
+    matchedCacheQuery = normalizedQuery;
+    matchedCacheIds = ids;
+    return ids;
+  }
+
+  return { updateTheme, setPanelOpen, dispose, input, getMatchedNodeIds };
 }

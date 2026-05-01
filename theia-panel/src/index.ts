@@ -102,6 +102,7 @@ type PhysicsSnapshot = {
 function loadFilterState(): {
   kinds: Set<TheiaGraph["edges"][number]["kind"]>;
   model: string | null;
+  searchFocus: boolean;
 } | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -116,17 +117,22 @@ function loadFilterState(): {
     return {
       kinds: new Set(parsedKinds.length > 0 ? parsedKinds : DEFAULT_KINDS),
       model: typeof parsed?.model === "string" ? parsed.model : null,
+      searchFocus: parsed?.searchFocus === true,
     };
   } catch {
     return null;
   }
 }
 
-function saveFilterState(kinds: Set<string>, model: string | null): void {
+function saveFilterState(
+  kinds: Set<string>,
+  model: string | null,
+  searchFocus: boolean,
+): void {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ kinds: Array.from(kinds), model }),
+      JSON.stringify({ kinds: Array.from(kinds), model, searchFocus }),
     );
   } catch {
     /* quota exceeded, ignore */
@@ -155,11 +161,12 @@ export async function mount(
   edgesScene.add(edges.group);
 
   const post = createPost(ctx.renderer, ctx.scene, ctx.camera, element);
-  const originalResize = ctx.resize;
-  ctx.resize = () => {
-    originalResize();
-    post.resize();
-  };
+  // Run the post-processing resize after the base scene resize. Must
+  // use ctx.onResize — replacing ctx.resize from outside would not
+  // affect the internal ResizeObserver, leaving post render-targets at
+  // the wrong size when the container resizes (causing blur during
+  // fullscreen toggle in particular). See Scene.ts for the rationale.
+  ctx.onResize(() => post.resize());
 
   let kinds = new Set(options.edgeKinds ?? DEFAULT_KINDS);
   let modelFilter: string | null = null;
@@ -169,6 +176,7 @@ export async function mount(
     modelFilter = saved.model;
   }
   let focusEnabled = false;
+  let searchFocusEnabled = saved?.searchFocus ?? false;
   let focusFilter: Set<string> | null = null;
   let onboarding: {
     startedAt: number;
@@ -184,6 +192,9 @@ export async function mount(
     complete: boolean;
     overlay: { update(progress: number): void; remove(): void };
   } | null = null;
+  let searchFocusMatchKey = "";
+  let searchInputController: AbortController | null = null;
+  let searchFocusTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Mutable graph-specific state — closures capture the binding, not the value
   let currentGraph: TheiaGraph;
@@ -237,7 +248,7 @@ export async function mount(
     const simResult = createSimulation(
       simulationGraphFor(activeIds),
       kinds,
-      "onboarding",
+      onboarding && !onboarding.complete ? "onboarding" : "normal",
     );
     simulation = simResult.simulation;
     simulation.stop();
@@ -415,6 +426,14 @@ export async function mount(
     }
   }
 
+  function onSearchFocusToggle(enabled: boolean) {
+    searchFocusEnabled = enabled;
+    saveFilterState(kinds, modelFilter, searchFocusEnabled);
+    const searchMatchesChanged = updateVisibility();
+    const id = sidePanel.currentNodeId();
+    if (id && searchMatchesChanged) applyFocusModeIfEnabled(id);
+  }
+
   const sidePanel = createSidePanel(element, theme, {
     onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
@@ -512,6 +531,40 @@ export async function mount(
     return ids;
   }
 
+  function updateVisibility(): boolean {
+    visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
+    let searchMatchesChanged = false;
+    if (searchFocusEnabled && searchBar) {
+      const query = searchBar.input.value.trim();
+      if (query) {
+        const matchedIds = searchBar.getMatchedNodeIds(query);
+        const nextMatchKey = Array.from(matchedIds).sort().join("\0");
+        searchMatchesChanged = nextMatchKey !== searchFocusMatchKey;
+        searchFocusMatchKey = nextMatchKey;
+        if (matchedIds.size > 0) {
+          const filtered = new Set<string>();
+          for (const id of visibleNodeIds) {
+            if (matchedIds.has(id)) filtered.add(id);
+          }
+          visibleNodeIds = filtered;
+        }
+      } else if (searchFocusMatchKey) {
+        searchMatchesChanged = true;
+        searchFocusMatchKey = "";
+      }
+    } else if (searchFocusMatchKey) {
+      searchMatchesChanged = true;
+      searchFocusMatchKey = "";
+    }
+    setNodeVisibilityFromState();
+
+    // Start at equilibrium to prevent jittery readjustment.
+    replaceSimulation(onboarding ? activeVisibleNodeIds() : null);
+
+    rebuildVisibleEdges();
+    return searchMatchesChanged;
+  }
+
   function rebuildVisibleEdges() {
     const activeIds = activeVisibleNodeIds();
     const filteredNodeIndex = new Map<string, number>();
@@ -529,16 +582,6 @@ export async function mount(
       nodes.setVisible(i, activeIds.has(currentGraph.nodes[i]!.id));
     }
     nodes.flush();
-  }
-
-  function updateVisibility() {
-    visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
-    setNodeVisibilityFromState();
-
-    // Start at equilibrium to prevent jittery readjustment.
-    replaceSimulation(onboarding ? activeVisibleNodeIds() : null);
-
-    rebuildVisibleEdges();
   }
 
   function applyFocusModeIfEnabled(selectedNodeId: string) {
@@ -778,6 +821,10 @@ export async function mount(
       emit("node-hover", idx === null ? null : currentGraph.nodes[idx]!.id);
     });
 
+    searchInputController?.abort();
+    searchInputController = null;
+    if (searchFocusTimer) clearTimeout(searchFocusTimer);
+    searchFocusTimer = null;
     searchBar?.dispose();
     searchBar = createSearchBar(
       element,
@@ -797,6 +844,22 @@ export async function mount(
       },
       theme,
       (node) => activeVisibleNodeIds().has(node.id),
+    );
+    searchInputController = new AbortController();
+    searchBar.input.addEventListener(
+      "input",
+      () => {
+        if (searchFocusEnabled) {
+          if (searchFocusTimer) clearTimeout(searchFocusTimer);
+          searchFocusTimer = setTimeout(() => {
+            searchFocusTimer = null;
+            const searchMatchesChanged = updateVisibility();
+            const id = sidePanel.currentNodeId();
+            if (id && searchMatchesChanged) applyFocusModeIfEnabled(id);
+          }, 120);
+        }
+      },
+      { signal: searchInputController.signal },
     );
   }
 
@@ -1009,7 +1072,7 @@ export async function mount(
     (state) => {
       kinds = state.kinds;
       modelFilter = state.model;
-      saveFilterState(kinds, modelFilter);
+      saveFilterState(kinds, modelFilter, searchFocusEnabled);
       focusFilter = null;
       updateVisibility();
       const id = sidePanel.currentNodeId();
@@ -1024,6 +1087,8 @@ export async function mount(
       },
       onFocusToggle,
       initialFocusEnabled: focusEnabled,
+      onSearchFocusToggle,
+      initialSearchFocusEnabled: searchFocusEnabled,
     },
   );
 
@@ -1050,6 +1115,8 @@ export async function mount(
       savePhysicsSnapshot();
       onboarding?.overlay.remove();
       window.removeEventListener("mouseup", resetDrag);
+      searchInputController?.abort();
+      if (searchFocusTimer) clearTimeout(searchFocusTimer);
       stopThemeListener();
       simulation.stop();
       nodes.dispose();

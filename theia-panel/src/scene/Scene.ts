@@ -21,6 +21,35 @@ export interface SceneContext {
   setCameraState(state: CameraState): void;
   dispose(): void;
   resize(): void;
+  /**
+   * Register a callback to run after the base scene resize logic
+   * (camera + renderer). Used by the post-processing pipeline to keep
+   * its render targets in sync — replacing ctx.resize from outside
+   * does not work because the internal ResizeObserver captures the
+   * original function reference at construction time.
+   */
+  onResize(fn: () => void): void;
+}
+
+// Reference framing: a 60° vertical FOV at a "normal" 16:9 aspect.
+// When the container is wider/shorter than this (issue #69 — the panel
+// gets squeezed into ~1920×507 inside the dashboard, aspect ≈ 3.79), a
+// fixed-vertical-FOV camera makes content read as zoomed-in because the
+// same vertical world units are stretched across the full viewport
+// while horizontal context is much wider. Recomputing the vertical FOV
+// so the *horizontal* extent stays roughly constant gives identical
+// perceptual scale at any aspect ratio, without touching the existing
+// zoom/radius/focus systems used for user interaction.
+const BASE_FOV_DEG = 60;
+const BASE_ASPECT = 16 / 9;
+const BASE_FOV_TAN_HALF = Math.tan((BASE_FOV_DEG * Math.PI) / 360);
+
+function fovForAspect(a: number): number {
+  if (a >= BASE_ASPECT) {
+    const tanHalf = (BASE_FOV_TAN_HALF * BASE_ASPECT) / a;
+    return (Math.atan(tanHalf) * 360) / Math.PI;
+  }
+  return BASE_FOV_DEG;
 }
 
 export function createScene(container: HTMLElement): SceneContext {
@@ -28,7 +57,12 @@ export function createScene(container: HTMLElement): SceneContext {
 
   const { clientWidth: w, clientHeight: h } = container;
   const aspect = w / h;
-  const camera = new THREE.PerspectiveCamera(60, aspect, 0.01, 100);
+  const camera = new THREE.PerspectiveCamera(
+    fovForAspect(aspect),
+    aspect,
+    0.01,
+    100,
+  );
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -56,12 +90,21 @@ export function createScene(container: HTMLElement): SceneContext {
   }
   updateCamera();
 
+  const resizeListeners: Array<() => void> = [];
+
   const resize = () => {
     const { clientWidth: w2, clientHeight: h2 } = container;
+    if (w2 === 0 || h2 === 0) return;
     const a = w2 / h2;
     camera.aspect = a;
+    camera.fov = fovForAspect(a);
     camera.updateProjectionMatrix();
+    // Re-sync DPR — fullscreen transitions and monitor changes can
+    // change devicePixelRatio, and the renderer caches it from the
+    // first setPixelRatio call.
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(w2, h2, true);
+    for (const fn of resizeListeners) fn();
   };
 
   const ro = new ResizeObserver(resize);
@@ -141,6 +184,9 @@ export function createScene(container: HTMLElement): SceneContext {
       updateCamera();
     },
     resize,
+    onResize(fn) {
+      resizeListeners.push(fn);
+    },
     dispose() {
       if (rafId !== null) cancelAnimationFrame(rafId);
       ro.disconnect();
