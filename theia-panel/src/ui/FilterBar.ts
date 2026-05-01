@@ -318,21 +318,14 @@ export function createFilterBar(
 
   function applySearchFocusToggleStyle() {
     if (!searchFocusToggleEl || !searchFocusCb) return;
-    searchFocusToggleEl.style.cssText = `
-      display: flex; gap: 10px; align-items: center; cursor: pointer;
-      letter-spacing: 0.05em;
-      color: ${searchFocusEnabled ? `#${theme.fg}` : `#${theme.fg2}`};
-    `;
-    searchFocusCb.style.cssText = `
-      appearance: none; width: 14px; height: 14px; margin: 0; flex-shrink: 0;
-      border: 1px solid #${theme.border};
-      border-radius: ${theme.radius};
-      background: ${searchFocusEnabled ? `#${theme.accent}` : `#${theme.bg}`};
-      cursor: pointer; transition: background .15s, border-color .15s;
-    `;
     searchFocusToggleEl.style.color = searchFocusEnabled
       ? `#${theme.fg}`
       : `#${theme.fg2}`;
+    searchFocusCb.style.borderColor = `#${theme.border}`;
+    searchFocusCb.style.borderRadius = theme.radius;
+    searchFocusCb.style.background = searchFocusEnabled
+      ? `#${theme.accent}`
+      : `#${theme.bg}`;
   }
 
   function initFocusToggle() {
@@ -355,9 +348,18 @@ export function createFilterBar(
 
   function initSearchFocusToggle() {
     searchFocusToggleEl = document.createElement("label");
+    searchFocusToggleEl.style.cssText = `
+      display: flex; gap: 10px; align-items: center; cursor: pointer;
+      letter-spacing: 0.05em;
+    `;
     searchFocusCb = document.createElement("input");
     searchFocusCb.type = "checkbox";
     searchFocusCb.checked = searchFocusEnabled;
+    searchFocusCb.style.cssText = `
+      appearance: none; width: 14px; height: 14px; margin: 0; flex-shrink: 0;
+      border: 1px solid;
+      cursor: pointer; transition: background .15s, border-color .15s;
+    `;
     searchFocusCb.onchange = () => {
       searchFocusEnabled = searchFocusCb!.checked;
       applySearchFocusToggleStyle();
@@ -376,7 +378,7 @@ export function createFilterBar(
   bar.append(btn, searchToggle, dropdown);
   rebuildModelSelect();
   initFocusToggle();
-  initSearchFocusToggle();
+  if (onSearchFocusToggle) initSearchFocusToggle();
   container.appendChild(bar);
 
   function setSearchToggleVisible(visible: boolean) {

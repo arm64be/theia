@@ -43,6 +43,7 @@ const STORAGE_KEY = "theia-constellation-filter";
 function loadFilterState(): {
   kinds: Set<TheiaGraph["edges"][number]["kind"]>;
   model: string | null;
+  searchFocus: boolean;
 } | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -57,17 +58,22 @@ function loadFilterState(): {
     return {
       kinds: new Set(parsedKinds.length > 0 ? parsedKinds : DEFAULT_KINDS),
       model: typeof parsed?.model === "string" ? parsed.model : null,
+      searchFocus: parsed?.searchFocus === true,
     };
   } catch {
     return null;
   }
 }
 
-function saveFilterState(kinds: Set<string>, model: string | null): void {
+function saveFilterState(
+  kinds: Set<string>,
+  model: string | null,
+  searchFocus: boolean,
+): void {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ kinds: Array.from(kinds), model }),
+      JSON.stringify({ kinds: Array.from(kinds), model, searchFocus }),
     );
   } catch {
     /* quota exceeded, ignore */
@@ -110,8 +116,11 @@ export async function mount(
     modelFilter = saved.model;
   }
   let focusEnabled = false;
-  let searchFocusEnabled = false;
+  let searchFocusEnabled = saved?.searchFocus ?? false;
   let focusFilter: Set<string> | null = null;
+  let searchFocusMatchKey = "";
+  let searchInputController: AbortController | null = null;
+  let searchFocusTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Mutable graph-specific state — closures capture the binding, not the value
   let currentGraph: TheiaGraph;
@@ -162,9 +171,10 @@ export async function mount(
 
   function onSearchFocusToggle(enabled: boolean) {
     searchFocusEnabled = enabled;
-    updateVisibility();
+    saveFilterState(kinds, modelFilter, searchFocusEnabled);
+    const searchMatchesChanged = updateVisibility();
     const id = sidePanel.currentNodeId();
-    if (id) applyFocusModeIfEnabled(id);
+    if (id && searchMatchesChanged) applyFocusModeIfEnabled(id);
   }
 
   const sidePanel = createSidePanel(element, theme, {
@@ -251,18 +261,30 @@ export async function mount(
 
   let visibleNodeIds = new Set<string>();
 
-  function updateVisibility() {
+  function updateVisibility(): boolean {
     visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
+    let searchMatchesChanged = false;
     if (searchFocusEnabled && searchBar) {
       const query = searchBar.input.value.trim();
       if (query) {
         const matchedIds = searchBar.getMatchedNodeIds(query);
-        const filtered = new Set<string>();
-        for (const id of visibleNodeIds) {
-          if (matchedIds.has(id)) filtered.add(id);
+        const nextMatchKey = Array.from(matchedIds).sort().join("\0");
+        searchMatchesChanged = nextMatchKey !== searchFocusMatchKey;
+        searchFocusMatchKey = nextMatchKey;
+        if (matchedIds.size > 0) {
+          const filtered = new Set<string>();
+          for (const id of visibleNodeIds) {
+            if (matchedIds.has(id)) filtered.add(id);
+          }
+          visibleNodeIds = filtered;
         }
-        visibleNodeIds = filtered;
+      } else if (searchFocusMatchKey) {
+        searchMatchesChanged = true;
+        searchFocusMatchKey = "";
       }
+    } else if (searchFocusMatchKey) {
+      searchMatchesChanged = true;
+      searchFocusMatchKey = "";
     }
     for (let i = 0; i < currentGraph.nodes.length; i++) {
       nodes.setVisible(i, visibleNodeIds.has(currentGraph.nodes[i]!.id));
@@ -297,6 +319,7 @@ export async function mount(
       }
     }
     edges.rebuild(currentGraph, kinds, filteredNodeIndex, nodePositions);
+    return searchMatchesChanged;
   }
 
   function applyFocusModeIfEnabled(selectedNodeId: string) {
@@ -402,6 +425,10 @@ export async function mount(
       emit("node-hover", idx === null ? null : currentGraph.nodes[idx]!.id);
     });
 
+    searchInputController?.abort();
+    searchInputController = null;
+    if (searchFocusTimer) clearTimeout(searchFocusTimer);
+    searchFocusTimer = null;
     searchBar?.dispose();
     searchBar = createSearchBar(
       element,
@@ -422,13 +449,22 @@ export async function mount(
       theme,
       (node) => visibleNodeIds.has(node.id),
     );
-    searchBar.input.addEventListener("input", () => {
-      if (searchFocusEnabled) {
-        updateVisibility();
-        const id = sidePanel.currentNodeId();
-        if (id) applyFocusModeIfEnabled(id);
-      }
-    });
+    searchInputController = new AbortController();
+    searchBar.input.addEventListener(
+      "input",
+      () => {
+        if (searchFocusEnabled) {
+          if (searchFocusTimer) clearTimeout(searchFocusTimer);
+          searchFocusTimer = setTimeout(() => {
+            searchFocusTimer = null;
+            const searchMatchesChanged = updateVisibility();
+            const id = sidePanel.currentNodeId();
+            if (id && searchMatchesChanged) applyFocusModeIfEnabled(id);
+          }, 120);
+        }
+      },
+      { signal: searchInputController.signal },
+    );
   }
 
   function createLoadingOverlay(text: string): { remove(): void } {
@@ -587,7 +623,7 @@ export async function mount(
     (state) => {
       kinds = state.kinds;
       modelFilter = state.model;
-      saveFilterState(kinds, modelFilter);
+      saveFilterState(kinds, modelFilter, searchFocusEnabled);
       focusFilter = null;
       updateVisibility();
       const id = sidePanel.currentNodeId();
@@ -628,6 +664,8 @@ export async function mount(
     destroy() {
       disposed = true;
       window.removeEventListener("mouseup", resetDrag);
+      searchInputController?.abort();
+      if (searchFocusTimer) clearTimeout(searchFocusTimer);
       stopThemeListener();
       simulation.stop();
       nodes.dispose();
