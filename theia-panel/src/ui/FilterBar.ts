@@ -150,6 +150,7 @@ export function createFilterBar(
     for (const child of content.children) {
       if (child.tagName === "LABEL") {
         const el = child as HTMLElement;
+        if (el.dataset.focusToggle === "true") continue;
         const kind = el.dataset.kind;
         el.style.cssText = `
           display: flex; gap: 10px; align-items: center; cursor: pointer;
@@ -330,6 +331,7 @@ export function createFilterBar(
 
   function initFocusToggle() {
     focusToggleEl = document.createElement("label");
+    focusToggleEl.dataset.focusToggle = "true";
     focusCb = document.createElement("input");
     focusCb.type = "checkbox";
     focusCb.checked = focusEnabled;

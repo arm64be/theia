@@ -13,6 +13,7 @@ import { createSearchBar } from "./ui/SearchBar";
 import { createSidePanel } from "./ui/SidePanel";
 import { readTheme, applyTheme, onThemeMessage, FONT_STACK } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
+import { hashN11 } from "./util/hash";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -33,12 +34,70 @@ const VALID_KINDS: TheiaGraph["edges"][number]["kind"][] = [
   "cron-chain",
 ];
 
-const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = [
-  "memory-share",
-  "cross-search",
-];
+const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = VALID_KINDS;
 
 const STORAGE_KEY = "theia-constellation-filter";
+const ONBOARDING_STORAGE_KEY = "theia-first-load-onboarding-complete";
+const PHYSICS_SNAPSHOT_KEY_PREFIX = "theia-physics-snapshot:";
+const ONBOARDING_ROTATION_RADIANS = Math.PI * 1.15;
+const ONBOARDING_BLINK_MS = 3200;
+const PHYSICS_SNAPSHOT_INTERVAL_MS = 5000;
+const ONBOARDING_BASE_ZOOM = 0.72;
+const ONBOARDING_MIN_ZOOM = 0.42;
+const ONBOARDING_NEAR_DISTANCE = 3.2;
+const ONBOARDING_SAFE_DISTANCE = 5.6;
+
+function easeQuadInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
+function popScale(t: number): number {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  const eased = easeQuadInOut(t);
+  return 1 + 0.28 * Math.sin(Math.PI * eased);
+}
+
+function revealBrightness(t: number): number {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  const eased = easeQuadInOut(t);
+  return 1 + 0.5 * Math.sin(Math.PI * eased);
+}
+
+function hasCompletedOnboarding(): boolean {
+  try {
+    return localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+function markOnboardingComplete(): void {
+  try {
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+  } catch {
+    /* quota exceeded, ignore */
+  }
+}
+
+type PhysicsSnapshotNode = {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+};
+
+function physicsSnapshotKey(graphUrl: string): string {
+  return `${PHYSICS_SNAPSHOT_KEY_PREFIX}${graphUrl}`;
+}
+
+type PhysicsSnapshot = {
+  nodes: Map<string, PhysicsSnapshotNode>;
+  camera: ReturnType<ReturnType<typeof createScene>["getCameraState"]> | null;
+};
 
 function loadFilterState(): {
   kinds: Set<TheiaGraph["edges"][number]["kind"]>;
@@ -119,6 +178,20 @@ export async function mount(
   let focusEnabled = false;
   let searchFocusEnabled = saved?.searchFocus ?? false;
   let focusFilter: Set<string> | null = null;
+  let onboarding: {
+    startedAt: number;
+    durationMs: number;
+    order: number[];
+    rankByIndex: Map<number, number>;
+    revealedNodeIds: Set<string>;
+    revealStartedAtByIndex: Map<number, number>;
+    lastRevealedCount: number;
+    lastEase: number;
+    cameraZoom: number;
+    cameraAutoZoomEnabled: boolean;
+    complete: boolean;
+    overlay: { update(progress: number): void; remove(): void };
+  } | null = null;
   let searchFocusMatchKey = "";
   let searchInputController: AbortController | null = null;
   let searchFocusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -130,9 +203,192 @@ export async function mount(
   let nodePositions = new Float32Array(0);
   let simNodes: ReturnType<typeof createSimulation>["nodes"] = [];
   let simulation: ReturnType<typeof createSimulation>["simulation"];
+  let renderedPositions = new Float32Array(0);
   let picker: ReturnType<typeof createPicker>;
   let searchBar: ReturnType<typeof createSearchBar>;
   let selectedIdx: number | null = null;
+  let currentGraphUrl = graphUrl;
+  let lastPhysicsSnapshotAt = 0;
+
+  function simulationGraphFor(activeIds: Set<string> | null): TheiaGraph {
+    if (!activeIds) return currentGraph;
+    return {
+      ...currentGraph,
+      nodes: currentGraph.nodes.filter((node) => activeIds.has(node.id)),
+      edges: currentGraph.edges.filter(
+        (edge) => activeIds.has(edge.source) && activeIds.has(edge.target),
+      ),
+    };
+  }
+
+  function replaceSimulation(
+    activeIds: Set<string> | null,
+    animateNew = false,
+    preserveExisting = true,
+    seedPositions = new Map<string, PhysicsSnapshotNode>(),
+  ) {
+    const oldPositions = new Map<
+      string,
+      { x: number; y: number; z: number; vx?: number; vy?: number; vz?: number }
+    >();
+    for (const sn of simNodes) {
+      if (sn) {
+        oldPositions.set(sn.id, {
+          x: sn.x,
+          y: sn.y,
+          z: sn.z,
+          vx: sn.vx,
+          vy: sn.vy,
+          vz: sn.vz,
+        });
+      }
+    }
+
+    simulation?.stop();
+    const simResult = createSimulation(
+      simulationGraphFor(activeIds),
+      kinds,
+      onboarding && !onboarding.complete ? "onboarding" : "normal",
+    );
+    simulation = simResult.simulation;
+    simulation.stop();
+
+    const nextNodes = new Array(currentGraph.nodes.length) as typeof simNodes;
+    for (const sn of simResult.nodes) {
+      const idx = nodeIndex.get(sn.id);
+      if (idx === undefined) continue;
+      const old = preserveExisting ? oldPositions.get(sn.id) : undefined;
+      const seed = seedPositions.get(sn.id);
+      if (old || seed) {
+        const source = old ?? seed!;
+        sn.x = source.x;
+        sn.y = source.y;
+        sn.z = source.z;
+        sn.vx = source.vx ?? 0;
+        sn.vy = source.vy ?? 0;
+        sn.vz = source.vz ?? 0;
+      } else if (animateNew) {
+        const jitter = 0.08;
+        sn.x = sn.anchorX * 0.55 + hashN11(`${sn.id}:x`) * jitter;
+        sn.y = sn.anchorY * 0.55 + hashN11(`${sn.id}:y`) * jitter;
+        sn.z = sn.anchorZ * 0.55 + hashN11(`${sn.id}:z`) * jitter;
+        sn.vx = (sn.anchorX - sn.x) * 0.006;
+        sn.vy = (sn.anchorY - sn.y) * 0.006;
+        sn.vz = (sn.anchorZ - sn.z) * 0.006;
+        renderedPositions[idx * 3] = sn.x;
+        renderedPositions[idx * 3 + 1] = sn.y;
+        renderedPositions[idx * 3 + 2] = sn.z;
+        nodes?.setPosition(idx, sn.x, sn.y, sn.z);
+      }
+      nextNodes[idx] = sn;
+    }
+    simNodes = nextNodes;
+    simulation.alpha(animateNew ? 0.22 : simulation.alphaTarget());
+  }
+
+  function syncRenderedPositionsFromSimulation() {
+    for (let i = 0; i < simNodes.length; i++) {
+      const sn = simNodes[i];
+      if (!sn) continue;
+      renderedPositions[i * 3] = sn.x;
+      renderedPositions[i * 3 + 1] = sn.y;
+      renderedPositions[i * 3 + 2] = sn.z;
+      nodes.setPosition(i, sn.x, sn.y, sn.z);
+    }
+    nodes.flush();
+    edges.updatePositions(nodePositions);
+  }
+
+  function loadPhysicsSnapshot(): PhysicsSnapshot {
+    try {
+      const raw = localStorage.getItem(physicsSnapshotKey(currentGraphUrl));
+      if (!raw) return { nodes: new Map(), camera: null };
+      const parsed = JSON.parse(raw);
+      const nodesById = parsed?.nodes;
+      if (!nodesById || typeof nodesById !== "object") {
+        return { nodes: new Map(), camera: null };
+      }
+      const snapshot = new Map<string, PhysicsSnapshotNode>();
+      for (const [id, value] of Object.entries(nodesById)) {
+        if (!value || typeof value !== "object") continue;
+        const node = value as Record<string, unknown>;
+        const x = Number(node.x);
+        const y = Number(node.y);
+        const z = Number(node.z);
+        const vx = Number(node.vx ?? 0);
+        const vy = Number(node.vy ?? 0);
+        const vz = Number(node.vz ?? 0);
+        if ([x, y, z, vx, vy, vz].every(Number.isFinite)) {
+          snapshot.set(id, { x, y, z, vx, vy, vz });
+        }
+      }
+      const cameraRaw = parsed?.camera;
+      const targetRaw = cameraRaw?.target;
+      const camera =
+        cameraRaw &&
+        targetRaw &&
+        [
+          targetRaw.x,
+          targetRaw.y,
+          targetRaw.z,
+          cameraRaw.theta,
+          cameraRaw.phi,
+          cameraRaw.zoom,
+        ]
+          .map(Number)
+          .every(Number.isFinite)
+          ? {
+              target: {
+                x: Number(targetRaw.x),
+                y: Number(targetRaw.y),
+                z: Number(targetRaw.z),
+              },
+              theta: Number(cameraRaw.theta),
+              phi: Number(cameraRaw.phi),
+              zoom: Number(cameraRaw.zoom),
+            }
+          : null;
+      return { nodes: snapshot, camera };
+    } catch {
+      return { nodes: new Map(), camera: null };
+    }
+  }
+
+  function savePhysicsSnapshot() {
+    if (!currentGraph || !hasCompletedOnboarding()) return;
+    if (onboarding && !onboarding.complete) return;
+    const nodesById: Record<string, PhysicsSnapshotNode> = {};
+    for (const sn of simNodes) {
+      if (!sn) continue;
+      nodesById[sn.id] = {
+        x: sn.x,
+        y: sn.y,
+        z: sn.z,
+        vx: sn.vx ?? 0,
+        vy: sn.vy ?? 0,
+        vz: sn.vz ?? 0,
+      };
+    }
+    try {
+      localStorage.setItem(
+        physicsSnapshotKey(currentGraphUrl),
+        JSON.stringify({
+          version: 1,
+          saved_at: Date.now(),
+          nodes: nodesById,
+          camera: ctx.getCameraState(),
+        }),
+      );
+    } catch {
+      /* quota exceeded, ignore */
+    }
+  }
+
+  function maybeSavePhysicsSnapshot(now: number) {
+    if (now - lastPhysicsSnapshotAt < PHYSICS_SNAPSHOT_INTERVAL_MS) return;
+    lastPhysicsSnapshotAt = now;
+    savePhysicsSnapshot();
+  }
 
   const tooltip = createTooltip(element, theme);
   function clearSelected() {
@@ -181,7 +437,7 @@ export async function mount(
   const sidePanel = createSidePanel(element, theme, {
     onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
-      if (idx === undefined || !visibleNodeIds.has(targetId)) return;
+      if (idx === undefined || !activeVisibleNodeIds().has(targetId)) return;
       const sn = simNodes[idx];
       if (!sn) return;
       select(idx);
@@ -262,6 +518,19 @@ export async function mount(
 
   let visibleNodeIds = new Set<string>();
 
+  function activeVisibleNodeIds(): Set<string> {
+    let ids = visibleNodeIds;
+    if (focusFilter) {
+      ids = new Set([...ids].filter((id) => focusFilter!.has(id)));
+    }
+    if (onboarding) {
+      ids = new Set(
+        [...ids].filter((id) => onboarding!.revealedNodeIds.has(id)),
+      );
+    }
+    return ids;
+  }
+
   function updateVisibility(): boolean {
     visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
     let searchMatchesChanged = false;
@@ -287,40 +556,32 @@ export async function mount(
       searchMatchesChanged = true;
       searchFocusMatchKey = "";
     }
-    for (let i = 0; i < currentGraph.nodes.length; i++) {
-      nodes.setVisible(i, visibleNodeIds.has(currentGraph.nodes[i]!.id));
-    }
-    nodes.flush();
+    setNodeVisibilityFromState();
 
-    // Preserve current positions when reinitializing simulation with filtered edges
-    const oldPositions = new Map<string, { x: number; y: number; z: number }>();
-    for (const sn of simNodes) {
-      oldPositions.set(sn.id, { x: sn.x, y: sn.y, z: sn.z });
-    }
-    simulation.stop();
-    const simResult = createSimulation(currentGraph, kinds);
-    simulation = simResult.simulation;
-    simNodes = simResult.nodes;
-    simulation.stop();
-    for (const sn of simNodes) {
-      const old = oldPositions.get(sn.id);
-      if (old) {
-        sn.x = old.x;
-        sn.y = old.y;
-        sn.z = old.z;
-      }
-    }
-    // Start at equilibrium to prevent jittery readjustment
-    simulation.alpha(simulation.alphaTarget());
+    // Start at equilibrium to prevent jittery readjustment.
+    replaceSimulation(onboarding ? activeVisibleNodeIds() : null);
 
+    rebuildVisibleEdges();
+    return searchMatchesChanged;
+  }
+
+  function rebuildVisibleEdges() {
+    const activeIds = activeVisibleNodeIds();
     const filteredNodeIndex = new Map<string, number>();
     for (const [id, idx] of nodeIndex) {
-      if (visibleNodeIds.has(id)) {
+      if (activeIds.has(id)) {
         filteredNodeIndex.set(id, idx);
       }
     }
     edges.rebuild(currentGraph, kinds, filteredNodeIndex, nodePositions);
-    return searchMatchesChanged;
+  }
+
+  function setNodeVisibilityFromState() {
+    const activeIds = activeVisibleNodeIds();
+    for (let i = 0; i < currentGraph.nodes.length; i++) {
+      nodes.setVisible(i, activeIds.has(currentGraph.nodes[i]!.id));
+    }
+    nodes.flush();
   }
 
   function applyFocusModeIfEnabled(selectedNodeId: string) {
@@ -339,22 +600,164 @@ export async function mount(
       }
     }
     focusFilter = neighbors;
-    for (let i = 0; i < currentGraph.nodes.length; i++) {
-      const id = currentGraph.nodes[i]!.id;
-      nodes.setVisible(i, visibleNodeIds.has(id) && neighbors.has(id));
+    setNodeVisibilityFromState();
+    rebuildVisibleEdges();
+  }
+
+  function shouldRunOnboarding(g: TheiaGraph): boolean {
+    return g.nodes.length > 0 && !hasCompletedOnboarding();
+  }
+
+  function beginOnboarding(g: TheiaGraph) {
+    const order = g.nodes
+      .map((node, index) => ({ index, time: Date.parse(node.started_at) }))
+      .sort((a, b) => {
+        const at = Number.isFinite(a.time) ? a.time : Number.POSITIVE_INFINITY;
+        const bt = Number.isFinite(b.time) ? b.time : Number.POSITIVE_INFINITY;
+        return at - bt || a.index - b.index;
+      })
+      .map(({ index }) => index);
+    onboarding = {
+      startedAt: performance.now(),
+      durationMs: Math.max(1, Math.ceil(g.nodes.length / 3)) * 1000,
+      order,
+      rankByIndex: new Map(order.map((index, rank) => [index, rank])),
+      revealedNodeIds: new Set(),
+      revealStartedAtByIndex: new Map(),
+      lastRevealedCount: 0,
+      lastEase: 0,
+      cameraZoom: ONBOARDING_BASE_ZOOM,
+      cameraAutoZoomEnabled: true,
+      complete: false,
+      overlay: createOnboardingOverlay(),
+    };
+    ctx.setZoom(ONBOARDING_BASE_ZOOM);
+    for (let i = 0; i < g.nodes.length; i++) {
+      nodes.setRevealScale(i, 0);
+      nodes.setBrightness(i, 0);
     }
-    nodes.flush();
-    const filteredNodeIndex = new Map<string, number>();
-    for (const [id, idx] of nodeIndex) {
-      if (neighbors.has(id) && visibleNodeIds.has(id)) {
-        filteredNodeIndex.set(id, idx);
+    setNodeVisibilityFromState();
+    rebuildVisibleEdges();
+    replaceSimulation(activeVisibleNodeIds(), true);
+  }
+
+  function updateOnboarding(now: number) {
+    if (!onboarding) return;
+    const raw = Math.min(
+      1,
+      (now - onboarding.startedAt) / onboarding.durationMs,
+    );
+    const eased = easeQuadInOut(raw);
+    const revealFloat = eased * onboarding.order.length;
+    const revealCount = Math.min(
+      onboarding.order.length,
+      Math.ceil(revealFloat),
+    );
+
+    for (let rank = onboarding.lastRevealedCount; rank < revealCount; rank++) {
+      const idx = onboarding.order[rank]!;
+      onboarding.revealedNodeIds.add(currentGraph.nodes[idx]!.id);
+      onboarding.revealStartedAtByIndex.set(idx, now);
+    }
+
+    for (const idx of onboarding.order) {
+      const rank = onboarding.rankByIndex.get(idx)!;
+      const localProgress = Math.max(0, Math.min(1, revealFloat - rank));
+      nodes.setRevealScale(idx, popScale(localProgress));
+      const revealedAt = onboarding.revealStartedAtByIndex.get(idx);
+      const blinkProgress =
+        revealedAt === undefined
+          ? 0
+          : Math.min(1, (now - revealedAt) / ONBOARDING_BLINK_MS);
+      nodes.setBrightness(idx, revealBrightness(blinkProgress));
+    }
+
+    const rotationDelta =
+      (eased - onboarding.lastEase) * ONBOARDING_ROTATION_RADIANS;
+    if (rotationDelta !== 0) {
+      const state = ctx.getCameraState();
+      ctx.setCameraState({ ...state, theta: state.theta + rotationDelta });
+    }
+
+    if (revealCount !== onboarding.lastRevealedCount) {
+      onboarding.lastRevealedCount = revealCount;
+      setNodeVisibilityFromState();
+      rebuildVisibleEdges();
+      replaceSimulation(activeVisibleNodeIds(), true);
+    }
+    onboarding.lastEase = eased;
+    onboarding.overlay.update(eased);
+
+    if (raw >= 1 && !onboarding.complete) {
+      for (const idx of onboarding.order) {
+        onboarding.revealedNodeIds.add(currentGraph.nodes[idx]!.id);
+        nodes.setRevealScale(idx, 1);
+        if (!onboarding.revealStartedAtByIndex.has(idx)) {
+          onboarding.revealStartedAtByIndex.set(idx, now);
+        }
+      }
+      onboarding.complete = true;
+      markOnboardingComplete();
+      onboarding.overlay.remove();
+      setNodeVisibilityFromState();
+      rebuildVisibleEdges();
+      savePhysicsSnapshot();
+    }
+
+    if (onboarding.complete) {
+      let allBlinkDone = true;
+      for (const idx of onboarding.order) {
+        const revealedAt = onboarding.revealStartedAtByIndex.get(idx) ?? now;
+        const blinkProgress = Math.min(
+          1,
+          (now - revealedAt) / ONBOARDING_BLINK_MS,
+        );
+        nodes.setBrightness(idx, revealBrightness(blinkProgress));
+        allBlinkDone &&= blinkProgress >= 1;
+      }
+      if (allBlinkDone) {
+        for (const idx of onboarding.order) {
+          nodes.setBrightness(idx, 1);
+        }
+        onboarding = null;
       }
     }
-    edges.rebuild(currentGraph, kinds, filteredNodeIndex, nodePositions);
+  }
+
+  function updateOnboardingCamera() {
+    if (!onboarding || onboarding.complete || !onboarding.cameraAutoZoomEnabled)
+      return;
+    let nearest = Number.POSITIVE_INFINITY;
+    for (const idx of onboarding.order) {
+      if (!onboarding.revealedNodeIds.has(currentGraph.nodes[idx]!.id)) {
+        continue;
+      }
+      const dx = renderedPositions[idx * 3]! - ctx.camera.position.x;
+      const dy = renderedPositions[idx * 3 + 1]! - ctx.camera.position.y;
+      const dz = renderedPositions[idx * 3 + 2]! - ctx.camera.position.z;
+      nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy + dz * dz));
+    }
+    if (!Number.isFinite(nearest)) return;
+
+    const crowding = Math.max(
+      0,
+      Math.min(
+        1,
+        (ONBOARDING_SAFE_DISTANCE - nearest) /
+          (ONBOARDING_SAFE_DISTANCE - ONBOARDING_NEAR_DISTANCE),
+      ),
+    );
+    const targetZoom =
+      ONBOARDING_BASE_ZOOM -
+      (ONBOARDING_BASE_ZOOM - ONBOARDING_MIN_ZOOM) * easeQuadInOut(crowding);
+    onboarding.cameraZoom += (targetZoom - onboarding.cameraZoom) * 0.08;
+    ctx.setZoom(onboarding.cameraZoom);
   }
 
   function setupGraph(g: TheiaGraph) {
     simulation?.stop();
+    onboarding?.overlay.remove();
+    onboarding = null;
 
     if (nodes) {
       ctx.scene.remove(nodes.mesh);
@@ -363,44 +766,36 @@ export async function mount(
 
     currentGraph = g;
     nodePositions = new Float32Array(g.nodes.length * 3);
+    renderedPositions = new Float32Array(g.nodes.length * 3);
     nodes = createNodes(g, nodePositions);
     ctx.scene.add(nodes.mesh);
 
-    const simResult = createSimulation(g, kinds);
-    simulation = simResult.simulation;
-    simNodes = simResult.nodes;
-    simulation.stop();
-
     nodeIndex = new Map(g.nodes.map((n, i) => [n.id, i]));
 
-    // Pre-warm simulation so edge z-positions are 3D on first build
-    simulation.tick(1);
-    for (let i = 0; i < simNodes.length; i++) {
-      const sn = simNodes[i]!;
-      nodes.setPosition(i, sn.x, sn.y, sn.z);
+    if (hasCompletedOnboarding()) {
+      const snapshot = loadPhysicsSnapshot();
+      replaceSimulation(null, true, false, snapshot.nodes);
+      syncRenderedPositionsFromSimulation();
+      if (snapshot.camera) {
+        ctx.setCameraState(snapshot.camera);
+      }
+    } else {
+      replaceSimulation(null);
+      simulation.tick(1);
+      syncRenderedPositionsFromSimulation();
     }
-    nodes.flush();
 
     visibleNodeIds = computeVisibleNodeIds(g, kinds, modelFilter);
-    for (let i = 0; i < g.nodes.length; i++) {
-      nodes.setVisible(i, visibleNodeIds.has(g.nodes[i]!.id));
-    }
-    nodes.flush();
-
-    const filteredNodeIndex = new Map<string, number>();
-    for (const [id, idx] of nodeIndex) {
-      if (visibleNodeIds.has(id)) {
-        filteredNodeIndex.set(id, idx);
-      }
-    }
-    edges.rebuild(g, kinds, filteredNodeIndex, nodePositions);
+    setNodeVisibilityFromState();
+    rebuildVisibleEdges();
     post.resize();
 
     picker?.dispose();
     picker = createPicker(element, ctx.camera, nodes, nodePositions, {
       shouldBlock: isInteracting,
       isVisible: (i) => {
-        if (!visibleNodeIds.has(currentGraph.nodes[i]!.id)) return false;
+        if (!activeVisibleNodeIds().has(currentGraph.nodes[i]!.id))
+          return false;
         if (focusFilter && !focusFilter.has(currentGraph.nodes[i]!.id))
           return false;
         return true;
@@ -436,9 +831,9 @@ export async function mount(
       currentGraph,
       (result) => {
         const idx = nodeIndex.get(result.node.id);
-        if (idx !== undefined && visibleNodeIds.has(result.node.id)) {
-          const sn = simNodes[idx]!;
-          ctx.focusOn(sn.x, sn.y, 1.5);
+        if (idx !== undefined && activeVisibleNodeIds().has(result.node.id)) {
+          const sn = simNodes[idx];
+          if (sn) ctx.focusOn(sn.x, sn.y, 1.5);
         }
         const related = currentGraph.edges.filter(
           (e) =>
@@ -448,7 +843,7 @@ export async function mount(
         enterPanelMode(result.node, related);
       },
       theme,
-      (node) => visibleNodeIds.has(node.id),
+      (node) => activeVisibleNodeIds().has(node.id),
     );
     searchInputController = new AbortController();
     searchBar.input.addEventListener(
@@ -492,6 +887,37 @@ export async function mount(
     };
   }
 
+  function createOnboardingOverlay(): {
+    update(progress: number): void;
+    remove(): void;
+  } {
+    const el = document.createElement("div");
+    el.setAttribute("data-ui-overlay", "true");
+    el.style.cssText = `
+      position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
+      color: rgba(255,255,255,0.58); font: 11px/1.2 var(--theia-font, ${FONT_STACK});
+      letter-spacing: 0.18em; text-transform: uppercase; z-index: 12;
+      pointer-events: none; text-align: center; transition: opacity 450ms;
+    `;
+    element.appendChild(el);
+    return {
+      update(progress) {
+        const pct = Math.max(0, Math.min(100, Math.round(progress * 100)));
+        el.textContent = `CREATING THE UNIVERSE - ${pct}%`;
+      },
+      remove() {
+        el.style.opacity = "0";
+        setTimeout(() => {
+          try {
+            element.removeChild(el);
+          } catch {
+            /* container may have been destroyed */
+          }
+        }, 450);
+      },
+    };
+  }
+
   const loading = createLoadingOverlay("Loading constellation\u2026");
   let initialGraph: TheiaGraph;
   try {
@@ -502,12 +928,26 @@ export async function mount(
   }
   loading.remove();
   setupGraph(initialGraph);
+  if (shouldRunOnboarding(initialGraph)) {
+    beginOnboarding(initialGraph);
+  }
 
   function tick() {
     simulation.tick(1);
+    const smoothing = onboarding ? 0.14 : 0.34;
     for (let i = 0; i < simNodes.length; i++) {
-      const sn = simNodes[i]!;
-      nodes.setPosition(i, sn.x, sn.y, sn.z);
+      const sn = simNodes[i];
+      if (!sn) continue;
+      const px = renderedPositions[i * 3]!;
+      const py = renderedPositions[i * 3 + 1]!;
+      const pz = renderedPositions[i * 3 + 2]!;
+      const x = px + (sn.x - px) * smoothing;
+      const y = py + (sn.y - py) * smoothing;
+      const z = pz + (sn.z - pz) * smoothing;
+      renderedPositions[i * 3] = x;
+      renderedPositions[i * 3 + 1] = y;
+      renderedPositions[i * 3 + 2] = z;
+      nodes.setPosition(i, x, y, z);
     }
     nodes.flush();
     edges.updatePositions(nodePositions);
@@ -516,8 +956,12 @@ export async function mount(
   let disposed = false;
   function frame() {
     if (disposed) return;
+    const now = performance.now();
+    updateOnboarding(now);
     tick();
-    const t = performance.now() / 1000;
+    maybeSavePhysicsSnapshot(now);
+    updateOnboardingCamera();
+    const t = now / 1000;
     nodes.setTime(t);
     edges.setTime(t);
     nodes.setCameraPosition(ctx.camera.position);
@@ -609,6 +1053,10 @@ export async function mount(
     (e) => {
       if ((e.target as HTMLElement).closest("[data-ui-overlay]")) return;
       lastWheelAt = performance.now();
+      if (onboarding) {
+        onboarding.cameraAutoZoomEnabled = false;
+        onboarding.cameraZoom = ctx.getZoom();
+      }
       e.preventDefault();
       const delta = e.deltaY > 0 ? 1.1 : 0.9;
       ctx.setZoom(ctx.getZoom() * delta);
@@ -664,6 +1112,8 @@ export async function mount(
   return {
     destroy() {
       disposed = true;
+      savePhysicsSnapshot();
+      onboarding?.overlay.remove();
       window.removeEventListener("mouseup", resetDrag);
       searchInputController?.abort();
       if (searchFocusTimer) clearTimeout(searchFocusTimer);
@@ -687,6 +1137,7 @@ export async function mount(
     },
     async reload(url?: string) {
       const targetUrl = url ?? graphUrl;
+      currentGraphUrl = targetUrl;
 
       const loading = createLoadingOverlay("Reloading\u2026");
       let newGraph: TheiaGraph;
