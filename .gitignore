@@ -26,3 +26,5 @@ theia-panel/dist-embed/
 .DS_Store
 Thumbs.db
 .vercel
+
+.codex
