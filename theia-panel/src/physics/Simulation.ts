@@ -132,8 +132,10 @@ function forceCollide(strength = 0.5) {
 export function createSimulation(
   graph: TheiaGraph,
   enabledKinds?: Set<string>,
+  profile: "normal" | "onboarding" = "normal",
 ) {
   const spread = 1.8;
+  const isOnboarding = profile === "onboarding";
 
   const nodeIds = new Set(graph.nodes.map((n) => n.id));
   const safeEdges = graph.edges.filter(
@@ -177,17 +179,18 @@ export function createSimulation(
   }));
 
   // Sane link parameters: tight clusters for semantic edges,
-  // loose branches for tool-overlap
+  // loose branches for tool-overlap. Onboarding uses softer forces because
+  // nodes are being introduced into a changing partial graph.
   const kindStrength: Record<string, number> = {
-    "cross-search": 0.25,
-    "memory-share": 0.3,
-    "tool-overlap": 0.04,
-    "cron-chain": 0.15,
+    "cross-search": isOnboarding ? 0.12 : 0.2,
+    "memory-share": isOnboarding ? 0.14 : 0.24,
+    "tool-overlap": isOnboarding ? 0.025 : 0.04,
+    "cron-chain": isOnboarding ? 0.08 : 0.12,
   };
   const kindDistance: Record<string, number> = {
-    "cross-search": 1.2,
-    "memory-share": 0.9,
-    "tool-overlap": 2.2,
+    "cross-search": 1.25,
+    "memory-share": 1.0,
+    "tool-overlap": 2.1,
     "cron-chain": 1.6,
   };
 
@@ -198,13 +201,20 @@ export function createSimulation(
 
   const sim: Simulation<PhysicsNode, PhysicsLink> = forceSimulation(nodes, 3)
     .force("link", linkForce)
-    .force("charge", forceManyBody<PhysicsNode>().strength(-0.06))
-    .force("collide", forceCollide(0.6))
-    .force("cluster", forceCluster(links, 0.04))
-    .force("anchor", forceAnchor(0.18))
-    .force("center", forceCenter(0, 0, 0))
-    .alphaDecay(0.025)
-    .alphaTarget(0.015);
+    .force(
+      "charge",
+      forceManyBody<PhysicsNode>().strength(isOnboarding ? -0.025 : -0.045),
+    )
+    .force("collide", forceCollide(isOnboarding ? 0.35 : 0.5))
+    .force("cluster", forceCluster(links, isOnboarding ? 0.018 : 0.032))
+    .force("anchor", forceAnchor(isOnboarding ? 0.07 : 0.14))
+    .velocityDecay(isOnboarding ? 0.68 : 0.5)
+    .alphaDecay(isOnboarding ? 0.04 : 0.03)
+    .alphaTarget(isOnboarding ? 0.004 : 0.012);
+
+  if (!isOnboarding) {
+    sim.force("center", forceCenter(0, 0, 0));
+  }
 
   return { simulation: sim, nodes };
 }

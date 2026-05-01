@@ -94,6 +94,8 @@ export interface NodeLayer {
   setPosition(i: number, x: number, y: number, z: number): void;
   setHighlight(i: number, on: boolean): void;
   setSelected(i: number, on: boolean): void;
+  setBrightness(i: number, multiplier: number): void;
+  setRevealScale(i: number, scale: number): void;
   setVisible(i: number, visible: boolean): void;
   setTime(t: number): void;
   setCameraPosition(pos: THREE.Vector3): void;
@@ -157,6 +159,21 @@ export function createNodes(
   const highlighted = new Set<number>();
   const selected = new Set<number>();
   const visibleFlags = new Array(n).fill(true);
+  const revealScales = new Float32Array(n).fill(1);
+  const brightnessMultipliers = new Float32Array(n).fill(1);
+
+  function writeMatrix(i: number) {
+    const sz = visibleFlags[i] ? nodeSizes[i]! * revealScales[i]! : 0;
+    dummy.position.set(
+      nodePositions[i * 3]!,
+      nodePositions[i * 3 + 1]!,
+      nodePositions[i * 3 + 2]!,
+    );
+    dummy.quaternion.set(0, 0, 0, 1);
+    dummy.scale.set(sz, sz, sz);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
 
   return {
     mesh,
@@ -165,12 +182,7 @@ export function createNodes(
       nodePositions[i * 3] = x;
       nodePositions[i * 3 + 1] = y;
       nodePositions[i * 3 + 2] = z;
-      const sz = visibleFlags[i] ? nodeSizes[i]! : 0;
-      dummy.position.set(x, y, z);
-      dummy.quaternion.set(0, 0, 0, 1);
-      dummy.scale.set(sz, sz, sz);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      writeMatrix(i);
     },
     setHighlight(i, on) {
       if (on) highlighted.add(i);
@@ -180,18 +192,16 @@ export function createNodes(
       if (on) selected.add(i);
       else selected.delete(i);
     },
+    setBrightness(i, multiplier) {
+      brightnessMultipliers[i] = Math.max(0, multiplier);
+    },
+    setRevealScale(i, scale) {
+      revealScales[i] = Math.max(0, scale);
+      writeMatrix(i);
+    },
     setVisible(i, visible) {
       visibleFlags[i] = visible;
-      const sz = visible ? nodeSizes[i]! : 0;
-      dummy.position.set(
-        nodePositions[i * 3]!,
-        nodePositions[i * 3 + 1]!,
-        nodePositions[i * 3 + 2]!,
-      );
-      dummy.quaternion.set(0, 0, 0, 1);
-      dummy.scale.set(sz, sz, sz);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+      writeMatrix(i);
     },
     setTime(t: number) {
       const colorAttr = mesh.instanceColor!;
@@ -217,11 +227,12 @@ export function createNodes(
         const tint = nodeColors[i]!;
         // Gentle wavy blink: slow traveling wave across the constellation
         const twinkle = 1.0 + 0.12 * Math.sin(t * 1.5 + nodeWaveOffsets[i]!);
+        const brightness = brightnessMultipliers[i]!;
         colorAttr.setXYZ(
           i,
-          Math.min(1, tint.r * twinkle),
-          Math.min(1, tint.g * twinkle),
-          Math.min(1, tint.b * twinkle),
+          Math.min(1, tint.r * twinkle * brightness),
+          Math.min(1, tint.g * twinkle * brightness),
+          Math.min(1, tint.b * twinkle * brightness),
         );
       }
       colorAttr.needsUpdate = true;
