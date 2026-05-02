@@ -391,12 +391,18 @@ export async function mount(
   }
 
   const tooltip = createTooltip(element, theme);
+
+  function selectedNodeId(): string | null {
+    return selectedIdx === null ? null : currentGraph.nodes[selectedIdx]!.id;
+  }
+
   function clearSelected() {
     if (selectedIdx !== null) {
       nodes.setSelected(selectedIdx, false);
       nodes.setHighlight(selectedIdx, false);
       selectedIdx = null;
     }
+    edges.setHoverNode(null);
   }
 
   function select(idx: number) {
@@ -404,6 +410,7 @@ export async function mount(
     selectedIdx = idx;
     nodes.setSelected(idx, true);
     nodes.setHighlight(idx, false);
+    edges.setHoverNode(currentGraph.nodes[idx]!.id);
   }
 
   function enterPanelMode(
@@ -434,21 +441,28 @@ export async function mount(
     if (id && searchMatchesChanged) applyFocusModeIfEnabled(id);
   }
 
+  function navigateToNode(targetId: string) {
+    const idx = nodeIndex.get(targetId);
+    if (idx === undefined || !activeVisibleNodeIds().has(targetId)) return;
+    const sn = simNodes[idx];
+    if (!sn) return;
+    select(idx);
+    ctx.focusOn(sn.x, sn.y, 1.5);
+    const n = currentGraph.nodes[idx]!;
+    const related = currentGraph.edges.filter(
+      (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
+    );
+    enterPanelMode(n, related);
+    applyFocusModeIfEnabled(n.id);
+    emit("node-click", targetId);
+  }
+
   const sidePanel = createSidePanel(element, theme, {
     onNavigate: (targetId) => {
-      const idx = nodeIndex.get(targetId);
-      if (idx === undefined || !activeVisibleNodeIds().has(targetId)) return;
-      const sn = simNodes[idx];
-      if (!sn) return;
-      select(idx);
-      ctx.focusOn(sn.x, sn.y, 1.5);
-      const n = currentGraph.nodes[idx]!;
-      const related = currentGraph.edges.filter(
-        (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
-      );
-      enterPanelMode(n, related);
-      applyFocusModeIfEnabled(n.id);
-      emit("node-click", targetId);
+      navigateToNode(targetId);
+    },
+    onGoToSession: (nodeId) => {
+      navigateToNode(nodeId);
     },
     onClose: () => {
       if (focusEnabled) {
@@ -574,6 +588,7 @@ export async function mount(
       }
     }
     edges.rebuild(currentGraph, kinds, filteredNodeIndex, nodePositions);
+    edges.setHoverNode(selectedNodeId());
   }
 
   function setNodeVisibilityFromState() {
@@ -804,7 +819,7 @@ export async function mount(
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
       element.style.cursor = idx === null ? "" : "pointer";
-      edges.setHoverNode(nodeId);
+      edges.setHoverNode(nodeId ?? selectedNodeId());
       for (let i = 0; i < nodes.count; i++) {
         if (i === idx) {
           nodes.setHighlight(i, true);
