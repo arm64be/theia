@@ -41,6 +41,7 @@ const ONBOARDING_STORAGE_KEY = "theia-first-load-onboarding-complete";
 const PHYSICS_SNAPSHOT_KEY_PREFIX = "theia-physics-snapshot:";
 const ONBOARDING_ROTATION_RADIANS = Math.PI * 1.15;
 const ONBOARDING_BLINK_MS = 3200;
+const ONBOARDING_LINK_UP_MS = 700;
 const PHYSICS_SNAPSHOT_INTERVAL_MS = 5000;
 const ONBOARDING_BASE_ZOOM = 0.72;
 const ONBOARDING_MIN_ZOOM = 0.42;
@@ -63,6 +64,12 @@ function revealBrightness(t: number): number {
   if (t >= 1) return 1;
   const eased = easeQuadInOut(t);
   return 1 + 0.5 * Math.sin(Math.PI * eased);
+}
+
+function edgeKey(edge: TheiaGraph["edges"][number]): string {
+  return edge.source < edge.target
+    ? `${edge.source}|${edge.target}|${edge.kind}`
+    : `${edge.target}|${edge.source}|${edge.kind}`;
 }
 
 function hasCompletedOnboarding(): boolean {
@@ -185,6 +192,7 @@ export async function mount(
     rankByIndex: Map<number, number>;
     revealedNodeIds: Set<string>;
     revealStartedAtByIndex: Map<number, number>;
+    linkStartedAtByKey: Map<string, number>;
     lastRevealedCount: number;
     lastEase: number;
     cameraZoom: number;
@@ -624,6 +632,7 @@ export async function mount(
       rankByIndex: new Map(order.map((index, rank) => [index, rank])),
       revealedNodeIds: new Set(),
       revealStartedAtByIndex: new Map(),
+      linkStartedAtByKey: new Map(),
       lastRevealedCount: 0,
       lastEase: 0,
       cameraZoom: ONBOARDING_BASE_ZOOM,
@@ -639,6 +648,31 @@ export async function mount(
     setNodeVisibilityFromState();
     rebuildVisibleEdges();
     replaceSimulation(activeVisibleNodeIds(), true);
+  }
+
+  function updateOnboardingLinks(now: number) {
+    if (!onboarding) {
+      edges.setConnectionProgress(null);
+      return;
+    }
+    for (const edge of currentGraph.edges) {
+      if (
+        onboarding.revealedNodeIds.has(edge.source) &&
+        onboarding.revealedNodeIds.has(edge.target)
+      ) {
+        const key = edgeKey(edge);
+        if (!onboarding.linkStartedAtByKey.has(key)) {
+          onboarding.linkStartedAtByKey.set(key, now);
+        }
+      }
+    }
+    edges.setConnectionProgress((edge) => {
+      const startedAt = onboarding?.linkStartedAtByKey.get(edgeKey(edge));
+      if (startedAt === undefined) return 0;
+      return easeQuadInOut(
+        Math.min(1, (now - startedAt) / ONBOARDING_LINK_UP_MS),
+      );
+    });
   }
 
   function updateOnboarding(now: number) {
@@ -671,6 +705,7 @@ export async function mount(
           : Math.min(1, (now - revealedAt) / ONBOARDING_BLINK_MS);
       nodes.setBrightness(idx, revealBrightness(blinkProgress));
     }
+    updateOnboardingLinks(now);
 
     const rotationDelta =
       (eased - onboarding.lastEase) * ONBOARDING_ROTATION_RADIANS;
@@ -701,6 +736,7 @@ export async function mount(
       onboarding.overlay.remove();
       setNodeVisibilityFromState();
       rebuildVisibleEdges();
+      updateOnboardingLinks(now);
       savePhysicsSnapshot();
     }
 
@@ -720,6 +756,7 @@ export async function mount(
           nodes.setBrightness(idx, 1);
         }
         onboarding = null;
+        edges.setConnectionProgress(null);
       }
     }
   }
