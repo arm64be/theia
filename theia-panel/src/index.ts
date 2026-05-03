@@ -7,6 +7,7 @@ import { createEdges } from "./scene/Edges";
 import { createPost } from "./scene/Post";
 import { createSimulation } from "./physics/Simulation";
 import { createPicker } from "./scene/Picker";
+import { createKeyboardNav } from "./scene/KeyboardNav";
 import { computeEdgeChain } from "./scene/chain";
 import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
@@ -241,6 +242,7 @@ export async function mount(
   let simulation: ReturnType<typeof createSimulation>["simulation"];
   let renderedPositions = new Float32Array(0);
   let picker: ReturnType<typeof createPicker>;
+  const keyboardNav = createKeyboardNav(ctx);
   let searchBar: ReturnType<typeof createSearchBar>;
   let selectedIdx: number | null = null;
   let currentGraphUrl = graphUrl;
@@ -1265,6 +1267,7 @@ export async function mount(
     if (disposed) return;
     const now = performance.now();
     updateOnboarding(now);
+    keyboardNav.tick(now);
     tick();
     maybeSavePhysicsSnapshot(now);
     updateOnboardingCamera();
@@ -1471,6 +1474,7 @@ export async function mount(
       ctx.dispose();
       tooltip.dispose();
       picker.dispose();
+      keyboardNav.dispose();
       sidePanel.dispose();
       filterBar.dispose();
       searchBar.dispose();
