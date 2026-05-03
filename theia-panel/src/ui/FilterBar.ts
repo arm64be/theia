@@ -58,6 +58,10 @@ export interface FilterBarOptions {
   initialFocusEnabled?: boolean;
   onSearchFocusToggle?: (enabled: boolean) => void;
   initialSearchFocusEnabled?: boolean;
+  onHideOrphansToggle?: (enabled: boolean) => void;
+  initialHideOrphansEnabled?: boolean;
+  onComponentFocusToggle?: (enabled: boolean) => void;
+  initialComponentFocusEnabled?: boolean;
 }
 
 export function createFilterBar(
@@ -75,6 +79,10 @@ export function createFilterBar(
     initialFocusEnabled,
     onSearchFocusToggle,
     initialSearchFocusEnabled,
+    onHideOrphansToggle,
+    initialHideOrphansEnabled,
+    onComponentFocusToggle,
+    initialComponentFocusEnabled,
   } = options;
   let theme = initialTheme;
   const bar = document.createElement("div");
@@ -86,6 +94,8 @@ export function createFilterBar(
   let showSearchToggle = false;
   let focusEnabled = initialFocusEnabled ?? false;
   let searchFocusEnabled = initialSearchFocusEnabled ?? false;
+  let hideOrphansEnabled = initialHideOrphansEnabled ?? false;
+  let componentFocusEnabled = initialComponentFocusEnabled ?? false;
 
   const btn = document.createElement("button");
   btn.textContent = "Filters";
@@ -297,6 +307,10 @@ export function createFilterBar(
   let focusCb: HTMLInputElement | null = null;
   let searchFocusToggleEl: HTMLLabelElement | null = null;
   let searchFocusCb: HTMLInputElement | null = null;
+  let hideOrphansToggleEl: HTMLLabelElement | null = null;
+  let hideOrphansCb: HTMLInputElement | null = null;
+  let componentFocusToggleEl: HTMLLabelElement | null = null;
+  let componentFocusCb: HTMLInputElement | null = null;
 
   function applyFocusToggleStyle() {
     if (!focusToggleEl || !focusCb) return;
@@ -327,6 +341,34 @@ export function createFilterBar(
     searchFocusCb.style.background = searchFocusEnabled
       ? `#${theme.accent}`
       : `#${theme.bg}`;
+  }
+
+  function applyPlainCheckboxStyle(
+    label: HTMLLabelElement | null,
+    cb: HTMLInputElement | null,
+    enabled: boolean,
+  ) {
+    if (!label || !cb) return;
+    label.style.color = enabled ? `#${theme.fg}` : `#${theme.fg2}`;
+    cb.style.borderColor = `#${theme.border}`;
+    cb.style.borderRadius = theme.radius;
+    cb.style.background = enabled ? `#${theme.accent}` : `#${theme.bg}`;
+  }
+
+  function applyHideOrphansToggleStyle() {
+    applyPlainCheckboxStyle(
+      hideOrphansToggleEl,
+      hideOrphansCb,
+      hideOrphansEnabled,
+    );
+  }
+
+  function applyComponentFocusToggleStyle() {
+    applyPlainCheckboxStyle(
+      componentFocusToggleEl,
+      componentFocusCb,
+      componentFocusEnabled,
+    );
   }
 
   function initFocusToggle() {
@@ -375,12 +417,68 @@ export function createFilterBar(
     content.append(searchFocusToggleEl);
   }
 
+  function initHideOrphansToggle() {
+    hideOrphansToggleEl = document.createElement("label");
+    hideOrphansToggleEl.style.cssText = `
+      display: flex; gap: 10px; align-items: center; cursor: pointer;
+      letter-spacing: 0.05em;
+    `;
+    hideOrphansCb = document.createElement("input");
+    hideOrphansCb.type = "checkbox";
+    hideOrphansCb.checked = hideOrphansEnabled;
+    hideOrphansCb.style.cssText = `
+      appearance: none; width: 14px; height: 14px; margin: 0; flex-shrink: 0;
+      border: 1px solid;
+      cursor: pointer; transition: background .15s, border-color .15s;
+    `;
+    hideOrphansCb.onchange = () => {
+      hideOrphansEnabled = hideOrphansCb!.checked;
+      applyHideOrphansToggleStyle();
+      onHideOrphansToggle?.(hideOrphansEnabled);
+    };
+    hideOrphansToggleEl.append(
+      hideOrphansCb,
+      document.createTextNode("Hide orphans"),
+    );
+    applyHideOrphansToggleStyle();
+    content.append(hideOrphansToggleEl);
+  }
+
+  function initComponentFocusToggle() {
+    componentFocusToggleEl = document.createElement("label");
+    componentFocusToggleEl.style.cssText = `
+      display: flex; gap: 10px; align-items: center; cursor: pointer;
+      letter-spacing: 0.05em;
+    `;
+    componentFocusCb = document.createElement("input");
+    componentFocusCb.type = "checkbox";
+    componentFocusCb.checked = componentFocusEnabled;
+    componentFocusCb.style.cssText = `
+      appearance: none; width: 14px; height: 14px; margin: 0; flex-shrink: 0;
+      border: 1px solid;
+      cursor: pointer; transition: background .15s, border-color .15s;
+    `;
+    componentFocusCb.onchange = () => {
+      componentFocusEnabled = componentFocusCb!.checked;
+      applyComponentFocusToggleStyle();
+      onComponentFocusToggle?.(componentFocusEnabled);
+    };
+    componentFocusToggleEl.append(
+      componentFocusCb,
+      document.createTextNode("Focus on component"),
+    );
+    applyComponentFocusToggleStyle();
+    content.append(componentFocusToggleEl);
+  }
+
   applyBarStyle();
   dropdown.appendChild(content);
   bar.append(btn, searchToggle, dropdown);
   rebuildModelSelect();
   initFocusToggle();
   if (onSearchFocusToggle) initSearchFocusToggle();
+  if (onHideOrphansToggle) initHideOrphansToggle();
+  if (onComponentFocusToggle) initComponentFocusToggle();
   container.appendChild(bar);
 
   function setSearchToggleVisible(visible: boolean) {
@@ -409,6 +507,22 @@ export function createFilterBar(
     applySearchFocusToggleStyle();
   }
 
+  function setHideOrphansEnabled(enabled: boolean) {
+    hideOrphansEnabled = enabled;
+    if (hideOrphansCb) {
+      hideOrphansCb.checked = enabled;
+    }
+    applyHideOrphansToggleStyle();
+  }
+
+  function setComponentFocusEnabled(enabled: boolean) {
+    componentFocusEnabled = enabled;
+    if (componentFocusCb) {
+      componentFocusCb.checked = enabled;
+    }
+    applyComponentFocusToggleStyle();
+  }
+
   function updateTheme(newTheme: ThemeTokens) {
     theme = newTheme;
     applyBarStyle();
@@ -416,6 +530,8 @@ export function createFilterBar(
     applySelectStyle();
     applyFocusToggleStyle();
     applySearchFocusToggleStyle();
+    applyHideOrphansToggleStyle();
+    applyComponentFocusToggleStyle();
   }
 
   return {
@@ -424,6 +540,8 @@ export function createFilterBar(
     setSearchToggleVisible,
     setFocusEnabled,
     setSearchFocusEnabled,
+    setHideOrphansEnabled,
+    setComponentFocusEnabled,
     dispose: () => {
       document.removeEventListener("pointerdown", onDocumentClick);
       container.removeChild(bar);

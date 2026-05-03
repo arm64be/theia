@@ -29,6 +29,14 @@ export interface TheiaGraph {
     };
     features?: null | number[];
     parent_id?: string | null;
+    metadata?: {
+      component_id?: number | null;
+      hub_score?: number;
+      hierarchy_depth?: number;
+      descendant_count?: number;
+      is_orphan?: boolean;
+      cron_sequence_id?: number | null;
+    };
   }[];
   edges: {
     source: string;

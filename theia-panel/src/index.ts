@@ -117,6 +117,8 @@ function loadFilterState(): {
   kinds: Set<TheiaGraph["edges"][number]["kind"]>;
   model: string | null;
   searchFocus: boolean;
+  hideOrphans: boolean;
+  componentFocus: boolean;
 } | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -132,6 +134,8 @@ function loadFilterState(): {
       kinds: new Set(parsedKinds.length > 0 ? parsedKinds : DEFAULT_KINDS),
       model: typeof parsed?.model === "string" ? parsed.model : null,
       searchFocus: parsed?.searchFocus === true,
+      hideOrphans: parsed?.hideOrphans === true,
+      componentFocus: parsed?.componentFocus === true,
     };
   } catch {
     return null;
@@ -142,11 +146,19 @@ function saveFilterState(
   kinds: Set<string>,
   model: string | null,
   searchFocus: boolean,
+  hideOrphans: boolean,
+  componentFocus: boolean,
 ): void {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ kinds: Array.from(kinds), model, searchFocus }),
+      JSON.stringify({
+        kinds: Array.from(kinds),
+        model,
+        searchFocus,
+        hideOrphans,
+        componentFocus,
+      }),
     );
   } catch {
     /* quota exceeded, ignore */
@@ -191,7 +203,10 @@ export async function mount(
   }
   let focusEnabled = false;
   let searchFocusEnabled = saved?.searchFocus ?? false;
+  let hideOrphansEnabled = saved?.hideOrphans ?? false;
+  let componentFocusEnabled = saved?.componentFocus ?? false;
   let focusFilter: Set<string> | null = null;
+  let componentFilter: Set<string> | null = null;
   let chainFilter: Set<string> | null = null;
   let chainEdge: TheiaGraph["edges"][number] | null = null;
   let chainOverlay: {
@@ -449,10 +464,52 @@ export async function mount(
 
   function onSearchFocusToggle(enabled: boolean) {
     searchFocusEnabled = enabled;
-    saveFilterState(kinds, modelFilter, searchFocusEnabled);
+    saveFilterState(
+      kinds,
+      modelFilter,
+      searchFocusEnabled,
+      hideOrphansEnabled,
+      componentFocusEnabled,
+    );
     const searchMatchesChanged = updateVisibility();
     const id = sidePanel.currentNodeId();
     if (id && searchMatchesChanged) applyFocusModeIfEnabled(id);
+  }
+
+  function onHideOrphansToggle(enabled: boolean) {
+    hideOrphansEnabled = enabled;
+    saveFilterState(
+      kinds,
+      modelFilter,
+      searchFocusEnabled,
+      hideOrphansEnabled,
+      componentFocusEnabled,
+    );
+    // Hiding/un-hiding orphans changes the visible-edge subgraph, so the chain
+    // filter (depth-N from a clicked edge) may now reference hidden nodes.
+    clearChainSelection();
+    updateVisibility();
+    const id = sidePanel.currentNodeId();
+    if (id) applyFocusModeIfEnabled(id);
+  }
+
+  function onComponentFocusToggle(enabled: boolean) {
+    componentFocusEnabled = enabled;
+    saveFilterState(
+      kinds,
+      modelFilter,
+      searchFocusEnabled,
+      hideOrphansEnabled,
+      componentFocusEnabled,
+    );
+    if (!componentFocusEnabled) {
+      componentFilter = null;
+      setNodeVisibilityFromState();
+      rebuildVisibleEdges();
+    } else {
+      const id = sidePanel.currentNodeId();
+      if (id) applyFocusModeIfEnabled(id);
+    }
   }
 
   const sidePanel = createSidePanel(element, theme, {
@@ -493,6 +550,7 @@ export async function mount(
     graph: TheiaGraph,
     enabledKinds: Set<string>,
     modelFilter?: string | null,
+    hideOrphans = false,
   ): Set<string> {
     const kindVisible = new Set<string>();
     if (enabledKinds.has("subagent")) {
@@ -525,6 +583,11 @@ export async function mount(
         }
       }
     }
+    if (hideOrphans) {
+      for (const node of graph.nodes) {
+        if (node.metadata?.is_orphan) kindVisible.delete(node.id);
+      }
+    }
     if (modelFilter) {
       const modelMatch = new Set<string>();
       for (const node of graph.nodes) {
@@ -548,6 +611,9 @@ export async function mount(
     } else if (focusFilter) {
       ids = new Set([...ids].filter((id) => focusFilter!.has(id)));
     }
+    if (componentFilter) {
+      ids = new Set([...ids].filter((id) => componentFilter!.has(id)));
+    }
     if (onboarding) {
       ids = new Set(
         [...ids].filter((id) => onboarding!.revealedNodeIds.has(id)),
@@ -557,7 +623,12 @@ export async function mount(
   }
 
   function updateVisibility(): boolean {
-    visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
+    visibleNodeIds = computeVisibleNodeIds(
+      currentGraph,
+      kinds,
+      modelFilter,
+      hideOrphansEnabled,
+    );
     let searchMatchesChanged = false;
     if (searchFocusEnabled && searchBar) {
       const query = searchBar.input.value.trim();
@@ -658,23 +729,49 @@ export async function mount(
   }
 
   function applyFocusModeIfEnabled(selectedNodeId: string) {
-    if (!focusEnabled) {
-      focusFilter = null;
-      return;
-    }
-    const neighbors = new Set<string>();
-    neighbors.add(selectedNodeId);
-    for (const edge of currentGraph.edges) {
-      if (!kinds.has(edge.kind)) continue;
-      if (edge.source === selectedNodeId) {
-        neighbors.add(edge.target);
-      } else if (edge.target === selectedNodeId) {
-        neighbors.add(edge.source);
+    let touched = false;
+    if (focusEnabled) {
+      const neighbors = new Set<string>();
+      neighbors.add(selectedNodeId);
+      for (const edge of currentGraph.edges) {
+        if (!kinds.has(edge.kind)) continue;
+        if (edge.source === selectedNodeId) {
+          neighbors.add(edge.target);
+        } else if (edge.target === selectedNodeId) {
+          neighbors.add(edge.source);
+        }
       }
+      focusFilter = neighbors;
+      touched = true;
+    } else if (focusFilter) {
+      focusFilter = null;
+      touched = true;
     }
-    focusFilter = neighbors;
-    setNodeVisibilityFromState();
-    rebuildVisibleEdges();
+
+    if (componentFocusEnabled) {
+      const selected = currentGraph.nodes.find((n) => n.id === selectedNodeId);
+      const cid = selected?.metadata?.component_id;
+      if (cid !== undefined && cid !== null) {
+        const sameComponent = new Set<string>();
+        for (const node of currentGraph.nodes) {
+          if (node.metadata?.component_id === cid) sameComponent.add(node.id);
+        }
+        componentFilter = sameComponent;
+      } else {
+        // Selected node has no labeled component (small fragment) — don't
+        // collapse the canvas to a single point; just clear the filter.
+        componentFilter = null;
+      }
+      touched = true;
+    } else if (componentFilter) {
+      componentFilter = null;
+      touched = true;
+    }
+
+    if (touched) {
+      setNodeVisibilityFromState();
+      rebuildVisibleEdges();
+    }
   }
 
   function shouldRunOnboarding(g: TheiaGraph): boolean {
@@ -890,7 +987,12 @@ export async function mount(
       syncRenderedPositionsFromSimulation();
     }
 
-    visibleNodeIds = computeVisibleNodeIds(g, kinds, modelFilter);
+    visibleNodeIds = computeVisibleNodeIds(
+      g,
+      kinds,
+      modelFilter,
+      hideOrphansEnabled,
+    );
     setNodeVisibilityFromState();
     rebuildVisibleEdges();
     post.resize();
@@ -1250,7 +1352,13 @@ export async function mount(
     (state) => {
       kinds = state.kinds;
       modelFilter = state.model;
-      saveFilterState(kinds, modelFilter, searchFocusEnabled);
+      saveFilterState(
+        kinds,
+        modelFilter,
+        searchFocusEnabled,
+        hideOrphansEnabled,
+        componentFocusEnabled,
+      );
       focusFilter = null;
       // Filter changes can invalidate the chain (an edge kind we traversed
       // through may now be hidden); drop the chain rather than recompute it.
@@ -1270,6 +1378,10 @@ export async function mount(
       initialFocusEnabled: focusEnabled,
       onSearchFocusToggle,
       initialSearchFocusEnabled: searchFocusEnabled,
+      onHideOrphansToggle,
+      initialHideOrphansEnabled: hideOrphansEnabled,
+      onComponentFocusToggle,
+      initialComponentFocusEnabled: componentFocusEnabled,
     },
   );
 

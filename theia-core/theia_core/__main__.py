@@ -12,6 +12,7 @@ from theia_core.detect.cross_search import detect_cross_search
 from theia_core.detect.memory_share import detect_memory_share
 from theia_core.detect.subagent import detect_subagent
 from theia_core.detect.tool_overlap import detect_tool_overlap
+from theia_core.detect.topology import detect_topology
 from theia_core.emit import build_graph, write_graph
 from theia_core.features import build_feature_matrix
 from theia_core.ingest import load_sessions
@@ -52,12 +53,14 @@ def _build(
     positions = project_to_2d(
         matrix, method=cast("Literal['pca', 'umap', 'tool-vector']", projection)
     )
+    topology = detect_topology(sessions, edges)
     graph = build_graph(
         sessions=sessions,
         edges=edges,
         positions=positions,
         projection=projection,
         feature_dim=len(feature_names),
+        metadata=topology,
     )
     if include_features:
         for i, node in enumerate(graph["nodes"]):
