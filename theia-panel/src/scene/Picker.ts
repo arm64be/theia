@@ -131,9 +131,19 @@ export function createPicker(
     return bestEdge;
   }
 
+  // Cap raycast at ~20fps. With a few thousand nodes the per-move scan
+  // adds up; every 50ms is below the perceptual hover-feedback threshold
+  // and matches the throttle convention in the threejs-interaction skill.
+  const HOVER_THROTTLE_MS = 50;
+  let lastHoverAt = 0;
+
   function onMove(evt: MouseEvent) {
     if (shouldBlock?.()) return;
     if ((evt.target as HTMLElement).closest("[data-ui-overlay]")) return;
+
+    const now = performance.now();
+    if (now - lastHoverAt < HOVER_THROTTLE_MS) return;
+    lastHoverAt = now;
 
     const rect = container.getBoundingClientRect();
     ndc.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;

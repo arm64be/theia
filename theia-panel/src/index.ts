@@ -1325,6 +1325,31 @@ export async function mount(
     }
   });
 
+  function runTapSelection(clientX: number, clientY: number) {
+    const idx = picker.pickAt(clientX, clientY, 1.0);
+    if (idx !== null) {
+      select(idx);
+      const n = currentGraph.nodes[idx]!;
+      const related = currentGraph.edges.filter(
+        (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
+      );
+      enterPanelMode(n, related);
+      applyFocusModeIfEnabled(n.id);
+      emit("node-click", n.id);
+      return;
+    }
+    const pickedEdge = edges.pickAt(ctx.camera, element, clientX, clientY);
+    if (pickedEdge && kinds.has(pickedEdge.kind)) {
+      clearSelected();
+      sidePanel.hide();
+      applyChainSelection(pickedEdge);
+    } else {
+      clearChainSelection();
+      clearSelected();
+      sidePanel.hide();
+    }
+  }
+
   element.addEventListener("mouseup", (e) => {
     const target = e.target as HTMLElement;
     if (target.closest("aside") || target.closest("[data-ui-overlay]")) {
@@ -1332,39 +1357,66 @@ export async function mount(
       return;
     }
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
-      const idx = picker.pickAt(e.clientX, e.clientY, 1.0);
-      if (idx !== null) {
-        select(idx);
-        const n = currentGraph.nodes[idx]!;
-        const related = currentGraph.edges.filter(
-          (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
-        );
-        enterPanelMode(n, related);
-        applyFocusModeIfEnabled(n.id);
-        emit("node-click", n.id);
-      } else {
-        const pickedEdge = edges.pickAt(
-          ctx.camera,
-          element,
-          e.clientX,
-          e.clientY,
-        );
-        if (pickedEdge && kinds.has(pickedEdge.kind)) {
-          clearSelected();
-          sidePanel.hide();
-          applyChainSelection(pickedEdge);
-        } else {
-          clearChainSelection();
-          clearSelected();
-          sidePanel.hide();
-        }
-      }
+      runTapSelection(e.clientX, e.clientY);
     }
     resetDrag();
   });
 
   // Catch mouseup outside the element/viewport to prevent stuck drag states
   window.addEventListener("mouseup", resetDrag);
+
+  // Touch tap-to-select. We do not synthesize pan/orbit from touch — that's
+  // a future enhancement. preventDefault on a recognized tap suppresses the
+  // synthetic mouse event chain so we don't double-select.
+  let touchStartPos: { x: number; y: number } | null = null;
+  let touchStartAt = 0;
+  const TAP_MAX_MOVE_PX = 10;
+  const TAP_MAX_DURATION_MS = 500;
+
+  element.addEventListener(
+    "touchstart",
+    (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("aside") || target.closest("[data-ui-overlay]")) {
+        touchStartPos = null;
+        return;
+      }
+      if (e.touches.length !== 1) {
+        touchStartPos = null;
+        return;
+      }
+      const t = e.touches[0]!;
+      touchStartPos = { x: t.clientX, y: t.clientY };
+      touchStartAt = performance.now();
+    },
+    { passive: true },
+  );
+
+  element.addEventListener("touchmove", (e) => {
+    if (!touchStartPos || e.touches.length !== 1) return;
+    const t = e.touches[0]!;
+    const dx = t.clientX - touchStartPos.x;
+    const dy = t.clientY - touchStartPos.y;
+    if (Math.abs(dx) > TAP_MAX_MOVE_PX || Math.abs(dy) > TAP_MAX_MOVE_PX) {
+      touchStartPos = null;
+    }
+  });
+
+  element.addEventListener("touchend", (e) => {
+    if (!touchStartPos) return;
+    const elapsed = performance.now() - touchStartAt;
+    const startPos = touchStartPos;
+    touchStartPos = null;
+    if (elapsed > TAP_MAX_DURATION_MS) return;
+    // Suppress synthetic mouse events so the mouseup handler doesn't re-run
+    // the same selection a moment later.
+    e.preventDefault();
+    runTapSelection(startPos.x, startPos.y);
+  });
+
+  element.addEventListener("touchcancel", () => {
+    touchStartPos = null;
+  });
 
   element.addEventListener("contextmenu", (e) => {
     e.preventDefault();
