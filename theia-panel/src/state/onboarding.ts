@@ -86,11 +86,20 @@ function markOnboardingComplete(): void {
 
 // Heavy rebuild throttle. Each rebuild iterates all nodes
 // (setNodeVisibilityFromState), regenerates the entire edges geometry
-// (rebuildVisibleEdges), and asks the worker to recreate the
-// d3-force-3d simulation for the new active set. With reveals crossing
-// integer boundaries multiple times per frame at 60Hz, an un-throttled
-// version would fire this on essentially every frame.
-const HEAVY_REBUILD_INTERVAL_MS = 150;
+// (rebuildVisibleEdges), and — most expensive — asks the worker to
+// recreate the d3-force-3d simulation for the new active set. The
+// worker rebuild blocks its own thread for tens of ms at 1.6k nodes,
+// pausing position updates and causing visible stutter. 400ms (was
+// 150ms) is still well below human reveal-cadence perception while
+// cutting rebuild frequency to 2.5/sec.
+const HEAVY_REBUILD_INTERVAL_MS = 400;
+// Don't rebuild for tiny reveal increments — wait until enough new
+// nodes have appeared to be worth a worker resync. Without this, the
+// long tail of one-node-per-frame reveals would still trigger a
+// rebuild every 400ms with only 1-2 new nodes each time.
+function minRebuildDelta(total: number): number {
+  return Math.max(20, Math.floor(total * 0.02));
+}
 
 export interface OnboardingDeps {
   element: HTMLElement;
@@ -133,12 +142,17 @@ interface OnboardingStateInternal {
   startedAt: number;
   durationMs: number;
   order: number[];
-  rankByIndex: Map<number, number>;
   revealedNodeIds: Set<string>;
   revealStartedAtByIndex: Map<number, number>;
   linkStartedAtByKey: Map<string, number>;
   lastRevealedCount: number;
   lastHeavyRebuildAt: number;
+  lastRebuiltRevealCount: number;
+  // Smallest rank whose reveal+blink animation is still in progress.
+  // Ranks below this are settled at scale=1, brightness=1; ranks above
+  // revealCount aren't yet revealed. Per-frame work only touches the
+  // active range, not all N nodes.
+  blinkMinRank: number;
   lastEase: number;
   cameraZoom: number;
   cameraAutoZoomEnabled: boolean;
@@ -165,12 +179,13 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
       startedAt: performance.now(),
       durationMs: onboardingDurationMs(g.nodes.length),
       order,
-      rankByIndex: new Map(order.map((index, rank) => [index, rank])),
       revealedNodeIds: new Set(),
       revealStartedAtByIndex: new Map(),
       linkStartedAtByKey: new Map(),
       lastRevealedCount: 0,
       lastHeavyRebuildAt: 0,
+      lastRebuiltRevealCount: 0,
+      blinkMinRank: 0,
       lastEase: 0,
       cameraZoom: ONBOARDING_START_ZOOM,
       cameraAutoZoomEnabled: true,
@@ -235,15 +250,28 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
       state.revealStartedAtByIndex.set(idx, now);
     }
 
-    for (const idx of state.order) {
-      const rank = state.rankByIndex.get(idx)!;
+    // Advance blinkMinRank past any rank that has fully settled.
+    // Settling them once (scale=1, brightness=1) and skipping in
+    // future frames is the big per-frame win — at 1.6k nodes the old
+    // loop touched every node every frame.
+    while (state.blinkMinRank < revealCount) {
+      const idx = state.order[state.blinkMinRank]!;
+      const revealedAt = state.revealStartedAtByIndex.get(idx)!;
+      if (now - revealedAt < ONBOARDING_BLINK_MS) break;
+      nodes.setRevealScale(idx, 1);
+      nodes.setBrightness(idx, 1);
+      state.blinkMinRank++;
+    }
+    // Active animation range — only nodes still popping or blinking.
+    for (let rank = state.blinkMinRank; rank < revealCount; rank++) {
+      const idx = state.order[rank]!;
       const localProgress = Math.max(0, Math.min(1, revealFloat - rank));
       nodes.setRevealScale(idx, popScale(localProgress));
-      const revealedAt = state.revealStartedAtByIndex.get(idx);
-      const blinkProgress =
-        revealedAt === undefined
-          ? 0
-          : Math.min(1, (now - revealedAt) / ONBOARDING_BLINK_MS);
+      const revealedAt = state.revealStartedAtByIndex.get(idx)!;
+      const blinkProgress = Math.min(
+        1,
+        (now - revealedAt) / ONBOARDING_BLINK_MS,
+      );
       nodes.setBrightness(idx, revealBrightness(blinkProgress));
     }
     updateOnboardingLinks(now);
@@ -261,12 +289,17 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     const sawNewReveals = revealCount !== state.lastRevealedCount;
     state.lastRevealedCount = revealCount;
     const finalReveal = revealCount === state.order.length;
+    const newSinceRebuild = revealCount - state.lastRebuiltRevealCount;
+    const enoughNewToRebuild =
+      newSinceRebuild >= minRebuildDelta(state.order.length);
     if (
       sawNewReveals &&
       (finalReveal ||
-        now - state.lastHeavyRebuildAt > HEAVY_REBUILD_INTERVAL_MS)
+        (enoughNewToRebuild &&
+          now - state.lastHeavyRebuildAt > HEAVY_REBUILD_INTERVAL_MS))
     ) {
       state.lastHeavyRebuildAt = now;
+      state.lastRebuiltRevealCount = revealCount;
       deps.setNodeVisibilityFromState();
       deps.rebuildVisibleEdges();
       deps.simState().replaceActive({
@@ -295,20 +328,25 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     }
 
     if (state.complete) {
-      let allBlinkDone = true;
-      for (const idx of state.order) {
+      // Same active-range trick: settle finished ranks once, only
+      // animate the still-blinking tail.
+      while (state.blinkMinRank < state.order.length) {
+        const idx = state.order[state.blinkMinRank]!;
+        const revealedAt = state.revealStartedAtByIndex.get(idx) ?? now;
+        if (now - revealedAt < ONBOARDING_BLINK_MS) break;
+        nodes.setBrightness(idx, 1);
+        state.blinkMinRank++;
+      }
+      for (let rank = state.blinkMinRank; rank < state.order.length; rank++) {
+        const idx = state.order[rank]!;
         const revealedAt = state.revealStartedAtByIndex.get(idx) ?? now;
         const blinkProgress = Math.min(
           1,
           (now - revealedAt) / ONBOARDING_BLINK_MS,
         );
         nodes.setBrightness(idx, revealBrightness(blinkProgress));
-        allBlinkDone &&= blinkProgress >= 1;
       }
-      if (allBlinkDone) {
-        for (const idx of state.order) {
-          nodes.setBrightness(idx, 1);
-        }
+      if (state.blinkMinRank >= state.order.length) {
         state = null;
         deps.edges.setConnectionProgress(null);
       }
