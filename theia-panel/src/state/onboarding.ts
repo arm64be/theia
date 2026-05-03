@@ -12,7 +12,7 @@ const ONBOARDING_LINK_UP_MS = 700;
 // Camera zoom progressively retreats across the reveal so the user can
 // watch the constellation expand into view. Driven by raw time progress
 // (not reveal fraction) so the zoom-out feels steady regardless of how
-// the supernova-then-easeOutQuad reveal lands nodes.
+// the supernova-burst-then-easeInOutCubic reveal lands nodes.
 const ONBOARDING_START_ZOOM = 0.72;
 const ONBOARDING_END_ZOOM = 0.32;
 
@@ -31,24 +31,23 @@ function onboardingDurationMs(nodeCount: number): number {
   );
 }
 
-// Reveal progression: a "supernova" front-loads the first quarter of
-// the constellation in the opening burst, then easeOutQuad eases the
-// rest in across the remaining duration.
-const SUPERNOVA_DURATION_FRAC = 0.18;
-const SUPERNOVA_NODE_FRAC = 1 / 4;
+// Reveal progression: a "supernova" pops the first 10% of the
+// constellation in a single burst at t=0, then easeInOutCubic eases
+// the remaining 90% in across the full duration. Front-loading the
+// burst as a simultaneous pop (instead of a fast linear ramp) keeps
+// the visual punchy — the previous ramp still spawned nodes one by
+// one, just faster.
+const SUPERNOVA_NODE_FRAC = 0.1;
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
 function onboardingRevealFraction(rawProgress: number): number {
   if (rawProgress <= 0) return 0;
   if (rawProgress >= 1) return 1;
-  if (rawProgress < SUPERNOVA_DURATION_FRAC) {
-    // Linear ramp through the supernova window — the per-node popScale
-    // animation supplies the explosive visual on top of this.
-    return (rawProgress / SUPERNOVA_DURATION_FRAC) * SUPERNOVA_NODE_FRAC;
-  }
-  const t =
-    (rawProgress - SUPERNOVA_DURATION_FRAC) / (1 - SUPERNOVA_DURATION_FRAC);
-  // easeOutQuad: 1 - (1-t)²
-  const easedRemaining = 1 - (1 - t) * (1 - t);
-  return SUPERNOVA_NODE_FRAC + easedRemaining * (1 - SUPERNOVA_NODE_FRAC);
+  return (
+    SUPERNOVA_NODE_FRAC +
+    easeInOutCubic(rawProgress) * (1 - SUPERNOVA_NODE_FRAC)
+  );
 }
 
 function easeQuadInOut(t: number): number {
@@ -223,9 +222,9 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     const graph = deps.graph();
     const nodes = deps.nodes();
     const raw = Math.min(1, (now - state.startedAt) / state.durationMs);
-    // Camera rotation rides the smooth in-out curve; reveal rides the
-    // supernova-then-easeOutQuad curve. Decoupled so the camera doesn't
-    // lurch at the supernova→quad seam.
+    // Camera rotation rides easeQuadInOut; reveal rides the
+    // supernova-burst-then-easeInOutCubic curve. Decoupled so the
+    // camera motion stays smooth even as nodes pop in.
     const eased = easeQuadInOut(raw);
     const revealFloat = onboardingRevealFraction(raw) * state.order.length;
     const revealCount = Math.min(state.order.length, Math.ceil(revealFloat));
