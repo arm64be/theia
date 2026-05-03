@@ -95,14 +95,16 @@ export function createKeyboardNav(ctx: SceneContext): KeyboardNav {
         ? SHIFT_MULTIPLIER
         : 1;
 
-    // Pan — WASD maps to screen-relative dx/dy in pixel units.
-    // Scene.pan treats +dy as "drag down", so W (up) sends -dy.
+    // Pan — WASD maps to screen-relative camera motion. Scene.pan
+    // moves target along +up when dyPixel > 0, which slides the camera
+    // up alongside it; so W (camera up) needs +dyPixel and S needs
+    // -dyPixel. The previous mapping had these inverted.
     let panDx = 0;
     let panDy = 0;
     if (pressed.has("KeyA")) panDx -= 1;
     if (pressed.has("KeyD")) panDx += 1;
-    if (pressed.has("KeyW")) panDy -= 1;
-    if (pressed.has("KeyS")) panDy += 1;
+    if (pressed.has("KeyW")) panDy += 1;
+    if (pressed.has("KeyS")) panDy -= 1;
     if (panDx !== 0 || panDy !== 0) {
       const m = PAN_PIXELS_PER_SEC * dt * speed;
       // Scene.pan internally negates dxPixel (mouse-drag convention),
