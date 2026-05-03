@@ -30,8 +30,9 @@ interface PhysicsLink {
 }
 
 /** Custom force: pulls each node toward its semantic anchor. */
-function forceAnchor(strength = 0.15) {
+function forceAnchor(initialStrength = 0.15) {
   let nodes: PhysicsNode[] = [];
+  let strength = initialStrength;
   function force(alpha: number) {
     for (const n of nodes) {
       n.vx = (n.vx ?? 0) + (n.anchorX - n.x) * strength * alpha;
@@ -41,6 +42,10 @@ function forceAnchor(strength = 0.15) {
   }
   force.initialize = (n: PhysicsNode[]) => {
     nodes = n;
+  };
+  force.strength = (s: number) => {
+    strength = s;
+    return force;
   };
   return force;
 }
@@ -54,9 +59,10 @@ function forceAnchor(strength = 0.15) {
  * given simulation; rebuilding the adjacency map every tick was pure
  * GC churn at 1.6k nodes (thousands of Map/Set allocations per tick).
  */
-function forceCluster(links: PhysicsLink[], strength = 0.03) {
+function forceCluster(links: PhysicsLink[], initialStrength = 0.03) {
   let nodes: PhysicsNode[] = [];
   let neighborIdx: Int32Array[] = [];
+  let strength = initialStrength;
   function force(alpha: number) {
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i]!;
@@ -93,6 +99,10 @@ function forceCluster(links: PhysicsLink[], strength = 0.03) {
       tmp[ti]!.push(si);
     }
     neighborIdx = tmp.map((a) => Int32Array.from(a));
+  };
+  force.strength = (s: number) => {
+    strength = s;
+    return force;
   };
   return force;
 }

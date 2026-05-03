@@ -18,7 +18,11 @@ import { createSearchBar } from "./ui/SearchBar";
 import { createSidePanel } from "./ui/SidePanel";
 import { readTheme, applyTheme, onThemeMessage } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
-import { createLoadingOverlay, createChainOverlay } from "./ui/Overlays";
+import {
+  createLoadingOverlay,
+  createChainOverlay,
+  createOptimizeOverlay,
+} from "./ui/Overlays";
 import {
   VALID_KINDS,
   DEFAULT_KINDS,
@@ -876,6 +880,10 @@ export async function mount(
     },
   );
 
+  const optimizeOverlay = createOptimizeOverlay(element, theme, () => {
+    simState.optimize();
+  });
+
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
     "node-click": [],
     "node-hover": [],
@@ -902,6 +910,7 @@ export async function mount(
       window.removeEventListener("keydown", onKeyDown);
       chainOverlay?.remove();
       chainOverlay = null;
+      optimizeOverlay.remove();
       searchInputController?.abort();
       if (searchFocusTimer) clearTimeout(searchFocusTimer);
       stopThemeListener();

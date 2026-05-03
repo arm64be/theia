@@ -33,6 +33,12 @@ export interface SimulationStateDeps {
 export interface SimulationState {
   tick(): void;
   wakePhysics(): void;
+  /**
+   * Re-seed positions to anchors (with jitter) and re-run the simulation
+   * from alpha=1.0. Lets the user escape the layout produced by the
+   * initial seed without rebuilding the worker or graph.
+   */
+  optimize(): void;
   replaceActive(opts: ReplaceActiveOpts): void;
   syncRenderedPositionsFromSimulation(): void;
   primeOnce(): void;
@@ -248,6 +254,11 @@ export function createSimulationState(
     send({ type: "wake" });
   }
 
+  function optimize() {
+    settledFrames = 0;
+    send({ type: "relayout" });
+  }
+
   function replaceActive(opts: ReplaceActiveOpts) {
     const seedNodes = seedNodesFromMap(opts.seedPositions);
     send({
@@ -321,6 +332,7 @@ export function createSimulationState(
   return {
     tick,
     wakePhysics,
+    optimize,
     replaceActive,
     syncRenderedPositionsFromSimulation,
     primeOnce,
