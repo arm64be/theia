@@ -66,10 +66,16 @@ function revealBrightness(t: number): number {
   return 1 + 0.5 * Math.sin(Math.PI * eased);
 }
 
+const edgeKeyCache = new WeakMap<TheiaGraph["edges"][number], string>();
 function edgeKey(edge: TheiaGraph["edges"][number]): string {
-  return edge.source < edge.target
-    ? `${edge.source}|${edge.target}|${edge.kind}`
-    : `${edge.target}|${edge.source}|${edge.kind}`;
+  let key = edgeKeyCache.get(edge);
+  if (key !== undefined) return key;
+  key =
+    edge.source < edge.target
+      ? `${edge.source}|${edge.target}|${edge.kind}`
+      : `${edge.target}|${edge.source}|${edge.kind}`;
+  edgeKeyCache.set(edge, key);
+  return key;
 }
 
 function hasCompletedOnboarding(): boolean {
