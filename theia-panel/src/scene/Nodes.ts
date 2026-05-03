@@ -29,7 +29,9 @@ function makeGlowTexture(): THREE.Texture {
 }
 
 /** Stellar evolution color based on session age (started_at).
- *  Youngest (hottest) → blue-white, oldest (coolest) → dark red.
+ *  Youngest (hottest) → blue O-class, oldest (coolest) → dark red origin.
+ *  Stops follow the OFGKM spectral classification; nodes between two
+ *  classes get a linearly interpolated tint based on their creation date.
  */
 function stellarAgeColor(
   startedAt: string,
@@ -43,15 +45,16 @@ function stellarAgeColor(
       : (Date.parse(startedAt) - minTime) / (maxTime - minTime);
   const t = Math.max(0, Math.min(1, rawT));
 
-  // Stellar-class gradient stops: hot/young → cool/old
+  // Spectral-class gradient stops: hot/young → cool/old.
+  // O/F/G/K/M are evenly spaced; the final stop pulls the very oldest
+  // (origin) nodes into the darkest red.
   const stops: { t: number; r: number; g: number; b: number }[] = [
-    { t: 0.0, r: 0.608, g: 0.71, b: 1.0 }, // blue-white (B-class)
-    { t: 0.2, r: 1.0, g: 1.0, b: 1.0 }, // white (A-class)
-    { t: 0.4, r: 1.0, g: 0.961, b: 0.882 }, // yellow-white (F-class)
-    { t: 0.55, r: 1.0, g: 0.82, b: 0.4 }, // yellow (G-class)
-    { t: 0.7, r: 1.0, g: 0.624, b: 0.263 }, // orange (K-class)
-    { t: 0.85, r: 0.906, g: 0.298, b: 0.235 }, // red (M-class)
-    { t: 1.0, r: 0.36, g: 0.039, b: 0.039 }, // dark red (old M)
+    { t: 0.0, r: 0.36, g: 0.55, b: 1.0 }, // O — blue (Rigel, Spica, Bellatrix) ~25,000 K
+    { t: 0.25, r: 1.0, g: 1.0, b: 1.0 }, // F — white (Sirius, Vega) ~10,000 K
+    { t: 0.5, r: 1.0, g: 0.85, b: 0.4 }, // G — yellow (Proxima, the Sun) ~6,000 K
+    { t: 0.75, r: 1.0, g: 0.58, b: 0.22 }, // K — orange (Aldebaran, Arcturus) ~4,000 K
+    { t: 0.92, r: 0.92, g: 0.28, b: 0.2 }, // M — red (Antares, Betelgeuse) ~3,000 K
+    { t: 1.0, r: 0.36, g: 0.04, b: 0.04 }, // origin — darkest red (oldest)
   ];
 
   for (let i = 0; i < stops.length - 1; i++) {
