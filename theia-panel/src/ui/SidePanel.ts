@@ -73,6 +73,7 @@ export function createSidePanel(
   initialTheme: ThemeTokens,
   callbacks?: {
     onNavigate?: (nodeId: string) => void;
+    onGoToSession?: (nodeId: string) => void;
     onClose?: () => void;
   },
 ) {
@@ -132,6 +133,10 @@ export function createSidePanel(
     }
   }
 
+  function handleGoToSession() {
+    if (currentId) callbacks?.onGoToSession?.(currentId);
+  }
+
   function onNavKeyDown(e: KeyboardEvent, targetId: string) {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -154,6 +159,14 @@ export function createSidePanel(
       <h3 style="margin:0 30px 2px 0;color:#${theme.accent};font-size:15px;letter-spacing:0.02em">${escape(node.title || node.id)}</h3>
       <div style="opacity:0.5;color:#${theme.fg2};margin-bottom:2px;font-size:11px">${node.id}</div>
       ${headerSummary}
+      ${
+        callbacks?.onGoToSession
+          ? `<button id="sv-go-session" type="button"
+        style="margin:12px 0 0;padding:6px 10px;background:${cardBg(theme)};border:1px solid #${theme.border};color:#${theme.fg};font:12px/1.4 var(--theia-font, ${FONT_STACK});cursor:pointer">
+        Go to session
+      </button>`
+          : ""
+      }
       <dl style="margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px">
         <dt style="${dtStyle}">Started</dt><dd style="margin:0">${new Date(node.started_at).toLocaleString()}</dd>
         <dt style="${dtStyle}">Duration</dt><dd style="margin:0">${Math.round(node.duration_sec)}s</dd>
@@ -168,6 +181,10 @@ export function createSidePanel(
       </div>
     `;
     (el.querySelector("#sv-close") as HTMLButtonElement).onclick = hide;
+    const goButton = el.querySelector(
+      "#sv-go-session",
+    ) as HTMLButtonElement | null;
+    if (goButton) goButton.onclick = handleGoToSession;
   }
 
   el.addEventListener("click", (e) => {
