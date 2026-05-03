@@ -31,27 +31,34 @@ function onboardingDurationMs(nodeCount: number): number {
   );
 }
 
-// Reveal progression: a "supernova" pops the first 10% of the
-// constellation in a single burst at t=0, then easeInOutCubic eases
-// the remaining 90% in across the full duration. Front-loading the
-// burst as a simultaneous pop (instead of a fast linear ramp) keeps
-// the visual punchy — the previous ramp still spawned nodes one by
-// one, just faster.
-const SUPERNOVA_NODE_FRAC = 0.1;
+function easeQuadInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
+
+// Reveal progression: an easeQuadInOut warmup eases the first
+// WARMUP_NODE_FRAC of nodes in across WARMUP_DURATION_FRAC of duration,
+// then easeInOutCubic takes over for the rest. The previous version
+// popped 10% of nodes in a single frame at t=0, which slammed the
+// worker with one big replaceActive (full sim rebuild) plus dozens of
+// concurrent popScale animations — a visible FPS dip right at the
+// moment the user starts watching. The warmup spreads that startup
+// cost over ~1-2s. Both easings have zero derivative at the seam, so
+// the rate transition is smooth.
+const WARMUP_DURATION_FRAC = 0.1;
+const WARMUP_NODE_FRAC = 0.1;
 function onboardingRevealFraction(rawProgress: number): number {
   if (rawProgress <= 0) return 0;
   if (rawProgress >= 1) return 1;
-  return (
-    SUPERNOVA_NODE_FRAC +
-    easeInOutCubic(rawProgress) * (1 - SUPERNOVA_NODE_FRAC)
-  );
-}
-
-function easeQuadInOut(t: number): number {
-  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  if (rawProgress < WARMUP_DURATION_FRAC) {
+    const t = rawProgress / WARMUP_DURATION_FRAC;
+    return easeQuadInOut(t) * WARMUP_NODE_FRAC;
+  }
+  const t = (rawProgress - WARMUP_DURATION_FRAC) / (1 - WARMUP_DURATION_FRAC);
+  return WARMUP_NODE_FRAC + easeInOutCubic(t) * (1 - WARMUP_NODE_FRAC);
 }
 
 function popScale(t: number): number {
