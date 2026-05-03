@@ -358,10 +358,13 @@ export function createNodes(
       }
     },
     setRevealScale(i, scale) {
-      revealScales[i] = Math.max(0, scale);
+      const v = Math.max(0, scale);
+      if (revealScales[i] === v) return;
+      revealScales[i] = v;
       writeMatrix(i);
     },
     setVisible(i, visible) {
+      if (visibleFlags[i] === visible) return;
       visibleFlags[i] = visible;
       writeMatrix(i);
     },

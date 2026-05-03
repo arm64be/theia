@@ -108,7 +108,7 @@ export function createOnboardingOverlay(element: HTMLElement): {
   return {
     update(progress) {
       const pct = Math.max(0, Math.min(100, Math.round(progress * 100)));
-      el.textContent = `CREATING THE UNIVERSE - ${pct}%`;
+      el.textContent = `CREATING YOUR CONSTELLATION - ${pct}%`;
     },
     remove() {
       el.style.opacity = "0";

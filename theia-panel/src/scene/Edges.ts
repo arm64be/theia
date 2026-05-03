@@ -44,9 +44,7 @@ const SUBAGENT_DEPTH_FALLOFF = 0.18;
 const SUBAGENT_TINT_FLOOR = 0.35;
 const CRON_TINT_FLOOR = 0.35;
 
-function computeEdgeTints(
-  graph: TheiaGraph,
-): (edge: GraphEdge) => number {
+function computeEdgeTints(graph: TheiaGraph): (edge: GraphEdge) => number {
   // Cron-chain rank-by-time within each sequence.
   // Older runs sit at the low end (rank 0); newer runs are higher.
   const cronRank = new Map<string, number>();
