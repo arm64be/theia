@@ -406,7 +406,10 @@ export async function mount(
   }
 
   function select(idx: number) {
-    clearSelected();
+    if (selectedIdx !== null && selectedIdx !== idx) {
+      nodes.setSelected(selectedIdx, false);
+      nodes.setHighlight(selectedIdx, false);
+    }
     selectedIdx = idx;
     nodes.setSelected(idx, true);
     nodes.setHighlight(idx, false);
@@ -1173,8 +1176,7 @@ export async function mount(
       if (selectedId !== null) {
         const idx = nodeIndex.get(selectedId);
         if (idx !== undefined) {
-          selectedIdx = idx;
-          nodes.setSelected(idx, true);
+          select(idx);
           const n = currentGraph.nodes[idx]!;
           const related = currentGraph.edges.filter(
             (e) =>
