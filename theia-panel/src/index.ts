@@ -5,8 +5,11 @@ import { createScene } from "./scene/Scene";
 import { createNodes, type NodeLayer } from "./scene/Nodes";
 import { createEdges } from "./scene/Edges";
 import { createPost } from "./scene/Post";
-import { createSimulation } from "./physics/Simulation";
 import { createPicker } from "./scene/Picker";
+import {
+  createSimulationState,
+  type SimulationState,
+} from "./state/simulation";
 import { createKeyboardNav } from "./scene/KeyboardNav";
 import { computeEdgeChain } from "./scene/chain";
 import { createTooltip } from "./ui/Tooltip";
@@ -27,11 +30,7 @@ import {
   saveFilterState,
   computeVisibleNodeIds,
 } from "./state/filterState";
-import {
-  createPhysicsSnapshotIO,
-  type PhysicsSnapshotNode,
-} from "./state/physicsSnapshot";
-import { hashN11 } from "./util/hash";
+import { createPhysicsSnapshotIO } from "./state/physicsSnapshot";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -171,127 +170,13 @@ export async function mount(
   let nodes: NodeLayer;
   let nodeIndex = new Map<string, number>();
   let nodePositions = new Float32Array(0);
-  let simNodes: ReturnType<typeof createSimulation>["nodes"] = [];
-  let simulation: ReturnType<typeof createSimulation>["simulation"];
-  let renderedPositions = new Float32Array(0);
+  let simState: SimulationState;
   let picker: ReturnType<typeof createPicker>;
   const keyboardNav = createKeyboardNav(ctx);
   let searchBar: ReturnType<typeof createSearchBar>;
   let selectedIdx: number | null = null;
   let currentGraphUrl = graphUrl;
   const physicsSnapshotIO = createPhysicsSnapshotIO();
-
-  function simulationGraphFor(activeIds: Set<string> | null): TheiaGraph {
-    if (!activeIds) return currentGraph;
-    return {
-      ...currentGraph,
-      nodes: currentGraph.nodes.filter((node) => activeIds.has(node.id)),
-      edges: currentGraph.edges.filter(
-        (edge) => activeIds.has(edge.source) && activeIds.has(edge.target),
-      ),
-    };
-  }
-
-  function replaceSimulation(
-    activeIds: Set<string> | null,
-    animateNew = false,
-    preserveExisting = true,
-    seedPositions = new Map<string, PhysicsSnapshotNode>(),
-  ) {
-    const oldPositions = new Map<
-      string,
-      { x: number; y: number; z: number; vx?: number; vy?: number; vz?: number }
-    >();
-    for (const sn of simNodes) {
-      if (sn) {
-        oldPositions.set(sn.id, {
-          x: sn.x,
-          y: sn.y,
-          z: sn.z,
-          vx: sn.vx,
-          vy: sn.vy,
-          vz: sn.vz,
-        });
-      }
-    }
-
-    simulation?.stop();
-    const simResult = createSimulation(
-      simulationGraphFor(activeIds),
-      kinds,
-      onboarding && !onboarding.complete ? "onboarding" : "normal",
-    );
-    simulation = simResult.simulation;
-    simulation.stop();
-
-    const nextNodes = new Array(currentGraph.nodes.length) as typeof simNodes;
-    for (const sn of simResult.nodes) {
-      const idx = nodeIndex.get(sn.id);
-      if (idx === undefined) continue;
-      const old = preserveExisting ? oldPositions.get(sn.id) : undefined;
-      const seed = seedPositions.get(sn.id);
-      if (old || seed) {
-        const source = old ?? seed!;
-        sn.x = source.x;
-        sn.y = source.y;
-        sn.z = source.z;
-        sn.vx = source.vx ?? 0;
-        sn.vy = source.vy ?? 0;
-        sn.vz = source.vz ?? 0;
-      } else if (animateNew) {
-        const jitter = 0.08;
-        sn.x = sn.anchorX * 0.55 + hashN11(`${sn.id}:x`) * jitter;
-        sn.y = sn.anchorY * 0.55 + hashN11(`${sn.id}:y`) * jitter;
-        sn.z = sn.anchorZ * 0.55 + hashN11(`${sn.id}:z`) * jitter;
-        sn.vx = (sn.anchorX - sn.x) * 0.006;
-        sn.vy = (sn.anchorY - sn.y) * 0.006;
-        sn.vz = (sn.anchorZ - sn.z) * 0.006;
-        renderedPositions[idx * 3] = sn.x;
-        renderedPositions[idx * 3 + 1] = sn.y;
-        renderedPositions[idx * 3 + 2] = sn.z;
-        nodes?.setPosition(idx, sn.x, sn.y, sn.z);
-      }
-      nextNodes[idx] = sn;
-    }
-    simNodes = nextNodes;
-    simulation.alpha(animateNew ? 0.22 : simulation.alphaTarget());
-    wakePhysics();
-  }
-
-  // Settled-physics gate: skip the per-frame sim/lerp/edge-rewrite when
-  // the layout has stabilised. The lerp drives matrix uploads and a full
-  // edge-position attribute rewrite every frame; with 1.6k nodes that's
-  // most of the per-frame cost once the simulation has converged.
-  let settledFrames = 0;
-  const SETTLED_THRESHOLD = 30;
-  // Threshold ≈ 0.001² in world units — well below visible motion at any
-  // reasonable zoom, since node sizes top out at 0.18 (see Nodes.ts).
-  const SETTLE_EPSILON_SQ = 1e-6;
-  // Energy injected on wake so filter/visibility changes actually produce
-  // a visible re-equilibration. Without this, alpha sits at alphaTarget
-  // (0.012, see Simulation.ts) which makes wake invisible — sub-pixel
-  // motion that re-settles within a few ticks.
-  const WAKE_ALPHA = 0.18;
-  function wakePhysics() {
-    settledFrames = 0;
-    if (simulation && simulation.alpha() < WAKE_ALPHA) {
-      simulation.alpha(WAKE_ALPHA);
-    }
-  }
-
-  function syncRenderedPositionsFromSimulation() {
-    wakePhysics();
-    for (let i = 0; i < simNodes.length; i++) {
-      const sn = simNodes[i];
-      if (!sn) continue;
-      renderedPositions[i * 3] = sn.x;
-      renderedPositions[i * 3 + 1] = sn.y;
-      renderedPositions[i * 3 + 2] = sn.z;
-      nodes.setPosition(i, sn.x, sn.y, sn.z);
-    }
-    nodes.flush();
-    edges.updatePositions(nodePositions);
-  }
 
   function canSavePhysicsSnapshot(): boolean {
     if (!currentGraph || !hasCompletedOnboarding()) return false;
@@ -301,14 +186,18 @@ export async function mount(
 
   function savePhysicsSnapshot() {
     if (!canSavePhysicsSnapshot()) return;
-    physicsSnapshotIO.save(currentGraphUrl, simNodes, ctx.getCameraState());
+    physicsSnapshotIO.save(
+      currentGraphUrl,
+      simState.getSimNodes(),
+      ctx.getCameraState(),
+    );
   }
 
   function maybeSavePhysicsSnapshot(now: number) {
     physicsSnapshotIO.maybeSave(
       now,
       currentGraphUrl,
-      simNodes,
+      simState.getSimNodes(),
       () => ctx.getCameraState(),
       canSavePhysicsSnapshot(),
     );
@@ -436,7 +325,7 @@ export async function mount(
     onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
       if (idx === undefined || !activeVisibleNodeIds().has(targetId)) return;
-      const sn = simNodes[idx];
+      const sn = simState.getNodePosition(idx);
       if (!sn) return;
       select(idx);
       ctx.focusOn(sn.x, sn.y, 1.5);
@@ -521,7 +410,9 @@ export async function mount(
     setNodeVisibilityFromState();
 
     // Start at equilibrium to prevent jittery readjustment.
-    replaceSimulation(onboarding ? activeVisibleNodeIds() : null);
+    simState.replaceActive({
+      activeIds: onboarding ? activeVisibleNodeIds() : null,
+    });
 
     rebuildVisibleEdges();
     return searchMatchesChanged;
@@ -545,10 +436,10 @@ export async function mount(
     }
     nodes.flush();
     // Filter/focus toggles change the active set without going through
-    // replaceSimulation; wake physics so the layout can re-equilibrate
-    // for the new visible node set. The gate will re-arm after the
+    // replaceActive; wake physics so the layout can re-equilibrate for
+    // the new visible node set. The gate will re-arm after the
     // simulation re-settles.
-    wakePhysics();
+    simState.wakePhysics();
   }
 
   const EDGE_KIND_LABELS: Record<TheiaGraph["edges"][number]["kind"], string> =
@@ -682,7 +573,10 @@ export async function mount(
     }
     setNodeVisibilityFromState();
     rebuildVisibleEdges();
-    replaceSimulation(activeVisibleNodeIds(), true);
+    simState.replaceActive({
+      activeIds: activeVisibleNodeIds(),
+      animateNew: true,
+    });
   }
 
   function updateOnboardingLinks(now: number) {
@@ -753,7 +647,10 @@ export async function mount(
       onboarding.lastRevealedCount = revealCount;
       setNodeVisibilityFromState();
       rebuildVisibleEdges();
-      replaceSimulation(activeVisibleNodeIds(), true);
+      simState.replaceActive({
+        activeIds: activeVisibleNodeIds(),
+        animateNew: true,
+      });
     }
     onboarding.lastEase = eased;
     onboarding.overlay.update(eased);
@@ -804,9 +701,12 @@ export async function mount(
       if (!onboarding.revealedNodeIds.has(currentGraph.nodes[idx]!.id)) {
         continue;
       }
-      const dx = renderedPositions[idx * 3]! - ctx.camera.position.x;
-      const dy = renderedPositions[idx * 3 + 1]! - ctx.camera.position.y;
-      const dz = renderedPositions[idx * 3 + 2]! - ctx.camera.position.z;
+      // nodePositions tracks the same per-frame smoothed values that the
+      // simulation tick writes; reading from there avoids reaching into
+      // the simulation module's private renderedPositions buffer.
+      const dx = nodePositions[idx * 3]! - ctx.camera.position.x;
+      const dy = nodePositions[idx * 3 + 1]! - ctx.camera.position.y;
+      const dz = nodePositions[idx * 3 + 2]! - ctx.camera.position.z;
       nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy + dz * dz));
     }
     if (!Number.isFinite(nearest)) return;
@@ -827,7 +727,7 @@ export async function mount(
   }
 
   function setupGraph(g: TheiaGraph) {
-    simulation?.stop();
+    simState?.dispose();
     onboarding?.overlay.remove();
     onboarding = null;
     // Clear any chain isolation from a prior graph: edge identity is
@@ -841,23 +741,35 @@ export async function mount(
 
     currentGraph = g;
     nodePositions = new Float32Array(g.nodes.length * 3);
-    renderedPositions = new Float32Array(g.nodes.length * 3);
     nodes = createNodes(g, nodePositions);
     ctx.scene.add(nodes.mesh);
 
     nodeIndex = new Map(g.nodes.map((n, i) => [n.id, i]));
+    simState = createSimulationState({
+      graph: g,
+      kinds,
+      isOnboarding: () => Boolean(onboarding && !onboarding.complete),
+      nodes,
+      edges,
+      nodePositions,
+    });
 
     if (hasCompletedOnboarding()) {
       const snapshot = physicsSnapshotIO.load(currentGraphUrl);
-      replaceSimulation(null, true, false, snapshot.nodes);
-      syncRenderedPositionsFromSimulation();
+      simState.replaceActive({
+        activeIds: null,
+        animateNew: true,
+        preserveExisting: false,
+        seedPositions: snapshot.nodes,
+      });
+      simState.syncRenderedPositionsFromSimulation();
       if (snapshot.camera) {
         ctx.setCameraState(snapshot.camera);
       }
     } else {
-      replaceSimulation(null);
-      simulation.tick(1);
-      syncRenderedPositionsFromSimulation();
+      simState.replaceActive({ activeIds: null });
+      simState.primeOnce();
+      simState.syncRenderedPositionsFromSimulation();
     }
 
     visibleNodeIds = computeVisibleNodeIds(
@@ -927,7 +839,7 @@ export async function mount(
       (result) => {
         const idx = nodeIndex.get(result.node.id);
         if (idx !== undefined && activeVisibleNodeIds().has(result.node.id)) {
-          const sn = simNodes[idx];
+          const sn = simState.getNodePosition(idx);
           if (sn) ctx.focusOn(sn.x, sn.y, 1.5);
           select(idx);
         }
@@ -974,43 +886,13 @@ export async function mount(
     beginOnboarding(initialGraph);
   }
 
-  function tick() {
-    if (settledFrames >= SETTLED_THRESHOLD) return;
-    simulation.tick(1);
-    const smoothing = onboarding ? 0.14 : 0.34;
-    let maxDeltaSq = 0;
-    for (let i = 0; i < simNodes.length; i++) {
-      const sn = simNodes[i];
-      if (!sn) continue;
-      const px = renderedPositions[i * 3]!;
-      const py = renderedPositions[i * 3 + 1]!;
-      const pz = renderedPositions[i * 3 + 2]!;
-      const dx = (sn.x - px) * smoothing;
-      const dy = (sn.y - py) * smoothing;
-      const dz = (sn.z - pz) * smoothing;
-      const x = px + dx;
-      const y = py + dy;
-      const z = pz + dz;
-      const deltaSq = dx * dx + dy * dy + dz * dz;
-      if (deltaSq > maxDeltaSq) maxDeltaSq = deltaSq;
-      renderedPositions[i * 3] = x;
-      renderedPositions[i * 3 + 1] = y;
-      renderedPositions[i * 3 + 2] = z;
-      nodes.setPosition(i, x, y, z);
-    }
-    nodes.flush();
-    edges.updatePositions(nodePositions);
-    if (maxDeltaSq < SETTLE_EPSILON_SQ) settledFrames++;
-    else settledFrames = 0;
-  }
-
   let disposed = false;
   function frame() {
     if (disposed) return;
     const now = performance.now();
     updateOnboarding(now);
     keyboardNav.tick(now);
-    tick();
+    simState.tick();
     maybeSavePhysicsSnapshot(now);
     updateOnboardingCamera();
     const t = now / 1000;
@@ -1257,7 +1139,7 @@ export async function mount(
       searchInputController?.abort();
       if (searchFocusTimer) clearTimeout(searchFocusTimer);
       stopThemeListener();
-      simulation.stop();
+      simState.dispose();
       nodes.dispose();
       edges.dispose();
       post.edgesTarget.dispose();

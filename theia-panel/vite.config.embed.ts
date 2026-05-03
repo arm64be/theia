@@ -16,10 +16,13 @@ export default defineConfig({
       // Split heavy deps into separate chunks so each stays <500 kB.
       // The browser fetches them in parallel on first load and caches
       // them independently — three.js rarely changes between releases.
+      // d3-force-3d is intentionally NOT chunked here — it's only
+      // imported by the physics worker (src/physics/Simulation.ts via
+      // SimulationWorker.ts), which Vite emits as its own chunk
+      // automatically.
       output: {
         manualChunks: {
           three: ["three"],
-          "d3-force": ["d3-force-3d"],
         },
       },
     },
