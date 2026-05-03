@@ -48,6 +48,31 @@ export function createSearchBar(
   let matchedCacheQuery = "";
   let matchedCacheIds: Set<string> | null = null;
 
+  // Pre-lowercase every searchable field once at construction. The hot
+  // path used to call .toLowerCase() five times per node per keystroke
+  // (~8k allocations + GC churn at 1.6k nodes); now it does a single
+  // lowercased query + plain `.includes()` against the cache.
+  const lcTitle = new Array<string>(graph.nodes.length);
+  const lcId = new Array<string>(graph.nodes.length);
+  const lcPreview = new Array<string>(graph.nodes.length);
+  const lcSummary = new Array<string>(graph.nodes.length);
+  const lcInitialPrompt = new Array<string>(graph.nodes.length);
+  for (let i = 0; i < graph.nodes.length; i++) {
+    const node = graph.nodes[i]!;
+    lcTitle[i] = (node.title ?? "").toLowerCase();
+    lcId[i] = node.id.toLowerCase();
+    lcPreview[i] = (node.preview ?? "").toLowerCase();
+    lcSummary[i] = (node.summary ?? "").toLowerCase();
+    lcInitialPrompt[i] = (node.initial_prompt ?? "").toLowerCase();
+  }
+
+  // Cap the rendered dropdown — short queries can match hundreds of
+  // nodes, and rendering them all (with per-item event listeners and
+  // innerHTML rewrites) is what the user perceives as input lag. The
+  // matchedCacheIds set still tracks the FULL match list for the
+  // search-focus filter; only the visible UI is capped.
+  const MAX_VISIBLE_RESULTS = 50;
+
   function applyWrapperStyle() {
     wrapper.style.cssText = `
       position: absolute; top: 12px; right: calc((100% - min(320px, 50vw)) / 2); transform: none;
@@ -129,18 +154,13 @@ export function createSearchBar(
     selectedIndex = -1;
   }
 
-  function normalize(s: string) {
-    return s.toLowerCase();
-  }
-
-  function matches(node: TheiaGraph["nodes"][number], query: string) {
-    const q = normalize(query);
+  function matchesIndex(i: number, lcQuery: string): boolean {
     return (
-      normalize(node.title || "").includes(q) ||
-      normalize(node.id).includes(q) ||
-      (node.preview && normalize(node.preview).includes(q)) ||
-      (node.summary && normalize(node.summary).includes(q)) ||
-      (node.initial_prompt && normalize(node.initial_prompt).includes(q))
+      lcTitle[i]!.includes(lcQuery) ||
+      lcId[i]!.includes(lcQuery) ||
+      lcPreview[i]!.includes(lcQuery) ||
+      lcSummary[i]!.includes(lcQuery) ||
+      lcInitialPrompt[i]!.includes(lcQuery)
     );
   }
 
@@ -156,20 +176,22 @@ export function createSearchBar(
       matchedCacheIds = new Set();
       return;
     }
-    const resultByIndex = new Map<number, SearchResult>();
+    const lcQuery = query.toLowerCase();
     const matchedIds = new Set<string>();
+    const visibleResults: SearchResult[] = [];
     for (let i = 0; i < graph.nodes.length; i++) {
+      if (!matchesIndex(i, lcQuery)) continue;
       const node = graph.nodes[i]!;
-      if (matches(node, query)) {
-        matchedIds.add(node.id);
+      matchedIds.add(node.id);
+      if (visibleResults.length < MAX_VISIBLE_RESULTS) {
         if (!isVisible || isVisible(node)) {
-          resultByIndex.set(i, { node, index: i });
+          visibleResults.push({ node, index: i });
         }
       }
     }
     matchedCacheQuery = query.trim();
     matchedCacheIds = matchedIds;
-    currentResults = Array.from(resultByIndex.values());
+    currentResults = visibleResults;
     if (currentResults.length === 0) {
       dropdown.innerHTML = `<div style="padding:12px;opacity:0.4;font-size:12px;text-align:center;color:#${theme.fg2}">No results found</div>`;
       dropdown.style.display = "block";
@@ -195,22 +217,33 @@ export function createSearchBar(
         .join("");
     dropdown.style.display = "block";
     selectedIndex = -1;
-
-    for (const el of dropdown.querySelectorAll<HTMLElement>(".search-item")) {
-      el.addEventListener("mouseenter", () => {
-        const ri = Number(el.dataset.resultIndex);
-        select(ri);
-      });
-      el.addEventListener("mouseleave", () => {
-        el.style.background = "transparent";
-      });
-      el.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        const ri = Number(el.dataset.resultIndex);
-        commit(ri);
-      });
-    }
+    // Per-item listeners are attached once at construction via event
+    // delegation (see below) — re-rendering the dropdown HTML on every
+    // keystroke used to attach 3 listeners per result, which was a
+    // measurable chunk of input-lag time at 50+ results.
   }
+
+  function findItemRowFromEvent(e: Event): HTMLElement | null {
+    let el = e.target as HTMLElement | null;
+    while (el && el !== dropdown) {
+      if (el.classList?.contains("search-item")) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+  dropdown.addEventListener("mouseover", (e) => {
+    const el = findItemRowFromEvent(e);
+    if (!el) return;
+    const ri = Number(el.dataset.resultIndex);
+    if (Number.isFinite(ri)) select(ri);
+  });
+  dropdown.addEventListener("mousedown", (e) => {
+    const el = findItemRowFromEvent(e);
+    if (!el) return;
+    e.preventDefault();
+    const ri = Number(el.dataset.resultIndex);
+    if (Number.isFinite(ri)) commit(ri);
+  });
 
   input.addEventListener("input", () => {
     selectedIndex = -1;
@@ -262,10 +295,10 @@ export function createSearchBar(
       return new Set(matchedCacheIds);
     }
     const ids = new Set<string>();
+    const lcQuery = normalizedQuery.toLowerCase();
     for (let i = 0; i < graph.nodes.length; i++) {
-      const node = graph.nodes[i]!;
-      if (matches(node, normalizedQuery)) {
-        ids.add(node.id);
+      if (matchesIndex(i, lcQuery)) {
+        ids.add(graph.nodes[i]!.id);
       }
     }
     matchedCacheQuery = normalizedQuery;
