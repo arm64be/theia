@@ -28,21 +28,59 @@ function makeGlowTexture(): THREE.Texture {
   return tex;
 }
 
-/** Derive a slight tint from the model name, keeping the base amber feel. */
-function modelTintColor(model: string | undefined): THREE.Color {
-  const base = new THREE.Color(PALETTE.nodeBase);
-  if (!model) return base;
-  const hash = hash01(model);
-  const hsl = { h: 0, s: 0, l: 0 };
-  base.getHSL(hsl);
-  // Shift hue +/- 25 degrees for visible but tasteful model distinction
-  hsl.h = (hsl.h + (hash - 0.5) * 0.14 + 1) % 1;
-  // Vary saturation and lightness subtly
-  hsl.s = Math.min(1, Math.max(0.3, hsl.s + (hash - 0.5) * 0.2));
-  hsl.l = Math.min(0.85, Math.max(0.25, hsl.l + (hash - 0.5) * 0.15));
-  const c = new THREE.Color();
-  c.setHSL(hsl.h, hsl.s, hsl.l);
-  return c;
+/** Stellar evolution color based on session age (started_at).
+ *  Youngest (hottest) → blue-white, oldest (coolest) → dark red.
+ */
+function stellarAgeColor(
+  startedAt: string,
+  minTime: number,
+  maxTime: number,
+  model?: string,
+): THREE.Color {
+  const rawT =
+    maxTime === minTime
+      ? 0.5
+      : (Date.parse(startedAt) - minTime) / (maxTime - minTime);
+  const t = Math.max(0, Math.min(1, rawT));
+
+  // Stellar-class gradient stops: hot/young → cool/old
+  const stops: { t: number; r: number; g: number; b: number }[] = [
+    { t: 0.0, r: 0.608, g: 0.710, b: 1.0 },   // blue-white (B-class)
+    { t: 0.2, r: 1.0, g: 1.0, b: 1.0 },        // white (A-class)
+    { t: 0.4, r: 1.0, g: 0.961, b: 0.882 },    // yellow-white (F-class)
+    { t: 0.55, r: 1.0, g: 0.82, b: 0.4 },      // yellow (G-class)
+    { t: 0.7, r: 1.0, g: 0.624, b: 0.263 },    // orange (K-class)
+    { t: 0.85, r: 0.906, g: 0.298, b: 0.235 }, // red (M-class)
+    { t: 1.0, r: 0.36, g: 0.039, b: 0.039 },   // dark red (old M)
+  ];
+
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i]!;
+    const b = stops[i + 1]!;
+    if (t >= a.t && t <= b.t) {
+      const localT = (t - a.t) / (b.t - a.t);
+      const c = new THREE.Color();
+      c.r = a.r + (b.r - a.r) * localT;
+      c.g = a.g + (b.g - a.g) * localT;
+      c.b = a.b + (b.b - a.b) * localT;
+
+      // Subtle model tint so same-age stars from different models
+      // remain faintly distinguishable without breaking the gradient.
+      if (model) {
+        const hash = hash01(model);
+        const hsl = { h: 0, s: 0, l: 0 };
+        c.getHSL(hsl);
+        hsl.h = (hsl.h + (hash - 0.5) * 0.05 + 1) % 1;
+        hsl.s = Math.min(1, Math.max(0.2, hsl.s + (hash - 0.5) * 0.06));
+        hsl.l = Math.min(0.9, Math.max(0.2, hsl.l + (hash - 0.5) * 0.05));
+        c.setHSL(hsl.h, hsl.s, hsl.l);
+      }
+      return c;
+    }
+  }
+
+  const last = stops[stops.length - 1]!;
+  return new THREE.Color(last.r, last.g, last.b);
 }
 
 const VERT = `
@@ -125,6 +163,21 @@ export function createNodes(
   const highlightColor = new THREE.Color(PALETTE.nodeHighlight);
   const selectedColor = new THREE.Color(PALETTE.nodeSelected);
 
+  // Compute time range for stellar age coloring
+  let minTime = Infinity;
+  let maxTime = -Infinity;
+  for (const node of graph.nodes) {
+    const ts = Date.parse(node.started_at);
+    if (Number.isFinite(ts)) {
+      minTime = Math.min(minTime, ts);
+      maxTime = Math.max(maxTime, ts);
+    }
+  }
+  if (!Number.isFinite(minTime)) {
+    minTime = 0;
+    maxTime = 1;
+  }
+
   // Precompute per-node size, color, and wave offset for spatial twinkling
   const nodeSizes = new Float32Array(n);
   const nodeColors: THREE.Color[] = new Array(n);
@@ -134,7 +187,12 @@ export function createNodes(
     const node = graph.nodes[i]!;
     const turns = node.message_count ?? node.tool_count;
     nodeSizes[i] = Math.min(0.18, 0.05 + Math.log1p(turns) * 0.014);
-    nodeColors[i] = modelTintColor(node.model);
+    nodeColors[i] = stellarAgeColor(
+      node.started_at,
+      minTime,
+      maxTime,
+      node.model,
+    );
     // Spatial wave: coherent ripple across the constellation
     nodeWaveOffsets[i] =
       node.position.x * 2.0 + node.position.y * 1.5 + hash01(node.id) * 3.0;

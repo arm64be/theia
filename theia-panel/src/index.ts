@@ -895,6 +895,7 @@ export async function mount(
         if (idx !== undefined && activeVisibleNodeIds().has(result.node.id)) {
           const sn = simNodes[idx];
           if (sn) ctx.focusOn(sn.x, sn.y, 1.5);
+          select(idx);
         }
         const related = currentGraph.edges.filter(
           (e) =>
@@ -902,6 +903,7 @@ export async function mount(
             kinds.has(e.kind),
         );
         enterPanelMode(result.node, related);
+        applyFocusModeIfEnabled(result.node.id);
       },
       theme,
       (node) => activeVisibleNodeIds().has(node.id),
