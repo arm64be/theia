@@ -18,11 +18,7 @@ import { createSearchBar } from "./ui/SearchBar";
 import { createSidePanel } from "./ui/SidePanel";
 import { readTheme, applyTheme, onThemeMessage } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
-import {
-  createLoadingOverlay,
-  createChainOverlay,
-  createOnboardingOverlay,
-} from "./ui/Overlays";
+import { createLoadingOverlay, createChainOverlay } from "./ui/Overlays";
 import {
   VALID_KINDS,
   DEFAULT_KINDS,
@@ -31,6 +27,11 @@ import {
   computeVisibleNodeIds,
 } from "./state/filterState";
 import { createPhysicsSnapshotIO } from "./state/physicsSnapshot";
+import {
+  createOnboarding,
+  hasCompletedOnboarding,
+  type OnboardingController,
+} from "./state/onboarding";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -43,33 +44,6 @@ export interface Controller {
   reload(graphUrl?: string): Promise<void>;
 }
 
-const ONBOARDING_STORAGE_KEY = "theia-first-load-onboarding-complete";
-const ONBOARDING_ROTATION_RADIANS = Math.PI * 1.15;
-const ONBOARDING_BLINK_MS = 3200;
-const ONBOARDING_LINK_UP_MS = 700;
-const ONBOARDING_BASE_ZOOM = 0.72;
-const ONBOARDING_MIN_ZOOM = 0.42;
-const ONBOARDING_NEAR_DISTANCE = 3.2;
-const ONBOARDING_SAFE_DISTANCE = 5.6;
-
-function easeQuadInOut(t: number): number {
-  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-}
-
-function popScale(t: number): number {
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  const eased = easeQuadInOut(t);
-  return 1 + 0.28 * Math.sin(Math.PI * eased);
-}
-
-function revealBrightness(t: number): number {
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  const eased = easeQuadInOut(t);
-  return 1 + 0.5 * Math.sin(Math.PI * eased);
-}
-
 const edgeKeyCache = new WeakMap<TheiaGraph["edges"][number], string>();
 function edgeKey(edge: TheiaGraph["edges"][number]): string {
   let key = edgeKeyCache.get(edge);
@@ -80,22 +54,6 @@ function edgeKey(edge: TheiaGraph["edges"][number]): string {
       : `${edge.target}|${edge.source}|${edge.kind}`;
   edgeKeyCache.set(edge, key);
   return key;
-}
-
-function hasCompletedOnboarding(): boolean {
-  try {
-    return localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1";
-  } catch {
-    return true;
-  }
-}
-
-function markOnboardingComplete(): void {
-  try {
-    localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
-  } catch {
-    /* quota exceeded, ignore */
-  }
 }
 
 export async function mount(
@@ -146,22 +104,7 @@ export async function mount(
     update(nodeCount: number, edgeCount: number, label: string): void;
     remove(): void;
   } | null = null;
-  let onboarding: {
-    startedAt: number;
-    durationMs: number;
-    order: number[];
-    rankByIndex: Map<number, number>;
-    revealedNodeIds: Set<string>;
-    revealStartedAtByIndex: Map<number, number>;
-    linkStartedAtByKey: Map<string, number>;
-    lastRevealedCount: number;
-    lastHeavyRebuildAt: number;
-    lastEase: number;
-    cameraZoom: number;
-    cameraAutoZoomEnabled: boolean;
-    complete: boolean;
-    overlay: { update(progress: number): void; remove(): void };
-  } | null = null;
+  let onboarding: OnboardingController;
   let searchFocusMatchKey = "";
   let searchInputController: AbortController | null = null;
   let searchFocusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -181,7 +124,7 @@ export async function mount(
 
   function canSavePhysicsSnapshot(): boolean {
     if (!currentGraph || !hasCompletedOnboarding()) return false;
-    if (onboarding && !onboarding.complete) return false;
+    if (onboarding.isActive() && !onboarding.isComplete()) return false;
     return true;
   }
 
@@ -370,10 +313,9 @@ export async function mount(
     if (componentFilter) {
       ids = new Set([...ids].filter((id) => componentFilter!.has(id)));
     }
-    if (onboarding) {
-      ids = new Set(
-        [...ids].filter((id) => onboarding!.revealedNodeIds.has(id)),
-      );
+    if (onboarding.isActive()) {
+      const revealed = onboarding.revealedNodeIds();
+      ids = new Set([...ids].filter((id) => revealed.has(id)));
     }
     return ids;
   }
@@ -412,7 +354,7 @@ export async function mount(
 
     // Start at equilibrium to prevent jittery readjustment.
     simState.replaceActive({
-      activeIds: onboarding ? activeVisibleNodeIds() : null,
+      activeIds: onboarding.isActive() ? activeVisibleNodeIds() : null,
     });
 
     rebuildVisibleEdges();
@@ -539,220 +481,24 @@ export async function mount(
     }
   }
 
-  function shouldRunOnboarding(g: TheiaGraph): boolean {
-    return g.nodes.length > 0 && !hasCompletedOnboarding();
-  }
-
-  function beginOnboarding(g: TheiaGraph) {
-    const order = g.nodes
-      .map((node, index) => ({ index, time: Date.parse(node.started_at) }))
-      .sort((a, b) => {
-        const at = Number.isFinite(a.time) ? a.time : Number.POSITIVE_INFINITY;
-        const bt = Number.isFinite(b.time) ? b.time : Number.POSITIVE_INFINITY;
-        return at - bt || a.index - b.index;
-      })
-      .map(({ index }) => index);
-    onboarding = {
-      startedAt: performance.now(),
-      durationMs: Math.max(1, Math.ceil(g.nodes.length / 3)) * 1000,
-      order,
-      rankByIndex: new Map(order.map((index, rank) => [index, rank])),
-      revealedNodeIds: new Set(),
-      revealStartedAtByIndex: new Map(),
-      linkStartedAtByKey: new Map(),
-      lastRevealedCount: 0,
-      lastHeavyRebuildAt: 0,
-      lastEase: 0,
-      cameraZoom: ONBOARDING_BASE_ZOOM,
-      cameraAutoZoomEnabled: true,
-      complete: false,
-      overlay: createOnboardingOverlay(element),
-    };
-    ctx.setZoom(ONBOARDING_BASE_ZOOM);
-    for (let i = 0; i < g.nodes.length; i++) {
-      nodes.setRevealScale(i, 0);
-      nodes.setBrightness(i, 0);
-    }
-    setNodeVisibilityFromState();
-    rebuildVisibleEdges();
-    simState.replaceActive({
-      activeIds: activeVisibleNodeIds(),
-      animateNew: true,
-    });
-  }
-
-  function updateOnboardingLinks(now: number) {
-    if (!onboarding) {
-      edges.setConnectionProgress(null);
-      return;
-    }
-    for (const edge of currentGraph.edges) {
-      if (
-        onboarding.revealedNodeIds.has(edge.source) &&
-        onboarding.revealedNodeIds.has(edge.target)
-      ) {
-        const key = edgeKey(edge);
-        if (!onboarding.linkStartedAtByKey.has(key)) {
-          onboarding.linkStartedAtByKey.set(key, now);
-        }
-      }
-    }
-    edges.setConnectionProgress((edge) => {
-      const startedAt = onboarding?.linkStartedAtByKey.get(edgeKey(edge));
-      if (startedAt === undefined) return 0;
-      return easeQuadInOut(
-        Math.min(1, (now - startedAt) / ONBOARDING_LINK_UP_MS),
-      );
-    });
-  }
-
-  function updateOnboarding(now: number) {
-    if (!onboarding) return;
-    const raw = Math.min(
-      1,
-      (now - onboarding.startedAt) / onboarding.durationMs,
-    );
-    const eased = easeQuadInOut(raw);
-    const revealFloat = eased * onboarding.order.length;
-    const revealCount = Math.min(
-      onboarding.order.length,
-      Math.ceil(revealFloat),
-    );
-
-    for (let rank = onboarding.lastRevealedCount; rank < revealCount; rank++) {
-      const idx = onboarding.order[rank]!;
-      onboarding.revealedNodeIds.add(currentGraph.nodes[idx]!.id);
-      onboarding.revealStartedAtByIndex.set(idx, now);
-    }
-
-    for (const idx of onboarding.order) {
-      const rank = onboarding.rankByIndex.get(idx)!;
-      const localProgress = Math.max(0, Math.min(1, revealFloat - rank));
-      nodes.setRevealScale(idx, popScale(localProgress));
-      const revealedAt = onboarding.revealStartedAtByIndex.get(idx);
-      const blinkProgress =
-        revealedAt === undefined
-          ? 0
-          : Math.min(1, (now - revealedAt) / ONBOARDING_BLINK_MS);
-      nodes.setBrightness(idx, revealBrightness(blinkProgress));
-    }
-    updateOnboardingLinks(now);
-
-    const rotationDelta =
-      (eased - onboarding.lastEase) * ONBOARDING_ROTATION_RADIANS;
-    if (rotationDelta !== 0) {
-      const state = ctx.getCameraState();
-      ctx.setCameraState({ ...state, theta: state.theta + rotationDelta });
-    }
-
-    // Heavy rebuild throttle. Each rebuild iterates all 1.6k nodes
-    // (setNodeVisibilityFromState), regenerates the entire edges
-    // geometry (rebuildVisibleEdges), and asks the worker to recreate
-    // the d3-force-3d simulation for the new active set. With reveals
-    // crossing integer boundaries multiple times per frame at 60Hz, the
-    // un-throttled version fires this on essentially every frame —
-    // which was the source of the visible reveal-period FPS drop.
-    //
-    // Throttle to ~150ms; always force a final rebuild when the last
-    // node has been revealed so the simulation gets the full active
-    // set before settling. setRevealScale on individual nodes still
-    // happens every frame inside the loop above, so the visual reveal
-    // animation continues smoothly between rebuilds.
-    const HEAVY_REBUILD_INTERVAL_MS = 150;
-    const sawNewReveals = revealCount !== onboarding.lastRevealedCount;
-    onboarding.lastRevealedCount = revealCount;
-    const finalReveal = revealCount === onboarding.order.length;
-    if (
-      sawNewReveals &&
-      (finalReveal ||
-        now - onboarding.lastHeavyRebuildAt > HEAVY_REBUILD_INTERVAL_MS)
-    ) {
-      onboarding.lastHeavyRebuildAt = now;
-      setNodeVisibilityFromState();
-      rebuildVisibleEdges();
-      simState.replaceActive({
-        activeIds: activeVisibleNodeIds(),
-        animateNew: true,
-      });
-    }
-    onboarding.lastEase = eased;
-    onboarding.overlay.update(eased);
-
-    if (raw >= 1 && !onboarding.complete) {
-      for (const idx of onboarding.order) {
-        onboarding.revealedNodeIds.add(currentGraph.nodes[idx]!.id);
-        nodes.setRevealScale(idx, 1);
-        if (!onboarding.revealStartedAtByIndex.has(idx)) {
-          onboarding.revealStartedAtByIndex.set(idx, now);
-        }
-      }
-      onboarding.complete = true;
-      markOnboardingComplete();
-      onboarding.overlay.remove();
-      setNodeVisibilityFromState();
-      rebuildVisibleEdges();
-      updateOnboardingLinks(now);
-      savePhysicsSnapshot();
-    }
-
-    if (onboarding.complete) {
-      let allBlinkDone = true;
-      for (const idx of onboarding.order) {
-        const revealedAt = onboarding.revealStartedAtByIndex.get(idx) ?? now;
-        const blinkProgress = Math.min(
-          1,
-          (now - revealedAt) / ONBOARDING_BLINK_MS,
-        );
-        nodes.setBrightness(idx, revealBrightness(blinkProgress));
-        allBlinkDone &&= blinkProgress >= 1;
-      }
-      if (allBlinkDone) {
-        for (const idx of onboarding.order) {
-          nodes.setBrightness(idx, 1);
-        }
-        onboarding = null;
-        edges.setConnectionProgress(null);
-      }
-    }
-  }
-
-  function updateOnboardingCamera() {
-    if (!onboarding || onboarding.complete || !onboarding.cameraAutoZoomEnabled)
-      return;
-    let nearest = Number.POSITIVE_INFINITY;
-    for (const idx of onboarding.order) {
-      if (!onboarding.revealedNodeIds.has(currentGraph.nodes[idx]!.id)) {
-        continue;
-      }
-      // nodePositions tracks the same per-frame smoothed values that the
-      // simulation tick writes; reading from there avoids reaching into
-      // the simulation module's private renderedPositions buffer.
-      const dx = nodePositions[idx * 3]! - ctx.camera.position.x;
-      const dy = nodePositions[idx * 3 + 1]! - ctx.camera.position.y;
-      const dz = nodePositions[idx * 3 + 2]! - ctx.camera.position.z;
-      nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy + dz * dz));
-    }
-    if (!Number.isFinite(nearest)) return;
-
-    const crowding = Math.max(
-      0,
-      Math.min(
-        1,
-        (ONBOARDING_SAFE_DISTANCE - nearest) /
-          (ONBOARDING_SAFE_DISTANCE - ONBOARDING_NEAR_DISTANCE),
-      ),
-    );
-    const targetZoom =
-      ONBOARDING_BASE_ZOOM -
-      (ONBOARDING_BASE_ZOOM - ONBOARDING_MIN_ZOOM) * easeQuadInOut(crowding);
-    onboarding.cameraZoom += (targetZoom - onboarding.cameraZoom) * 0.08;
-    ctx.setZoom(onboarding.cameraZoom);
-  }
+  onboarding = createOnboarding({
+    element,
+    graph: () => currentGraph,
+    nodes: () => nodes,
+    edges,
+    ctx,
+    simState: () => simState,
+    nodePositions: () => nodePositions,
+    setNodeVisibilityFromState,
+    rebuildVisibleEdges,
+    activeVisibleNodeIds,
+    edgeKey,
+    savePhysicsSnapshot,
+  });
 
   function setupGraph(g: TheiaGraph) {
     simState?.dispose();
-    onboarding?.overlay.remove();
-    onboarding = null;
+    onboarding.cancel();
     // Clear any chain isolation from a prior graph: edge identity is
     // graph-scoped, so the previous selection is meaningless once we reload.
     clearChainSelection();
@@ -771,7 +517,7 @@ export async function mount(
     simState = createSimulationState({
       graph: g,
       kinds,
-      isOnboarding: () => Boolean(onboarding && !onboarding.complete),
+      isOnboarding: () => onboarding.isActive() && !onboarding.isComplete(),
       nodes,
       edges,
       nodePositions,
@@ -905,19 +651,19 @@ export async function mount(
   }
   loading.remove();
   setupGraph(initialGraph);
-  if (shouldRunOnboarding(initialGraph)) {
-    beginOnboarding(initialGraph);
+  if (initialGraph.nodes.length > 0 && !hasCompletedOnboarding()) {
+    onboarding.begin();
   }
 
   let disposed = false;
   function frame() {
     if (disposed) return;
     const now = performance.now();
-    updateOnboarding(now);
+    onboarding.update(now);
     keyboardNav.tick(now);
     simState.tick();
     maybeSavePhysicsSnapshot(now);
-    updateOnboardingCamera();
+    onboarding.updateCamera();
     const t = now / 1000;
     nodes.setTime(t);
     edges.setTime(t);
@@ -1081,10 +827,7 @@ export async function mount(
     (e) => {
       if ((e.target as HTMLElement).closest("[data-ui-overlay]")) return;
       lastWheelAt = performance.now();
-      if (onboarding) {
-        onboarding.cameraAutoZoomEnabled = false;
-        onboarding.cameraZoom = ctx.getZoom();
-      }
+      onboarding.onUserZoomChanged(ctx.getZoom());
       e.preventDefault();
       const delta = e.deltaY > 0 ? 1.1 : 0.9;
       ctx.setZoom(ctx.getZoom() * delta);
@@ -1154,7 +897,7 @@ export async function mount(
     destroy() {
       disposed = true;
       savePhysicsSnapshot();
-      onboarding?.overlay.remove();
+      onboarding.cancel();
       window.removeEventListener("mouseup", resetDrag);
       window.removeEventListener("keydown", onKeyDown);
       chainOverlay?.remove();
