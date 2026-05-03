@@ -72,6 +72,9 @@ export function createScene(container: HTMLElement): SceneContext {
     0.01,
     100,
   );
+  // Generous extent for graph spread past the orbit target. d3 layouts
+  // settle within ~30 units; 100 leaves room for panning + outliers.
+  const SCENE_EXTENT = 100;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(effectivePixelRatio());
@@ -96,6 +99,18 @@ export function createScene(container: HTMLElement): SceneContext {
     camera.position.y = target.y + radius * Math.cos(phi);
     camera.position.z = target.z + radius * Math.sin(phi) * Math.cos(theta);
     camera.lookAt(target);
+    // Adapt the depth slab to the current orbit radius so nodes/edges on
+    // the far side of the target don't clip when zoomed out, and close
+    // ones don't clip when zoomed in. Fixed near=0.01/far=100 used to
+    // line up with max-zoom-out radius (100) — anything past target
+    // disappeared into the clear color.
+    const nextNear = Math.max(0.01, radius * 0.01);
+    const nextFar = radius + SCENE_EXTENT;
+    if (camera.near !== nextNear || camera.far !== nextFar) {
+      camera.near = nextNear;
+      camera.far = nextFar;
+      camera.updateProjectionMatrix();
+    }
   }
   updateCamera();
 
