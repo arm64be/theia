@@ -72,9 +72,11 @@ export function createScene(container: HTMLElement): SceneContext {
     0.01,
     100,
   );
-  // Generous extent for graph spread past the orbit target. d3 layouts
-  // settle within ~30 units; 100 leaves room for panning + outliers.
-  const SCENE_EXTENT = 100;
+  // Generous bound on the graph radius from the world origin. Used to
+  // size the far plane: camera-to-node distance is bounded by
+  // |target| + radius + SCENE_RADIUS (triangle inequality), so we can
+  // pick a constant here without plumbing live node bounds in.
+  const SCENE_RADIUS = 300;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(effectivePixelRatio());
@@ -99,13 +101,16 @@ export function createScene(container: HTMLElement): SceneContext {
     camera.position.y = target.y + radius * Math.cos(phi);
     camera.position.z = target.z + radius * Math.sin(phi) * Math.cos(theta);
     camera.lookAt(target);
-    // Adapt the depth slab to the current orbit radius so nodes/edges on
-    // the far side of the target don't clip when zoomed out, and close
-    // ones don't clip when zoomed in. Fixed near=0.01/far=100 used to
-    // line up with max-zoom-out radius (100) — anything past target
-    // disappeared into the clear color.
+    // Adapt the depth slab to the current orbit so nothing clips. Far
+    // bound: a node W satisfies d(W, camera) ≤ |target| + radius +
+    // |W - origin|, so far = |target| + radius + SCENE_RADIUS covers
+    // the scene from any pan/focus position. Near scales with radius.
+    // The fixed near=0.01/far=100 used to line up with max-zoom-out
+    // radius (100) and assumed target stayed at origin — anything past
+    // the cluster (or after a search-focus to an edge node) clipped.
+    const targetDist = Math.hypot(target.x, target.y, target.z);
     const nextNear = Math.max(0.01, radius * 0.01);
-    const nextFar = radius + SCENE_EXTENT;
+    const nextFar = radius + targetDist + SCENE_RADIUS;
     if (camera.near !== nextNear || camera.far !== nextFar) {
       camera.near = nextNear;
       camera.far = nextFar;
