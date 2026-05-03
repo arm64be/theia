@@ -266,13 +266,31 @@ function applyWake() {
 }
 
 // Re-tune the existing forces and bump alpha so the layout reorganizes
-// in place: stronger many-body repulsion pushes nodes apart, stronger
-// neighbor clustering pulls connected groups tight, and a much weaker
-// anchor force lets nodes leave their original seed positions. The next
-// replaceActive (filter change, reload, etc.) recreates the simulation
-// from defaults, so we don't need to restore these strengths.
+// in place. The bias is toward the cluster (neighbor-centroid) force —
+// that's what gives the cozy, centroid-y grouping — with only a mild
+// repulsion bump and a softened (but still meaningful) anchor pull so
+// nodes drift to better positions without blowing apart.
+//
+// Charge is scaled gently by active node count: small graphs settle
+// fine near baseline, larger graphs need a bit more total push to
+// avoid clumps. Capped to bound blow-up.
+//
+// The next replaceActive (filter change, reload, etc.) recreates the
+// simulation from defaults, so no need to restore these strengths.
 function applyRelayout() {
   if (!simulation) return;
+  let activeCount = 0;
+  for (const sn of simNodes) if (sn) activeCount++;
+
+  // Defaults: charge -0.045, cluster 0.032, anchor 0.14.
+  // ~-0.046 at N=100, ~-0.06 at N=500, ~-0.07 at N=1000, capped at -0.075.
+  const chargeStrength = -Math.min(
+    0.075,
+    0.035 + Math.sqrt(activeCount) * 0.0011,
+  );
+  const clusterStrength = 0.07;
+  const anchorStrength = 0.06;
+
   const charge = simulation.force("charge") as
     | { strength: (s: number) => unknown }
     | undefined;
@@ -282,9 +300,10 @@ function applyRelayout() {
   const anchor = simulation.force("anchor") as
     | { strength: (s: number) => unknown }
     | undefined;
-  charge?.strength(-0.13);
-  cluster?.strength(0.08);
-  anchor?.strength(0.02);
+  charge?.strength(chargeStrength);
+  cluster?.strength(clusterStrength);
+  anchor?.strength(anchorStrength);
+
   for (const sn of simNodes) {
     if (!sn) continue;
     sn.vx = 0;
