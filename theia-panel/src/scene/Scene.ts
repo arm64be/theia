@@ -72,9 +72,13 @@ export function createScene(container: HTMLElement): SceneContext {
     0.01,
     100,
   );
-  // Generous extent for graph spread past the orbit target. d3 layouts
-  // settle within ~30 units; 100 leaves room for panning + outliers.
-  const SCENE_EXTENT = 100;
+  // Generous bound on the graph radius from the world origin. Used to
+  // size the far plane: camera-to-node distance is bounded by
+  // |target| + radius + SCENE_RADIUS (triangle inequality), so we can
+  // pick a constant here without plumbing live node bounds in. Bumped
+  // generously — z-buffer precision impact is small and clipping is
+  // far more user-visible than depth fighting.
+  const SCENE_RADIUS = 500;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(effectivePixelRatio());
@@ -99,13 +103,14 @@ export function createScene(container: HTMLElement): SceneContext {
     camera.position.y = target.y + radius * Math.cos(phi);
     camera.position.z = target.z + radius * Math.sin(phi) * Math.cos(theta);
     camera.lookAt(target);
-    // Adapt the depth slab to the current orbit radius so nodes/edges on
-    // the far side of the target don't clip when zoomed out, and close
-    // ones don't clip when zoomed in. Fixed near=0.01/far=100 used to
-    // line up with max-zoom-out radius (100) — anything past target
-    // disappeared into the clear color.
+    // Adapt the depth slab so nothing clips. Far bound by triangle
+    // inequality: d(W, camera) ≤ |W| + |target| + radius, and |W| is
+    // capped by SCENE_RADIUS. Without |target| in this sum, panning or
+    // search-focusing to an edge node clipped opposite-side nodes
+    // because target moved out of origin.
+    const targetDist = Math.hypot(target.x, target.y, target.z);
     const nextNear = Math.max(0.01, radius * 0.01);
-    const nextFar = radius + SCENE_EXTENT;
+    const nextFar = radius + targetDist + SCENE_RADIUS;
     if (camera.near !== nextNear || camera.far !== nextFar) {
       camera.near = nextNear;
       camera.far = nextFar;
@@ -140,7 +145,13 @@ export function createScene(container: HTMLElement): SceneContext {
     renderer,
     container,
     pan(dxPixel, dyPixel) {
-      const panSpeed = radius * 0.0015;
+      // 1:1 cursor-to-world pan: world units per CSS pixel at the
+      // target's depth = (2 * tan(fov/2) * radius) / canvasHeight. The
+      // old fixed `radius * 0.0015` multiplier was tuned for ~770px
+      // canvases and felt sluggish on taller viewports / larger graphs.
+      const canvasHeight = renderer.domElement.clientHeight || 1;
+      const fovRad = (camera.fov * Math.PI) / 180;
+      const panSpeed = (2 * Math.tan(fovRad / 2) * radius) / canvasHeight;
       right.setFromMatrixColumn(camera.matrixWorld, 0);
       up.setFromMatrixColumn(camera.matrixWorld, 1);
       target.x += (-right.x * dxPixel + up.x * dyPixel) * panSpeed;
