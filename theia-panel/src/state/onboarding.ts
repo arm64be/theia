@@ -35,10 +35,6 @@ function easeQuadInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
-}
-
 // Group reveal rate: quadratic easeIn (`t²`). Linear was too dense
 // at frame 1 ("much at once"); easeInOutCubic was the opposite —
 // `cubic(0.1) ≈ 0.004` left the first ~2s essentially empty before
@@ -51,22 +47,26 @@ function onboardingRevealFraction(rawProgress: number): number {
   return rawProgress * rawProgress;
 }
 
-// Per-node entry animation. Driven by wall-clock time since the node
-// was first revealed, NOT by the group reveal rate, so each individual
-// node eases in over POP_DURATION_MS regardless of how many siblings
-// are revealing alongside it.
+// Per-node entry animation. Driven by wall-clock since each node was
+// revealed (not by the group rate), so individual nodes animate
+// independently regardless of how many siblings reveal alongside.
 //
-// Curve is easeOutCubic — fast initial appearance (visible within a
-// frame or two of reveal) then settles smoothly to scale=1. The
-// previous easeQuadInOut had near-zero scale for the first ~150ms,
-// which made the very first node look invisible at t=0+.
+// Curve mirrors the original (pre-extraction) implementation: snap
+// to scale=1 instantly on the reveal frame, then a sin overshoot up
+// to ~1.28 and back to 1. This is the key fix for "the first node
+// doesn't appear" — earlier ease-from-zero curves spent ~150ms at
+// near-zero scale before becoming visible, so the user couldn't see
+// the lone node that t² spawns at frame 2. Snap-to-1 makes it
+// visible *on its reveal frame*, the bounce keeps it satisfying.
 const POP_DURATION_MS = 600;
 function popScale(now: number, revealedAt: number | undefined): number {
   if (revealedAt === undefined) return 0;
-  const t = Math.min(1, (now - revealedAt) / POP_DURATION_MS);
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  return easeOutCubic(t);
+  const raw = (now - revealedAt) / POP_DURATION_MS;
+  if (raw < 0) return 0;
+  if (raw >= 1) return 1;
+  // At raw=0: easeQuadInOut(0)=0 → sin(0)=0 → returns 1. Instant pop.
+  const eased = easeQuadInOut(raw);
+  return 1 + 0.28 * Math.sin(Math.PI * eased);
 }
 
 function revealBrightness(t: number): number {
