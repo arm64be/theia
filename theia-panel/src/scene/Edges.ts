@@ -8,11 +8,14 @@ type GraphEdge = TheiaGraph["edges"][number];
 const VERT = `
 attribute float aOpacity;
 attribute float aPhase;
+attribute float aReveal;
 varying float vOpacity;
 varying float vPhase;
+varying float vReveal;
 void main() {
   vOpacity = aOpacity;
   vPhase = aPhase;
+  vReveal = aReveal;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
@@ -20,11 +23,12 @@ void main() {
 const FRAG = `
 varying float vOpacity;
 varying float vPhase;
+varying float vReveal;
 uniform vec3 color;
 uniform float uTime;
 void main() {
   float pulse = 0.85 + 0.15 * sin(uTime * 3.0 + vPhase);
-  float alpha = vOpacity * pulse;
+  float alpha = vOpacity * vReveal * pulse;
   gl_FragColor = vec4(color, alpha);
 }
 `;
@@ -47,6 +51,9 @@ export interface EdgeLayer {
   ): void;
   updatePositions(nodePositions: Float32Array): void;
   setHoverNode(nodeId: string | null): void;
+  setConnectionProgress(
+    getProgress: ((edge: GraphEdge) => number) | null,
+  ): void;
   setTime(t: number): void;
   dispose(): void;
 }
@@ -59,6 +66,7 @@ export function createEdges(): EdgeLayer {
     { line: THREE.LineSegments; edgeList: GraphEdge[]; validIndices: number[] }
   >();
   let currentNodeIndex: Map<string, number> | null = null;
+  let getConnectionProgress: ((edge: GraphEdge) => number) | null = null;
 
   function rebuild(
     graph: TheiaGraph,
@@ -93,6 +101,7 @@ export function createEdges(): EdgeLayer {
       const positions = new Float32Array(edges.length * 6);
       const opacities = new Float32Array(edges.length * 2);
       const phases = new Float32Array(edges.length * 2);
+      const reveals = new Float32Array(edges.length * 2);
       const validIndices: number[] = [];
       for (let i = 0; i < edges.length; i++) {
         const e = edges[i]!;
@@ -120,6 +129,9 @@ export function createEdges(): EdgeLayer {
           hash01(e.source + "|" + e.target + "|" + e.kind) * Math.PI * 2;
         phases[i * 2 + 0] = phase;
         phases[i * 2 + 1] = phase;
+        const reveal = getConnectionProgress?.(e) ?? 1;
+        reveals[i * 2 + 0] = reveal;
+        reveals[i * 2 + 1] = reveal;
         validIndices.push(i);
       }
       const geometry = new THREE.BufferGeometry();
@@ -132,6 +144,7 @@ export function createEdges(): EdgeLayer {
         new THREE.BufferAttribute(opacities, 1),
       );
       geometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
+      geometry.setAttribute("aReveal", new THREE.BufferAttribute(reveals, 1));
       let mat = materials.get(kind);
       if (!mat) {
         const c = new THREE.Color(PALETTE_MAP[kind]);
@@ -173,8 +186,17 @@ export function createEdges(): EdgeLayer {
         const tx = nodePositions[ti * 3 + 0]!;
         const ty = nodePositions[ti * 3 + 1]!;
         const tz = nodePositions[ti * 3 + 2]!;
+        const progress = Math.max(
+          0,
+          Math.min(1, getConnectionProgress?.(e) ?? 1),
+        );
         posAttr.setXYZ(i * 2 + 0, sx, sy, sz);
-        posAttr.setXYZ(i * 2 + 1, tx, ty, tz);
+        posAttr.setXYZ(
+          i * 2 + 1,
+          sx + (tx - sx) * progress,
+          sy + (ty - sy) * progress,
+          sz + (tz - sz) * progress,
+        );
       }
       posAttr.needsUpdate = true;
     }
@@ -205,6 +227,31 @@ export function createEdges(): EdgeLayer {
     }
   }
 
+  function setConnectionProgress(
+    getProgress: ((edge: GraphEdge) => number) | null,
+  ) {
+    getConnectionProgress = getProgress;
+    for (const {
+      line,
+      edgeList,
+      validIndices,
+    } of lineSegmentsByKind.values()) {
+      const attr = line.geometry.getAttribute("aReveal") as
+        | THREE.BufferAttribute
+        | undefined;
+      if (!attr) continue;
+      for (const i of validIndices) {
+        const reveal = Math.max(
+          0,
+          Math.min(1, getConnectionProgress?.(edgeList[i]!) ?? 1),
+        );
+        attr.setX(i * 2 + 0, reveal);
+        attr.setX(i * 2 + 1, reveal);
+      }
+      attr.needsUpdate = true;
+    }
+  }
+
   function setTime(t: number) {
     for (const mat of materials.values()) {
       (mat.uniforms.uTime as { value: number }).value = t;
@@ -218,5 +265,13 @@ export function createEdges(): EdgeLayer {
     materials.forEach((m) => m.dispose());
   }
 
-  return { group, rebuild, updatePositions, setHoverNode, setTime, dispose };
+  return {
+    group,
+    rebuild,
+    updatePositions,
+    setHoverNode,
+    setConnectionProgress,
+    setTime,
+    dispose,
+  };
 }
