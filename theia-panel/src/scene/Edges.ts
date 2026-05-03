@@ -9,13 +9,16 @@ const VERT = `
 attribute float aOpacity;
 attribute float aPhase;
 attribute float aReveal;
+attribute float aTint;
 varying float vOpacity;
 varying float vPhase;
 varying float vReveal;
+varying float vTint;
 void main() {
   vOpacity = aOpacity;
   vPhase = aPhase;
   vReveal = aReveal;
+  vTint = aTint;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `;
@@ -24,14 +27,87 @@ const FRAG = `
 varying float vOpacity;
 varying float vPhase;
 varying float vReveal;
+varying float vTint;
 uniform vec3 color;
 uniform float uTime;
 void main() {
   float pulse = 0.85 + 0.15 * sin(uTime * 3.0 + vPhase);
   float alpha = vOpacity * vReveal * pulse;
-  gl_FragColor = vec4(color, alpha);
+  gl_FragColor = vec4(color * vTint, alpha);
 }
 `;
+
+// Per-edge brightness modulation based on node metadata.
+// - subagent: brighter at the root (low parent depth), darker for deeper edges
+// - cron-chain: brighter for newer edges (later in sequence), darker for older
+const SUBAGENT_DEPTH_FALLOFF = 0.18;
+const SUBAGENT_TINT_FLOOR = 0.35;
+const CRON_TINT_FLOOR = 0.35;
+
+function computeEdgeTints(
+  graph: TheiaGraph,
+): (edge: GraphEdge) => number {
+  // Cron-chain rank-by-time within each sequence.
+  // Older runs sit at the low end (rank 0); newer runs are higher.
+  const cronRank = new Map<string, number>();
+  const cronMaxRank = new Map<number, number>();
+  const cronGroups = new Map<number, Array<TheiaGraph["nodes"][number]>>();
+  for (const node of graph.nodes) {
+    const seq = node.metadata?.cron_sequence_id;
+    if (seq === null || seq === undefined) continue;
+    let group = cronGroups.get(seq);
+    if (!group) {
+      group = [];
+      cronGroups.set(seq, group);
+    }
+    group.push(node);
+  }
+  for (const [seq, group] of cronGroups) {
+    group.sort((a, b) => (a.started_at < b.started_at ? -1 : 1));
+    for (let i = 0; i < group.length; i++) {
+      cronRank.set(group[i]!.id, i);
+    }
+    cronMaxRank.set(seq, Math.max(1, group.length - 1));
+  }
+
+  // Precompute lookups: hierarchy_depth and cron_sequence_id by node id.
+  const depthById = new Map<string, number>();
+  const seqById = new Map<string, number>();
+  for (const node of graph.nodes) {
+    const d = node.metadata?.hierarchy_depth;
+    if (typeof d === "number") depthById.set(node.id, d);
+    const s = node.metadata?.cron_sequence_id;
+    if (typeof s === "number") seqById.set(node.id, s);
+  }
+
+  return (edge: GraphEdge) => {
+    if (edge.kind === "subagent") {
+      // Use the parent's depth (= shallower endpoint) so the root's outgoing
+      // edges are the brightest, and edges deeper in the tree dim out.
+      const ds = depthById.get(edge.source);
+      const dt = depthById.get(edge.target);
+      if (ds === undefined && dt === undefined) return 1.0;
+      const parentDepth = Math.min(ds ?? Infinity, dt ?? Infinity);
+      return Math.max(
+        SUBAGENT_TINT_FLOOR,
+        1.0 - parentDepth * SUBAGENT_DEPTH_FALLOFF,
+      );
+    }
+    if (edge.kind === "cron-chain") {
+      // The "newer" endpoint of a cron-chain edge drives the tint: edges
+      // between recent runs glow, edges between old runs fade.
+      const seq = seqById.get(edge.target) ?? seqById.get(edge.source);
+      if (seq === undefined) return 1.0;
+      const rs = cronRank.get(edge.source) ?? 0;
+      const rt = cronRank.get(edge.target) ?? 0;
+      const newerRank = Math.max(rs, rt);
+      const maxRank = cronMaxRank.get(seq) ?? 1;
+      const t = newerRank / maxRank;
+      return CRON_TINT_FLOOR + (1.0 - CRON_TINT_FLOOR) * t;
+    }
+    return 1.0;
+  };
+}
 
 const PALETTE_MAP: Record<GraphEdge["kind"], number> = {
   "memory-share": PALETTE.edgeMemory,
@@ -98,6 +174,8 @@ export function createEdges(): EdgeLayer {
     }
     lineSegmentsByKind.clear();
 
+    const tintFor = computeEdgeTints(graph);
+
     for (const kind of enabledKinds) {
       const edgesRaw = graph.edges.filter((e) => e.kind === kind);
       if (edgesRaw.length === 0) continue;
@@ -118,6 +196,7 @@ export function createEdges(): EdgeLayer {
       const opacities = new Float32Array(edges.length * 2);
       const phases = new Float32Array(edges.length * 2);
       const reveals = new Float32Array(edges.length * 2);
+      const tints = new Float32Array(edges.length * 2);
       const validIndices: number[] = [];
       for (let i = 0; i < edges.length; i++) {
         const e = edges[i]!;
@@ -164,6 +243,9 @@ export function createEdges(): EdgeLayer {
         const reveal = getConnectionProgress?.(e) ?? 1;
         reveals[i * 2 + 0] = reveal;
         reveals[i * 2 + 1] = reveal;
+        const tint = tintFor(e);
+        tints[i * 2 + 0] = tint;
+        tints[i * 2 + 1] = tint;
         validIndices.push(i);
       }
       const geometry = new THREE.BufferGeometry();
@@ -177,6 +259,7 @@ export function createEdges(): EdgeLayer {
       );
       geometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
       geometry.setAttribute("aReveal", new THREE.BufferAttribute(reveals, 1));
+      geometry.setAttribute("aTint", new THREE.BufferAttribute(tints, 1));
       let mat = materials.get(kind);
       if (!mat) {
         const c = new THREE.Color(PALETTE_MAP[kind]);
