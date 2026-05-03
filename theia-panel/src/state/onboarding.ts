@@ -48,23 +48,43 @@ function onboardingRevealFraction(rawProgress: number): number {
 }
 
 // Per-node entry animation. Driven by wall-clock since each node was
-// revealed (not by the group rate), so individual nodes animate
-// independently regardless of how many siblings reveal alongside.
+// revealed (not by group rate), so individuals animate independently
+// regardless of how many siblings reveal alongside.
 //
-// Curve mirrors the original (pre-extraction) implementation: snap
-// to scale=1 instantly on the reveal frame, then a sin overshoot up
-// to ~1.28 and back to 1. This is the key fix for "the first node
-// doesn't appear" — earlier ease-from-zero curves spent ~150ms at
-// near-zero scale before becoming visible, so the user couldn't see
-// the lone node that t² spawns at frame 2. Snap-to-1 makes it
-// visible *on its reveal frame*, the bounce keeps it satisfying.
-const POP_DURATION_MS = 600;
-function popScale(now: number, revealedAt: number | undefined): number {
+// Duration is **adaptive** — derived from the actual spawn interval
+// so each pop lasts ~POP_INTERVAL_K × the time between consecutive
+// reveals. Slow phases (early in t², small graphs) get long satisfying
+// pops; fast phases collapse toward the floor so concurrent pops
+// don't pile up indefinitely. Bounded by [MIN, MAX] so tiny graphs
+// (long interval) don't get multi-second pops, and high-rate phases
+// (~zero interval) still get a visible pop.
+//
+// Curve mirrors the original: snap to scale=1 instantly on the reveal
+// frame, then sin overshoot to ~1.28 and back to 1. At raw=0,
+// easeQuadInOut(0)=0 → sin(0)=0 → returns 1, so the node is visible
+// on its reveal frame; the bounce starts immediately after.
+const MIN_POP_DURATION_MS = 300;
+const MAX_POP_DURATION_MS = 1500;
+const POP_INTERVAL_K = 4;
+function clamp(min: number, max: number, v: number): number {
+  return v < min ? min : v > max ? max : v;
+}
+function popDurationFromInterval(intervalMs: number): number {
+  return clamp(
+    MIN_POP_DURATION_MS,
+    MAX_POP_DURATION_MS,
+    POP_INTERVAL_K * intervalMs,
+  );
+}
+function popScale(
+  now: number,
+  revealedAt: number | undefined,
+  popDurationMs: number,
+): number {
   if (revealedAt === undefined) return 0;
-  const raw = (now - revealedAt) / POP_DURATION_MS;
+  const raw = (now - revealedAt) / popDurationMs;
   if (raw < 0) return 0;
   if (raw >= 1) return 1;
-  // At raw=0: easeQuadInOut(0)=0 → sin(0)=0 → returns 1. Instant pop.
   const eased = easeQuadInOut(raw);
   return 1 + 0.28 * Math.sin(Math.PI * eased);
 }
@@ -156,6 +176,12 @@ interface OnboardingStateInternal {
   lastRevealedCount: number;
   lastHeavyRebuildAt: number;
   lastRebuiltRevealCount: number;
+  // Tracks the wall-clock time of the most recent reveal-batch and the
+  // last observed spawn interval (ms per node). popDurationFromInterval
+  // turns this into the per-node animation length so slow phases get
+  // long pops and fast phases get short ones — bounded by [MIN, MAX].
+  lastSpawnAt: number;
+  lastSpawnIntervalMs: number;
   // Smallest rank whose reveal+blink animation is still in progress.
   // Ranks below this are settled at scale=1, brightness=1; ranks above
   // revealCount aren't yet revealed. Per-frame work only touches the
@@ -193,6 +219,8 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
       lastRevealedCount: 0,
       lastHeavyRebuildAt: 0,
       lastRebuiltRevealCount: 0,
+      lastSpawnAt: performance.now(),
+      lastSpawnIntervalMs: MAX_POP_DURATION_MS / POP_INTERVAL_K,
       blinkMinRank: 0,
       lastEase: 0,
       cameraZoom: ONBOARDING_START_ZOOM,
@@ -245,12 +273,23 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     const graph = deps.graph();
     const nodes = deps.nodes();
     const raw = Math.min(1, (now - state.startedAt) / state.durationMs);
-    // Camera rotation rides easeQuadInOut; group reveal rate is
-    // quadratic (per-node easeOutCubic handles individual entry).
-    // Decoupled so camera motion stays smooth as nodes appear.
+    // Camera rotation rides easeQuadInOut; group rate is quadratic
+    // and per-node pop is adaptive (matches spawn interval). Decoupled
+    // so camera motion stays smooth as nodes appear.
     const eased = easeQuadInOut(raw);
     const revealFloat = onboardingRevealFraction(raw) * state.order.length;
     const revealCount = Math.min(state.order.length, Math.ceil(revealFloat));
+
+    const newRevealsThisFrame = revealCount - state.lastRevealedCount;
+    if (newRevealsThisFrame > 0) {
+      // Spawn interval = wall-clock since the last batch divided by
+      // the number of new reveals in this batch. Drives popDurationMs
+      // adaptively so per-node animations match the actual cadence.
+      state.lastSpawnIntervalMs =
+        (now - state.lastSpawnAt) / newRevealsThisFrame;
+      state.lastSpawnAt = now;
+    }
+    const popDurationMs = popDurationFromInterval(state.lastSpawnIntervalMs);
 
     for (let rank = state.lastRevealedCount; rank < revealCount; rank++) {
       const idx = state.order[rank]!;
@@ -277,7 +316,7 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     for (let rank = state.blinkMinRank; rank < revealCount; rank++) {
       const idx = state.order[rank]!;
       const revealedAt = state.revealStartedAtByIndex.get(idx)!;
-      nodes.setRevealScale(idx, popScale(now, revealedAt));
+      nodes.setRevealScale(idx, popScale(now, revealedAt, popDurationMs));
       const blinkProgress = Math.min(
         1,
         (now - revealedAt) / ONBOARDING_BLINK_MS,
