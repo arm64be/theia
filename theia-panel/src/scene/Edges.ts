@@ -126,13 +126,29 @@ export function createEdges(): EdgeLayer {
         if (si === undefined || ti === undefined) continue;
         const s = graph.nodes[si]!;
         const t = graph.nodes[ti]!;
-        positions[i * 6 + 0] = s.position.x;
-        positions[i * 6 + 1] = s.position.y;
+        // Read live positions from `nodePositions` for x/y too — not just z.
+        // `node.position` is the raw dataset anchor; the simulation places
+        // nodes at `position * spread` (Simulation.ts) plus whatever physics
+        // shifts them, so anchors don't match the rendered layout. The
+        // original code only got away with reading anchors here because
+        // tick() ran every frame and `updatePositions` immediately
+        // overwrote these values; the idle-tick gate exposed the latent
+        // mismatch as edges snapping to ~origin after a rebuild.
+        positions[i * 6 + 0] = nodePositions
+          ? (nodePositions[si * 3 + 0] ?? s.position.x)
+          : s.position.x;
+        positions[i * 6 + 1] = nodePositions
+          ? (nodePositions[si * 3 + 1] ?? s.position.y)
+          : s.position.y;
         positions[i * 6 + 2] = nodePositions
           ? (nodePositions[si * 3 + 2] ?? 0)
           : 0;
-        positions[i * 6 + 3] = t.position.x;
-        positions[i * 6 + 4] = t.position.y;
+        positions[i * 6 + 3] = nodePositions
+          ? (nodePositions[ti * 3 + 0] ?? t.position.x)
+          : t.position.x;
+        positions[i * 6 + 4] = nodePositions
+          ? (nodePositions[ti * 3 + 1] ?? t.position.y)
+          : t.position.y;
         positions[i * 6 + 5] = nodePositions
           ? (nodePositions[ti * 3 + 2] ?? 0)
           : 0;
