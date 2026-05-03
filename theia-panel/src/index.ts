@@ -13,8 +13,24 @@ import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSearchBar } from "./ui/SearchBar";
 import { createSidePanel } from "./ui/SidePanel";
-import { readTheme, applyTheme, onThemeMessage, FONT_STACK } from "./ui/Theme";
+import { readTheme, applyTheme, onThemeMessage } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
+import {
+  createLoadingOverlay,
+  createChainOverlay,
+  createOnboardingOverlay,
+} from "./ui/Overlays";
+import {
+  VALID_KINDS,
+  DEFAULT_KINDS,
+  loadFilterState,
+  saveFilterState,
+  computeVisibleNodeIds,
+} from "./state/filterState";
+import {
+  createPhysicsSnapshotIO,
+  type PhysicsSnapshotNode,
+} from "./state/physicsSnapshot";
 import { hashN11 } from "./util/hash";
 
 export interface PanelOptions {
@@ -28,23 +44,10 @@ export interface Controller {
   reload(graphUrl?: string): Promise<void>;
 }
 
-const VALID_KINDS: TheiaGraph["edges"][number]["kind"][] = [
-  "memory-share",
-  "cross-search",
-  "tool-overlap",
-  "subagent",
-  "cron-chain",
-];
-
-const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = VALID_KINDS;
-
-const STORAGE_KEY = "theia-constellation-filter";
 const ONBOARDING_STORAGE_KEY = "theia-first-load-onboarding-complete";
-const PHYSICS_SNAPSHOT_KEY_PREFIX = "theia-physics-snapshot:";
 const ONBOARDING_ROTATION_RADIANS = Math.PI * 1.15;
 const ONBOARDING_BLINK_MS = 3200;
 const ONBOARDING_LINK_UP_MS = 700;
-const PHYSICS_SNAPSHOT_INTERVAL_MS = 5000;
 const ONBOARDING_BASE_ZOOM = 0.72;
 const ONBOARDING_MIN_ZOOM = 0.42;
 const ONBOARDING_NEAR_DISTANCE = 3.2;
@@ -91,76 +94,6 @@ function hasCompletedOnboarding(): boolean {
 function markOnboardingComplete(): void {
   try {
     localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
-  } catch {
-    /* quota exceeded, ignore */
-  }
-}
-
-type PhysicsSnapshotNode = {
-  x: number;
-  y: number;
-  z: number;
-  vx: number;
-  vy: number;
-  vz: number;
-};
-
-function physicsSnapshotKey(graphUrl: string): string {
-  return `${PHYSICS_SNAPSHOT_KEY_PREFIX}${graphUrl}`;
-}
-
-type PhysicsSnapshot = {
-  nodes: Map<string, PhysicsSnapshotNode>;
-  camera: ReturnType<ReturnType<typeof createScene>["getCameraState"]> | null;
-};
-
-function loadFilterState(): {
-  kinds: Set<TheiaGraph["edges"][number]["kind"]>;
-  model: string | null;
-  searchFocus: boolean;
-  hideOrphans: boolean;
-  componentFocus: boolean;
-} | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const parsedKinds = Array.isArray(parsed?.kinds)
-      ? parsed.kinds.filter(
-          (k: unknown): k is TheiaGraph["edges"][number]["kind"] =>
-            (VALID_KINDS as readonly unknown[]).includes(k),
-        )
-      : DEFAULT_KINDS;
-    return {
-      kinds: new Set(parsedKinds.length > 0 ? parsedKinds : DEFAULT_KINDS),
-      model: typeof parsed?.model === "string" ? parsed.model : null,
-      searchFocus: parsed?.searchFocus === true,
-      hideOrphans: parsed?.hideOrphans === true,
-      componentFocus: parsed?.componentFocus === true,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function saveFilterState(
-  kinds: Set<string>,
-  model: string | null,
-  searchFocus: boolean,
-  hideOrphans: boolean,
-  componentFocus: boolean,
-): void {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        kinds: Array.from(kinds),
-        model,
-        searchFocus,
-        hideOrphans,
-        componentFocus,
-      }),
-    );
   } catch {
     /* quota exceeded, ignore */
   }
@@ -246,7 +179,7 @@ export async function mount(
   let searchBar: ReturnType<typeof createSearchBar>;
   let selectedIdx: number | null = null;
   let currentGraphUrl = graphUrl;
-  let lastPhysicsSnapshotAt = 0;
+  const physicsSnapshotIO = createPhysicsSnapshotIO();
 
   function simulationGraphFor(activeIds: Set<string> | null): TheiaGraph {
     if (!activeIds) return currentGraph;
@@ -337,95 +270,25 @@ export async function mount(
     edges.updatePositions(nodePositions);
   }
 
-  function loadPhysicsSnapshot(): PhysicsSnapshot {
-    try {
-      const raw = localStorage.getItem(physicsSnapshotKey(currentGraphUrl));
-      if (!raw) return { nodes: new Map(), camera: null };
-      const parsed = JSON.parse(raw);
-      const nodesById = parsed?.nodes;
-      if (!nodesById || typeof nodesById !== "object") {
-        return { nodes: new Map(), camera: null };
-      }
-      const snapshot = new Map<string, PhysicsSnapshotNode>();
-      for (const [id, value] of Object.entries(nodesById)) {
-        if (!value || typeof value !== "object") continue;
-        const node = value as Record<string, unknown>;
-        const x = Number(node.x);
-        const y = Number(node.y);
-        const z = Number(node.z);
-        const vx = Number(node.vx ?? 0);
-        const vy = Number(node.vy ?? 0);
-        const vz = Number(node.vz ?? 0);
-        if ([x, y, z, vx, vy, vz].every(Number.isFinite)) {
-          snapshot.set(id, { x, y, z, vx, vy, vz });
-        }
-      }
-      const cameraRaw = parsed?.camera;
-      const targetRaw = cameraRaw?.target;
-      const camera =
-        cameraRaw &&
-        targetRaw &&
-        [
-          targetRaw.x,
-          targetRaw.y,
-          targetRaw.z,
-          cameraRaw.theta,
-          cameraRaw.phi,
-          cameraRaw.zoom,
-        ]
-          .map(Number)
-          .every(Number.isFinite)
-          ? {
-              target: {
-                x: Number(targetRaw.x),
-                y: Number(targetRaw.y),
-                z: Number(targetRaw.z),
-              },
-              theta: Number(cameraRaw.theta),
-              phi: Number(cameraRaw.phi),
-              zoom: Number(cameraRaw.zoom),
-            }
-          : null;
-      return { nodes: snapshot, camera };
-    } catch {
-      return { nodes: new Map(), camera: null };
-    }
+  function canSavePhysicsSnapshot(): boolean {
+    if (!currentGraph || !hasCompletedOnboarding()) return false;
+    if (onboarding && !onboarding.complete) return false;
+    return true;
   }
 
   function savePhysicsSnapshot() {
-    if (!currentGraph || !hasCompletedOnboarding()) return;
-    if (onboarding && !onboarding.complete) return;
-    const nodesById: Record<string, PhysicsSnapshotNode> = {};
-    for (const sn of simNodes) {
-      if (!sn) continue;
-      nodesById[sn.id] = {
-        x: sn.x,
-        y: sn.y,
-        z: sn.z,
-        vx: sn.vx ?? 0,
-        vy: sn.vy ?? 0,
-        vz: sn.vz ?? 0,
-      };
-    }
-    try {
-      localStorage.setItem(
-        physicsSnapshotKey(currentGraphUrl),
-        JSON.stringify({
-          version: 1,
-          saved_at: Date.now(),
-          nodes: nodesById,
-          camera: ctx.getCameraState(),
-        }),
-      );
-    } catch {
-      /* quota exceeded, ignore */
-    }
+    if (!canSavePhysicsSnapshot()) return;
+    physicsSnapshotIO.save(currentGraphUrl, simNodes, ctx.getCameraState());
   }
 
   function maybeSavePhysicsSnapshot(now: number) {
-    if (now - lastPhysicsSnapshotAt < PHYSICS_SNAPSHOT_INTERVAL_MS) return;
-    lastPhysicsSnapshotAt = now;
-    savePhysicsSnapshot();
+    physicsSnapshotIO.maybeSave(
+      now,
+      currentGraphUrl,
+      simNodes,
+      () => ctx.getCameraState(),
+      canSavePhysicsSnapshot(),
+    );
   }
 
   const tooltip = createTooltip(element, theme);
@@ -580,60 +443,6 @@ export async function mount(
   const isInteracting = () =>
     isMouseDown || performance.now() - lastWheelAt < 200;
 
-  function computeVisibleNodeIds(
-    graph: TheiaGraph,
-    enabledKinds: Set<string>,
-    modelFilter?: string | null,
-    hideOrphans = false,
-  ): Set<string> {
-    const kindVisible = new Set<string>();
-    if (enabledKinds.has("subagent")) {
-      for (const node of graph.nodes) {
-        kindVisible.add(node.id);
-      }
-    } else {
-      const subagentIds = new Set<string>();
-      const hasNonSubagentConnection = new Map<string, boolean>();
-      for (const node of graph.nodes) {
-        if (node.parent_id) {
-          subagentIds.add(node.id);
-        } else {
-          hasNonSubagentConnection.set(node.id, true);
-        }
-      }
-      for (const edge of graph.edges) {
-        if (edge.kind === "subagent") continue;
-        if (!enabledKinds.has(edge.kind)) continue;
-        if (!subagentIds.has(edge.source)) {
-          hasNonSubagentConnection.set(edge.source, true);
-        }
-        if (!subagentIds.has(edge.target)) {
-          hasNonSubagentConnection.set(edge.target, true);
-        }
-      }
-      for (const node of graph.nodes) {
-        if (hasNonSubagentConnection.get(node.id)) {
-          kindVisible.add(node.id);
-        }
-      }
-    }
-    if (hideOrphans) {
-      for (const node of graph.nodes) {
-        if (node.metadata?.is_orphan) kindVisible.delete(node.id);
-      }
-    }
-    if (modelFilter) {
-      const modelMatch = new Set<string>();
-      for (const node of graph.nodes) {
-        if (node.model === modelFilter && kindVisible.has(node.id)) {
-          modelMatch.add(node.id);
-        }
-      }
-      return modelMatch;
-    }
-    return kindVisible;
-  }
-
   let visibleNodeIds = new Set<string>();
 
   function activeVisibleNodeIds(): Set<string> {
@@ -758,7 +567,9 @@ export async function mount(
     kindLabel: string,
   ) {
     if (!chainOverlay)
-      chainOverlay = createChainOverlay(() => clearChainSelection());
+      chainOverlay = createChainOverlay(element, theme, () =>
+        clearChainSelection(),
+      );
     chainOverlay.update(nodeCount, edgeCount, kindLabel);
   }
 
@@ -834,7 +645,7 @@ export async function mount(
       cameraZoom: ONBOARDING_BASE_ZOOM,
       cameraAutoZoomEnabled: true,
       complete: false,
-      overlay: createOnboardingOverlay(),
+      overlay: createOnboardingOverlay(element),
     };
     ctx.setZoom(ONBOARDING_BASE_ZOOM);
     for (let i = 0; i < g.nodes.length; i++) {
@@ -1009,7 +820,7 @@ export async function mount(
     nodeIndex = new Map(g.nodes.map((n, i) => [n.id, i]));
 
     if (hasCompletedOnboarding()) {
-      const snapshot = loadPhysicsSnapshot();
+      const snapshot = physicsSnapshotIO.load(currentGraphUrl);
       replaceSimulation(null, true, false, snapshot.nodes);
       syncRenderedPositionsFromSimulation();
       if (snapshot.camera) {
@@ -1121,113 +932,7 @@ export async function mount(
     );
   }
 
-  function createLoadingOverlay(text: string): { remove(): void } {
-    const el = document.createElement("div");
-    el.style.cssText = `
-      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-      background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
-      font: 13px/1.4 var(--theia-font, ${FONT_STACK});
-      letter-spacing: 0.05em; z-index: 20; transition: opacity 300ms;
-    `;
-    el.textContent = text;
-    element.appendChild(el);
-    return {
-      remove() {
-        el.style.opacity = "0";
-        setTimeout(() => {
-          try {
-            element.removeChild(el);
-          } catch {
-            /* container may have been destroyed during load */
-          }
-        }, 300);
-      },
-    };
-  }
-
-  function createChainOverlay(onClear: () => void): {
-    update(nodeCount: number, edgeCount: number, label: string): void;
-    remove(): void;
-  } {
-    const el = document.createElement("div");
-    el.setAttribute("data-ui-overlay", "true");
-    el.style.cssText = `
-      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-      display: flex; align-items: center; gap: 10px;
-      padding: 6px 10px 6px 12px; border: 1px solid #${theme.border};
-      background: rgba(7,8,13,0.78); color: #${theme.fg};
-      font: 11px/1.2 var(--theia-font, ${FONT_STACK}); letter-spacing: 0.08em;
-      text-transform: uppercase; border-radius: ${theme.radius};
-      z-index: 13; cursor: default; backdrop-filter: blur(4px);
-    `;
-    const label = document.createElement("span");
-    el.appendChild(label);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "✕";
-    btn.setAttribute("aria-label", "Clear chain selection");
-    btn.style.cssText = `
-      appearance: none; border: 0; background: transparent; cursor: pointer;
-      color: #${theme.fg2}; font: inherit; padding: 0 2px; line-height: 1;
-    `;
-    btn.onmouseenter = () => {
-      btn.style.color = `#${theme.accent}`;
-    };
-    btn.onmouseleave = () => {
-      btn.style.color = `#${theme.fg2}`;
-    };
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      onClear();
-    };
-    el.appendChild(btn);
-    element.appendChild(el);
-    return {
-      update(nodeCount, edgeCount, kindLabel) {
-        label.textContent = `chain · ${kindLabel} · ${nodeCount} node${nodeCount === 1 ? "" : "s"}, ${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
-      },
-      remove() {
-        try {
-          element.removeChild(el);
-        } catch {
-          /* container may have been destroyed */
-        }
-      },
-    };
-  }
-
-  function createOnboardingOverlay(): {
-    update(progress: number): void;
-    remove(): void;
-  } {
-    const el = document.createElement("div");
-    el.setAttribute("data-ui-overlay", "true");
-    el.style.cssText = `
-      position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
-      color: rgba(255,255,255,0.58); font: 11px/1.2 var(--theia-font, ${FONT_STACK});
-      letter-spacing: 0.18em; text-transform: uppercase; z-index: 12;
-      pointer-events: none; text-align: center; transition: opacity 450ms;
-    `;
-    element.appendChild(el);
-    return {
-      update(progress) {
-        const pct = Math.max(0, Math.min(100, Math.round(progress * 100)));
-        el.textContent = `CREATING THE UNIVERSE - ${pct}%`;
-      },
-      remove() {
-        el.style.opacity = "0";
-        setTimeout(() => {
-          try {
-            element.removeChild(el);
-          } catch {
-            /* container may have been destroyed */
-          }
-        }, 450);
-      },
-    };
-  }
-
-  const loading = createLoadingOverlay("Loading constellation\u2026");
+  const loading = createLoadingOverlay(element, "Loading constellation\u2026");
   let initialGraph: TheiaGraph;
   try {
     initialGraph = await loadGraph(graphUrl);
@@ -1538,7 +1243,7 @@ export async function mount(
       const targetUrl = url ?? graphUrl;
       currentGraphUrl = targetUrl;
 
-      const loading = createLoadingOverlay("Reloading\u2026");
+      const loading = createLoadingOverlay(element, "Reloading\u2026");
       let newGraph: TheiaGraph;
       try {
         newGraph = await loadGraph(targetUrl);
