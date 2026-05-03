@@ -1,9 +1,15 @@
-import { createSimulation } from "../physics/Simulation";
 import type { TheiaGraph } from "../data/types";
 import type { NodeLayer } from "../scene/Nodes";
 import type { EdgeLayer } from "../scene/Edges";
-import { hashN11 } from "../util/hash";
 import type { PhysicsSnapshotNode } from "./physicsSnapshot";
+import type { createSimulation } from "../physics/Simulation";
+import SimulationWorker from "../physics/SimulationWorker?worker";
+import type {
+  SeedNode,
+  SnapshotPayloadNode,
+  WorkerInMsg,
+  WorkerOutMsg,
+} from "../physics/SimulationWorker";
 
 type SimNodes = ReturnType<typeof createSimulation>["nodes"];
 
@@ -17,9 +23,7 @@ export interface ReplaceActiveOpts {
 export interface SimulationStateDeps {
   graph: TheiaGraph;
   kinds: Set<string>;
-  /** True while onboarding is running (affects sim profile + lerp smoothing). */
   isOnboarding: () => boolean;
-  /** Called once each tick after positions advance — caller flushes meshes. */
   nodes: NodeLayer;
   edges: EdgeLayer;
   /** Shared with NodeLayer — sim writes node-space positions here each tick. */
@@ -27,36 +31,28 @@ export interface SimulationStateDeps {
 }
 
 export interface SimulationState {
-  /** Advance the sim, lerp toward sim positions, flush meshes. No-op once settled. */
   tick(): void;
-  /** Reset settle gate + bump alpha so filter/visibility changes re-equilibrate. */
   wakePhysics(): void;
-  /** Rebuild simulation for a new active set (filters, focus, snapshot restore). */
   replaceActive(opts: ReplaceActiveOpts): void;
-  /** Force renderedPositions/meshes to sim positions immediately (post-restore). */
   syncRenderedPositionsFromSimulation(): void;
-  /** Run a single internal sim tick — used to settle initial layout before display. */
   primeOnce(): void;
-  /** Read the current sim position of node by index (for camera focus, etc). */
   getNodePosition(idx: number): { x: number; y: number; z: number } | null;
-  /** Snapshot input for physicsSnapshotIO.save. */
+  /**
+   * Synchronous view of the simulation's last-known node states, in
+   * graph-node order. Built from cached worker positions/velocities;
+   * may lag by up to one tick relative to the worker. Used by snapshot
+   * save (`physicsSnapshotIO.save(...)`).
+   */
   getSimNodes(): SimNodes;
   dispose(): void;
 }
 
-// Settled-physics gate: skip the per-frame sim/lerp/edge-rewrite when the
-// layout has stabilised. The lerp drives matrix uploads and a full
-// edge-position attribute rewrite every frame; with 1.6k nodes that's
-// most of the per-frame cost once the simulation has converged.
+// Settled-physics gate (main side): the worker also has its own gate
+// that suppresses position posts when the layout has converged. The
+// main-side gate stops re-flushing meshes when both `lastSimPositions`
+// has stopped changing AND the local lerp has caught up.
 const SETTLED_THRESHOLD = 30;
-// Threshold ≈ 0.001² in world units — well below visible motion at any
-// reasonable zoom, since node sizes top out at 0.18 (see Nodes.ts).
 const SETTLE_EPSILON_SQ = 1e-6;
-// Energy injected on wake so filter/visibility changes actually produce
-// a visible re-equilibration. Without this, alpha sits at alphaTarget
-// (0.012, see Simulation.ts) which makes wake invisible — sub-pixel
-// motion that re-settles within a few ticks.
-const WAKE_ALPHA = 0.18;
 
 const ONBOARDING_SMOOTHING = 0.14;
 const NORMAL_SMOOTHING = 0.34;
@@ -65,135 +61,178 @@ export function createSimulationState(
   deps: SimulationStateDeps,
 ): SimulationState {
   const { graph, kinds, isOnboarding, nodes, edges, nodePositions } = deps;
-  const renderedPositions = new Float32Array(graph.nodes.length * 3);
-  const nodeIndex = new Map<string, number>(
-    graph.nodes.map((n, i) => [n.id, i]),
+  const n = graph.nodes.length;
+
+  // Two parallel buffers per node:
+  //   targetPositions  — last positions received from the worker (the
+  //                      simulation's current truth)
+  //   renderedPositions — the per-frame lerped values written into
+  //                       nodePositions (= NodeLayer's instanceMatrix)
+  // The lerp on the main thread provides visual smoothing between
+  // worker tick boundaries (worker ticks at 60Hz; main thread renders
+  // at display refresh, often higher).
+  const targetPositions = new Float32Array(n * 3);
+  const renderedPositions = new Float32Array(n * 3);
+
+  // Velocity cache, written from worker snapshot responses; used only
+  // for snapshot save. Out-of-date between snapshot requests, but the
+  // snapshot save path is the only sync consumer and a slightly stale
+  // velocity is fine (worker is the source of truth on the next save).
+  const cachedVelocities = new Float32Array(n * 3);
+
+  // Optimistic mirror of simNodes (id + last-known x/y/z/vx/vy/vz).
+  // `getSimNodes()` returns this for the snapshot save path.
+  const simNodesMirror: SimNodes = graph.nodes.map((node) => ({
+    id: node.id,
+    x: node.position.x,
+    y: node.position.y,
+    z: 0,
+    vx: 0,
+    vy: 0,
+    vz: 0,
+    // anchorX/anchorY/anchorZ/radius are required by the type; the
+    // worker is the authoritative owner of these and main-side never
+    // reads them. Fill with the same expressions the worker will use
+    // (see physics/Simulation.ts) so the mirror is structurally
+    // identical even before the first message round-trip.
+    anchorX: node.position.x,
+    anchorY: node.position.y,
+    anchorZ: 0,
+    radius: 0.08,
+  }));
+
+  // Seed renderedPositions/targetPositions/nodePositions from the
+  // graph's static anchor positions so the very first frames have
+  // something to draw before the worker reports back.
+  for (let i = 0; i < n; i++) {
+    const node = graph.nodes[i]!;
+    targetPositions[i * 3 + 0] = node.position.x;
+    targetPositions[i * 3 + 1] = node.position.y;
+    targetPositions[i * 3 + 2] = 0;
+    renderedPositions[i * 3 + 0] = node.position.x;
+    renderedPositions[i * 3 + 1] = node.position.y;
+    renderedPositions[i * 3 + 2] = 0;
+  }
+
+  let settledFrames = 0;
+  let workerReady = false;
+  let pendingSnapshotRequest: {
+    id: number;
+    resolve: (nodes: SnapshotPayloadNode[]) => void;
+  } | null = null;
+  let snapshotRequestSeq = 0;
+
+  const worker = new SimulationWorker();
+  function send(msg: WorkerInMsg, transfer?: Transferable[]) {
+    worker.postMessage(msg, transfer ?? []);
+  }
+
+  worker.addEventListener("message", (e: MessageEvent<WorkerOutMsg>) => {
+    const msg = e.data;
+    if (msg.type === "ready") {
+      workerReady = true;
+      return;
+    }
+    if (msg.type === "positions") {
+      const incoming = new Float32Array(msg.buffer);
+      // Length should match n*3; if it doesn't (graph swap mid-flight),
+      // ignore the stale message.
+      if (incoming.length === targetPositions.length) {
+        targetPositions.set(incoming);
+        // Mirror x/y/z onto simNodesMirror so getSimNodes is current.
+        for (let i = 0; i < n; i++) {
+          const sn = simNodesMirror[i]!;
+          sn.x = incoming[i * 3 + 0]!;
+          sn.y = incoming[i * 3 + 1]!;
+          sn.z = incoming[i * 3 + 2]!;
+        }
+        // Restart the main-side gate when worker reports motion.
+        if (!msg.settled) settledFrames = 0;
+      }
+      return;
+    }
+    if (msg.type === "snapshot") {
+      // Update velocity cache + mirror, then resolve any pending
+      // request. Snapshot save is sync via getSimNodes(), but the
+      // explicit request path lets the IO layer pull a fresh copy
+      // (e.g. just before navigating away).
+      for (const sn of msg.nodes) {
+        const idx = idxById.get(sn.id);
+        if (idx === undefined) continue;
+        cachedVelocities[idx * 3 + 0] = sn.vx;
+        cachedVelocities[idx * 3 + 1] = sn.vy;
+        cachedVelocities[idx * 3 + 2] = sn.vz;
+        const mirror = simNodesMirror[idx]!;
+        mirror.x = sn.x;
+        mirror.y = sn.y;
+        mirror.z = sn.z;
+        mirror.vx = sn.vx;
+        mirror.vy = sn.vy;
+        mirror.vz = sn.vz;
+      }
+      if (
+        pendingSnapshotRequest &&
+        pendingSnapshotRequest.id === msg.requestId
+      ) {
+        pendingSnapshotRequest.resolve(msg.nodes);
+        pendingSnapshotRequest = null;
+      }
+    }
+  });
+
+  const idxById = new Map<string, number>(
+    graph.nodes.map((node, i) => [node.id, i]),
   );
 
-  let simNodes: SimNodes = [];
-  let simulation: ReturnType<typeof createSimulation>["simulation"];
-  let settledFrames = 0;
-
-  function simulationGraphFor(activeIds: Set<string> | null): TheiaGraph {
-    if (!activeIds) return graph;
-    return {
-      ...graph,
-      nodes: graph.nodes.filter((node) => activeIds.has(node.id)),
-      edges: graph.edges.filter(
-        (edge) => activeIds.has(edge.source) && activeIds.has(edge.target),
-      ),
-    };
+  function seedNodesFromMap(
+    seedPositions?: Map<string, PhysicsSnapshotNode>,
+  ): SeedNode[] | undefined {
+    if (!seedPositions || seedPositions.size === 0) return undefined;
+    const seeds: SeedNode[] = [];
+    for (const [id, p] of seedPositions) {
+      seeds.push({
+        id,
+        x: p.x,
+        y: p.y,
+        z: p.z,
+        vx: p.vx,
+        vy: p.vy,
+        vz: p.vz,
+      });
+    }
+    return seeds;
   }
 
-  function replaceActive(opts: ReplaceActiveOpts) {
-    const {
-      activeIds,
-      animateNew = false,
-      preserveExisting = true,
-      seedPositions = new Map<string, PhysicsSnapshotNode>(),
-    } = opts;
-
-    const oldPositions = new Map<
-      string,
-      { x: number; y: number; z: number; vx?: number; vy?: number; vz?: number }
-    >();
-    for (const sn of simNodes) {
-      if (sn) {
-        oldPositions.set(sn.id, {
-          x: sn.x,
-          y: sn.y,
-          z: sn.z,
-          vx: sn.vx,
-          vy: sn.vy,
-          vz: sn.vz,
-        });
-      }
-    }
-
-    simulation?.stop();
-    const simResult = createSimulation(
-      simulationGraphFor(activeIds),
-      kinds,
-      isOnboarding() ? "onboarding" : "normal",
-    );
-    simulation = simResult.simulation;
-    simulation.stop();
-
-    const nextNodes = new Array(graph.nodes.length) as SimNodes;
-    for (const sn of simResult.nodes) {
-      const idx = nodeIndex.get(sn.id);
-      if (idx === undefined) continue;
-      const old = preserveExisting ? oldPositions.get(sn.id) : undefined;
-      const seed = seedPositions.get(sn.id);
-      if (old || seed) {
-        const source = old ?? seed!;
-        sn.x = source.x;
-        sn.y = source.y;
-        sn.z = source.z;
-        sn.vx = source.vx ?? 0;
-        sn.vy = source.vy ?? 0;
-        sn.vz = source.vz ?? 0;
-      } else if (animateNew) {
-        const jitter = 0.08;
-        sn.x = sn.anchorX * 0.55 + hashN11(`${sn.id}:x`) * jitter;
-        sn.y = sn.anchorY * 0.55 + hashN11(`${sn.id}:y`) * jitter;
-        sn.z = sn.anchorZ * 0.55 + hashN11(`${sn.id}:z`) * jitter;
-        sn.vx = (sn.anchorX - sn.x) * 0.006;
-        sn.vy = (sn.anchorY - sn.y) * 0.006;
-        sn.vz = (sn.anchorZ - sn.z) * 0.006;
-        renderedPositions[idx * 3] = sn.x;
-        renderedPositions[idx * 3 + 1] = sn.y;
-        renderedPositions[idx * 3 + 2] = sn.z;
-        nodes.setPosition(idx, sn.x, sn.y, sn.z);
-      }
-      nextNodes[idx] = sn;
-    }
-    simNodes = nextNodes;
-    simulation.alpha(animateNew ? 0.22 : simulation.alphaTarget());
-    wakePhysics();
-  }
-
-  function wakePhysics() {
-    settledFrames = 0;
-    if (simulation && simulation.alpha() < WAKE_ALPHA) {
-      simulation.alpha(WAKE_ALPHA);
-    }
-  }
-
-  function syncRenderedPositionsFromSimulation() {
-    wakePhysics();
-    for (let i = 0; i < simNodes.length; i++) {
-      const sn = simNodes[i];
-      if (!sn) continue;
-      renderedPositions[i * 3] = sn.x;
-      renderedPositions[i * 3 + 1] = sn.y;
-      renderedPositions[i * 3 + 2] = sn.z;
-      nodes.setPosition(i, sn.x, sn.y, sn.z);
-    }
-    nodes.flush();
-    edges.updatePositions(nodePositions);
-  }
+  // Init the worker with the graph + initial active set (null = full).
+  send({
+    type: "init",
+    graph,
+    kinds: Array.from(kinds),
+    isOnboarding: isOnboarding(),
+  });
 
   function tick() {
     if (settledFrames >= SETTLED_THRESHOLD) return;
-    simulation.tick(1);
+    // Lerp renderedPositions toward targetPositions; write into
+    // nodePositions (the buffer NodeLayer reads) and into the matrix.
     const smoothing = isOnboarding() ? ONBOARDING_SMOOTHING : NORMAL_SMOOTHING;
     let maxDeltaSq = 0;
-    for (let i = 0; i < simNodes.length; i++) {
-      const sn = simNodes[i];
-      if (!sn) continue;
-      const px = renderedPositions[i * 3]!;
+    for (let i = 0; i < n; i++) {
+      const px = renderedPositions[i * 3 + 0]!;
       const py = renderedPositions[i * 3 + 1]!;
       const pz = renderedPositions[i * 3 + 2]!;
-      const dx = (sn.x - px) * smoothing;
-      const dy = (sn.y - py) * smoothing;
-      const dz = (sn.z - pz) * smoothing;
+      const tx = targetPositions[i * 3 + 0]!;
+      const ty = targetPositions[i * 3 + 1]!;
+      const tz = targetPositions[i * 3 + 2]!;
+      const dx = (tx - px) * smoothing;
+      const dy = (ty - py) * smoothing;
+      const dz = (tz - pz) * smoothing;
       const x = px + dx;
       const y = py + dy;
       const z = pz + dz;
       const deltaSq = dx * dx + dy * dy + dz * dz;
       if (deltaSq > maxDeltaSq) maxDeltaSq = deltaSq;
-      renderedPositions[i * 3] = x;
+      renderedPositions[i * 3 + 0] = x;
       renderedPositions[i * 3 + 1] = y;
       renderedPositions[i * 3 + 2] = z;
       nodes.setPosition(i, x, y, z);
@@ -204,18 +243,79 @@ export function createSimulationState(
     else settledFrames = 0;
   }
 
+  function wakePhysics() {
+    settledFrames = 0;
+    send({ type: "wake" });
+  }
+
+  function replaceActive(opts: ReplaceActiveOpts) {
+    const seedNodes = seedNodesFromMap(opts.seedPositions);
+    send({
+      type: "replaceActive",
+      activeIds: opts.activeIds ? Array.from(opts.activeIds) : null,
+      animateNew: opts.animateNew ?? false,
+      preserveExisting: opts.preserveExisting ?? true,
+      seedNodes,
+      isOnboarding: isOnboarding(),
+    });
+    settledFrames = 0;
+  }
+
+  function syncRenderedPositionsFromSimulation() {
+    // Snap the local rendered buffer to whatever target positions we
+    // currently know about. Used after snapshot restore / setupGraph
+    // to avoid an interpolated transition on first display.
+    for (let i = 0; i < n; i++) {
+      const tx = targetPositions[i * 3 + 0]!;
+      const ty = targetPositions[i * 3 + 1]!;
+      const tz = targetPositions[i * 3 + 2]!;
+      renderedPositions[i * 3 + 0] = tx;
+      renderedPositions[i * 3 + 1] = ty;
+      renderedPositions[i * 3 + 2] = tz;
+      nodes.setPosition(i, tx, ty, tz);
+    }
+    nodes.flush();
+    edges.updatePositions(nodePositions);
+    settledFrames = 0;
+  }
+
   function primeOnce() {
-    simulation.tick(1);
+    // No-op on the main side; the worker will produce position updates
+    // on its own schedule. Kept for API parity with the previous
+    // in-process implementation, where setupGraph used it to bake one
+    // tick of layout before the first display.
+    void workerReady;
   }
 
   function getNodePosition(idx: number) {
-    const sn = simNodes[idx];
-    if (!sn) return null;
-    return { x: sn.x, y: sn.y, z: sn.z };
+    if (idx < 0 || idx >= n) return null;
+    return {
+      x: targetPositions[idx * 3 + 0]!,
+      y: targetPositions[idx * 3 + 1]!,
+      z: targetPositions[idx * 3 + 2]!,
+    };
+  }
+
+  function getSimNodes(): SimNodes {
+    // Request a fresh snapshot in the background so the next save call
+    // sees updated velocities. Returns the mirror synchronously — its
+    // x/y/z are always current (updated on every positions message);
+    // vx/vy/vz lag until the snapshot response arrives.
+    snapshotRequestSeq++;
+    const id = snapshotRequestSeq;
+    pendingSnapshotRequest = {
+      id,
+      resolve: () => {
+        /* mirror is updated in-place by the message handler */
+      },
+    };
+    send({ type: "snapshotRequest", requestId: id });
+    return simNodesMirror;
   }
 
   function dispose() {
-    simulation?.stop();
+    send({ type: "dispose" });
+    worker.terminate();
   }
 
   return {
@@ -225,8 +325,7 @@ export function createSimulationState(
     syncRenderedPositionsFromSimulation,
     primeOnce,
     getNodePosition,
-    getSimNodes: () => simNodes,
+    getSimNodes,
     dispose,
   };
 }
-
