@@ -648,9 +648,9 @@ export async function mount(
       setNodeVisibilityFromState();
       rebuildVisibleEdges();
       simState.replaceActive({
-      activeIds: activeVisibleNodeIds(),
-      animateNew: true,
-    });
+        activeIds: activeVisibleNodeIds(),
+        animateNew: true,
+      });
     }
     onboarding.lastEase = eased;
     onboarding.overlay.update(eased);
