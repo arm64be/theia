@@ -35,16 +35,39 @@ function easeQuadInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-// Group reveal rate: quadratic easeIn (`t²`). Linear was too dense
-// at frame 1 ("much at once"); easeInOutCubic was the opposite —
-// `cubic(0.1) ≈ 0.004` left the first ~2s essentially empty before
-// flooding the worker mid-reveal. Quadratic gives the gradual ramp
-// the user wants (1, then 2, then 4…) while still completing on
-// schedule.
-function onboardingRevealFraction(rawProgress: number): number {
+// Group reveal: piecewise.
+//   Phase 1 — slow individual reveals at SLOW_PHASE_INTERVAL_MS each,
+//     until either SLOW_PHASE_NODES_TARGET or SLOW_PHASE_MAX_FRACTION
+//     of total duration is reached. Restores the visible "1, then 2,
+//     then 4" pacing of the original onboarding for the *first ~16
+//     nodes* before the bulk reveal kicks in.
+//   Phase 2 — t² catches up the remaining nodes in the remaining time.
+//
+// Cap on phase 1 duration prevents the slow phase from monopolizing
+// short onboarding (e.g., 50 nodes / 5s would otherwise spend 4.8s on
+// the first 16 and blast 34 in 200ms).
+const SLOW_PHASE_NODES_TARGET = 16;
+const SLOW_PHASE_INTERVAL_MS = 300;
+const SLOW_PHASE_MAX_FRACTION = 0.3;
+function onboardingRevealFloat(
+  rawProgress: number,
+  durationMs: number,
+  totalNodes: number,
+): number {
   if (rawProgress <= 0) return 0;
-  if (rawProgress >= 1) return 1;
-  return rawProgress * rawProgress;
+  if (rawProgress >= 1) return totalNodes;
+  const elapsedMs = rawProgress * durationMs;
+  const idealSlowDur =
+    Math.min(SLOW_PHASE_NODES_TARGET, totalNodes) * SLOW_PHASE_INTERVAL_MS;
+  const slowDur = Math.min(idealSlowDur, durationMs * SLOW_PHASE_MAX_FRACTION);
+  const slowNodes = slowDur / SLOW_PHASE_INTERVAL_MS;
+  if (elapsedMs < slowDur) {
+    return elapsedMs / SLOW_PHASE_INTERVAL_MS;
+  }
+  const remainingNodes = totalNodes - slowNodes;
+  const remainingMs = durationMs - slowDur;
+  const phase2T = (elapsedMs - slowDur) / remainingMs;
+  return slowNodes + phase2T * phase2T * remainingNodes;
 }
 
 // Per-node entry animation. Driven by wall-clock since each node was
@@ -277,7 +300,11 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     // and per-node pop is adaptive (matches spawn interval). Decoupled
     // so camera motion stays smooth as nodes appear.
     const eased = easeQuadInOut(raw);
-    const revealFloat = onboardingRevealFraction(raw) * state.order.length;
+    const revealFloat = onboardingRevealFloat(
+      raw,
+      state.durationMs,
+      state.order.length,
+    );
     const revealCount = Math.min(state.order.length, Math.ceil(revealFloat));
 
     const newRevealsThisFrame = revealCount - state.lastRevealedCount;
