@@ -11,8 +11,8 @@ const ONBOARDING_BLINK_MS = 3200;
 const ONBOARDING_LINK_UP_MS = 700;
 // Camera zoom progressively retreats across the reveal so the user can
 // watch the constellation expand into view. Driven by raw time progress
-// (not reveal fraction) so the zoom-out feels steady regardless of how
-// the supernova-burst-then-easeInOutCubic reveal lands nodes.
+// (not reveal fraction) so the zoom-out feels steady regardless of the
+// reveal cadence.
 const ONBOARDING_START_ZOOM = 0.72;
 const ONBOARDING_END_ZOOM = 0.32;
 
@@ -35,19 +35,23 @@ function easeQuadInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-// Group reveal rate: easeInOutCubic across the full duration. The
-// supernova-burst at t=0 was retired in favor of a smooth start —
-// dropping it removes the FPS hit from popping ~10% of nodes in a
-// single frame. With the per-node ease-in below, individual nodes
-// already get a slow visual entry as they're revealed.
+// Group reveal rate: quadratic (easeIn). Linear was too fast out of
+// the gate — at 1.6k nodes / 22s the first 100ms revealed ~7 nodes,
+// which the user perceived as "much at once". easeInOutCubic was the
+// other extreme: cubic(0.1) ≈ 0.004 left the first ~2s essentially
+// empty, then the steep middle flooded the worker.
+//
+// `t²` gives the gradual ramp-up the user wants (1, 2, 4, 8…):
+//   t=0.05 (1.1s) →   4 nodes
+//   t=0.10 (2.2s) →  16 nodes
+//   t=0.20 (4.4s) →  64 nodes
+//   t=0.50 (11s)  → 400 nodes
+//   t=1.00 (22s)  → 1600
+// Per-node easeQuadInOut still smooths each individual entry.
 function onboardingRevealFraction(rawProgress: number): number {
   if (rawProgress <= 0) return 0;
   if (rawProgress >= 1) return 1;
-  return easeInOutCubic(rawProgress);
+  return rawProgress * rawProgress;
 }
 
 // Per-node entry animation. Driven by wall-clock time since the node
@@ -242,9 +246,9 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     const graph = deps.graph();
     const nodes = deps.nodes();
     const raw = Math.min(1, (now - state.startedAt) / state.durationMs);
-    // Camera rotation rides easeQuadInOut; reveal rides the
-    // supernova-burst-then-easeInOutCubic curve. Decoupled so the
-    // camera motion stays smooth even as nodes pop in.
+    // Camera rotation rides easeQuadInOut; group reveal rate is
+    // quadratic. Decoupled so camera motion stays smooth as nodes
+    // appear at the accelerating spawn rate.
     const eased = easeQuadInOut(raw);
     const revealFloat = onboardingRevealFraction(raw) * state.order.length;
     const revealCount = Math.min(state.order.length, Math.ceil(revealFloat));
