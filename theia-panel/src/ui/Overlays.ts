@@ -7,7 +7,7 @@
  * have to be defined inside the panel's `mount()` closure.
  */
 
-import { FONT_STACK } from "./Theme";
+import { FONT_STACK, themeBgAlpha } from "./Theme";
 import type { ThemeTokens } from "./Theme";
 
 export function createLoadingOverlay(
@@ -48,12 +48,12 @@ export function createChainOverlay(
   const el = document.createElement("div");
   el.setAttribute("data-ui-overlay", "true");
   el.style.cssText = `
-    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
     display: flex; align-items: center; gap: 10px;
-    padding: 6px 10px 6px 12px; border: 1px solid #${theme.border};
-    background: rgba(7,8,13,0.78); color: #${theme.fg};
-    font: 11px/1.2 var(--theia-font, ${FONT_STACK}); letter-spacing: 0.08em;
-    text-transform: uppercase; border-radius: ${theme.radius};
+    box-sizing: border-box; padding: 8px 12px;
+    border: 1px solid #${theme.border};
+    background: ${themeBgAlpha(theme, 0.85)}; color: #${theme.fg};
+    font: 13px/1.4 var(--theia-font, ${FONT_STACK});
     z-index: 13; cursor: default; backdrop-filter: blur(4px);
   `;
   const label = document.createElement("span");
