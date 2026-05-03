@@ -155,6 +155,7 @@ export async function mount(
     revealStartedAtByIndex: Map<number, number>;
     linkStartedAtByKey: Map<string, number>;
     lastRevealedCount: number;
+    lastHeavyRebuildAt: number;
     lastEase: number;
     cameraZoom: number;
     cameraAutoZoomEnabled: boolean;
@@ -560,6 +561,7 @@ export async function mount(
       revealStartedAtByIndex: new Map(),
       linkStartedAtByKey: new Map(),
       lastRevealedCount: 0,
+      lastHeavyRebuildAt: 0,
       lastEase: 0,
       cameraZoom: ONBOARDING_BASE_ZOOM,
       cameraAutoZoomEnabled: true,
@@ -643,8 +645,29 @@ export async function mount(
       ctx.setCameraState({ ...state, theta: state.theta + rotationDelta });
     }
 
-    if (revealCount !== onboarding.lastRevealedCount) {
-      onboarding.lastRevealedCount = revealCount;
+    // Heavy rebuild throttle. Each rebuild iterates all 1.6k nodes
+    // (setNodeVisibilityFromState), regenerates the entire edges
+    // geometry (rebuildVisibleEdges), and asks the worker to recreate
+    // the d3-force-3d simulation for the new active set. With reveals
+    // crossing integer boundaries multiple times per frame at 60Hz, the
+    // un-throttled version fires this on essentially every frame —
+    // which was the source of the visible reveal-period FPS drop.
+    //
+    // Throttle to ~150ms; always force a final rebuild when the last
+    // node has been revealed so the simulation gets the full active
+    // set before settling. setRevealScale on individual nodes still
+    // happens every frame inside the loop above, so the visual reveal
+    // animation continues smoothly between rebuilds.
+    const HEAVY_REBUILD_INTERVAL_MS = 150;
+    const sawNewReveals = revealCount !== onboarding.lastRevealedCount;
+    onboarding.lastRevealedCount = revealCount;
+    const finalReveal = revealCount === onboarding.order.length;
+    if (
+      sawNewReveals &&
+      (finalReveal ||
+        now - onboarding.lastHeavyRebuildAt > HEAVY_REBUILD_INTERVAL_MS)
+    ) {
+      onboarding.lastHeavyRebuildAt = now;
       setNodeVisibilityFromState();
       rebuildVisibleEdges();
       simState.replaceActive({
