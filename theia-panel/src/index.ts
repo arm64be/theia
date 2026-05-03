@@ -7,6 +7,7 @@ import { createEdges } from "./scene/Edges";
 import { createPost } from "./scene/Post";
 import { createSimulation } from "./physics/Simulation";
 import { createPicker } from "./scene/Picker";
+import { computeEdgeChain } from "./scene/chain";
 import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSearchBar } from "./ui/SearchBar";
@@ -191,6 +192,12 @@ export async function mount(
   let focusEnabled = false;
   let searchFocusEnabled = saved?.searchFocus ?? false;
   let focusFilter: Set<string> | null = null;
+  let chainFilter: Set<string> | null = null;
+  let chainEdge: TheiaGraph["edges"][number] | null = null;
+  let chainOverlay: {
+    update(nodeCount: number, edgeCount: number, label: string): void;
+    remove(): void;
+  } | null = null;
   let onboarding: {
     startedAt: number;
     durationMs: number;
@@ -534,7 +541,11 @@ export async function mount(
 
   function activeVisibleNodeIds(): Set<string> {
     let ids = visibleNodeIds;
-    if (focusFilter) {
+    // chainFilter (depth-N isolation from a clicked edge) takes precedence
+    // over the depth-1 focusFilter; the two are conceptually different modes.
+    if (chainFilter) {
+      ids = new Set([...ids].filter((id) => chainFilter!.has(id)));
+    } else if (focusFilter) {
       ids = new Set([...ids].filter((id) => focusFilter!.has(id)));
     }
     if (onboarding) {
@@ -596,6 +607,54 @@ export async function mount(
       nodes.setVisible(i, activeIds.has(currentGraph.nodes[i]!.id));
     }
     nodes.flush();
+  }
+
+  const EDGE_KIND_LABELS: Record<TheiaGraph["edges"][number]["kind"], string> =
+    {
+      "memory-share": "memory share",
+      "cross-search": "cross-search",
+      "tool-overlap": "tool overlap",
+      subagent: "subagent",
+      "cron-chain": "cron chain",
+    };
+
+  function applyChainSelection(edge: TheiaGraph["edges"][number]) {
+    const { nodes: chainNodes, edgeCount } = computeEdgeChain(
+      currentGraph,
+      [edge.source, edge.target],
+      kinds,
+      visibleNodeIds,
+    );
+    if (chainNodes.size === 0) return;
+    chainEdge = edge;
+    chainFilter = chainNodes;
+    // Drop any stale 1-hop focus filter — focusFilter is bound to a selected
+    // node, and chain mode has no selected node. Leaving it would resurface
+    // a stale neighbor set when the chain is cleared.
+    focusFilter = null;
+    setNodeVisibilityFromState();
+    rebuildVisibleEdges();
+    showChainOverlay(chainNodes.size, edgeCount, EDGE_KIND_LABELS[edge.kind]);
+  }
+
+  function clearChainSelection() {
+    if (!chainFilter && !chainEdge && !chainOverlay) return;
+    chainFilter = null;
+    chainEdge = null;
+    chainOverlay?.remove();
+    chainOverlay = null;
+    setNodeVisibilityFromState();
+    rebuildVisibleEdges();
+  }
+
+  function showChainOverlay(
+    nodeCount: number,
+    edgeCount: number,
+    kindLabel: string,
+  ) {
+    if (!chainOverlay)
+      chainOverlay = createChainOverlay(() => clearChainSelection());
+    chainOverlay.update(nodeCount, edgeCount, kindLabel);
   }
 
   function applyFocusModeIfEnabled(selectedNodeId: string) {
@@ -801,6 +860,9 @@ export async function mount(
     simulation?.stop();
     onboarding?.overlay.remove();
     onboarding = null;
+    // Clear any chain isolation from a prior graph: edge identity is
+    // graph-scoped, so the previous selection is meaningless once we reload.
+    clearChainSelection();
 
     if (nodes) {
       ctx.scene.remove(nodes.mesh);
@@ -928,6 +990,57 @@ export async function mount(
             /* container may have been destroyed during load */
           }
         }, 300);
+      },
+    };
+  }
+
+  function createChainOverlay(onClear: () => void): {
+    update(nodeCount: number, edgeCount: number, label: string): void;
+    remove(): void;
+  } {
+    const el = document.createElement("div");
+    el.setAttribute("data-ui-overlay", "true");
+    el.style.cssText = `
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 10px 6px 12px; border: 1px solid #${theme.border};
+      background: rgba(7,8,13,0.78); color: #${theme.fg};
+      font: 11px/1.2 var(--theia-font, ${FONT_STACK}); letter-spacing: 0.08em;
+      text-transform: uppercase; border-radius: ${theme.radius};
+      z-index: 13; cursor: default; backdrop-filter: blur(4px);
+    `;
+    const label = document.createElement("span");
+    el.appendChild(label);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "✕";
+    btn.setAttribute("aria-label", "Clear chain selection");
+    btn.style.cssText = `
+      appearance: none; border: 0; background: transparent; cursor: pointer;
+      color: #${theme.fg2}; font: inherit; padding: 0 2px; line-height: 1;
+    `;
+    btn.onmouseenter = () => {
+      btn.style.color = `#${theme.accent}`;
+    };
+    btn.onmouseleave = () => {
+      btn.style.color = `#${theme.fg2}`;
+    };
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      onClear();
+    };
+    el.appendChild(btn);
+    element.appendChild(el);
+    return {
+      update(nodeCount, edgeCount, kindLabel) {
+        label.textContent = `chain · ${kindLabel} · ${nodeCount} node${nodeCount === 1 ? "" : "s"}, ${edgeCount} edge${edgeCount === 1 ? "" : "s"}`;
+      },
+      remove() {
+        try {
+          element.removeChild(el);
+        } catch {
+          /* container may have been destroyed */
+        }
       },
     };
   }
@@ -1078,8 +1191,21 @@ export async function mount(
         applyFocusModeIfEnabled(n.id);
         emit("node-click", n.id);
       } else {
-        clearSelected();
-        sidePanel.hide();
+        const pickedEdge = edges.pickAt(
+          ctx.camera,
+          element,
+          e.clientX,
+          e.clientY,
+        );
+        if (pickedEdge && kinds.has(pickedEdge.kind)) {
+          clearSelected();
+          sidePanel.hide();
+          applyChainSelection(pickedEdge);
+        } else {
+          clearChainSelection();
+          clearSelected();
+          sidePanel.hide();
+        }
       }
     }
     resetDrag();
@@ -1091,6 +1217,13 @@ export async function mount(
   element.addEventListener("contextmenu", (e) => {
     e.preventDefault();
   });
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && chainFilter) {
+      clearChainSelection();
+    }
+  };
+  window.addEventListener("keydown", onKeyDown);
 
   // Wheel zoom — let overlay UI (side panel, filter bar, search bar) scroll naturally
   element.addEventListener(
@@ -1119,6 +1252,9 @@ export async function mount(
       modelFilter = state.model;
       saveFilterState(kinds, modelFilter, searchFocusEnabled);
       focusFilter = null;
+      // Filter changes can invalidate the chain (an edge kind we traversed
+      // through may now be hidden); drop the chain rather than recompute it.
+      clearChainSelection();
       updateVisibility();
       const id = sidePanel.currentNodeId();
       if (id) applyFocusModeIfEnabled(id);
@@ -1160,6 +1296,9 @@ export async function mount(
       savePhysicsSnapshot();
       onboarding?.overlay.remove();
       window.removeEventListener("mouseup", resetDrag);
+      window.removeEventListener("keydown", onKeyDown);
+      chainOverlay?.remove();
+      chainOverlay = null;
       searchInputController?.abort();
       if (searchFocusTimer) clearTimeout(searchFocusTimer);
       stopThemeListener();
