@@ -39,33 +39,31 @@ function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-// Reveal progression: an easeQuadInOut warmup eases the first
-// WARMUP_NODE_FRAC of nodes in across WARMUP_DURATION_FRAC of duration,
-// then easeInOutCubic takes over for the rest. The previous version
-// popped 10% of nodes in a single frame at t=0, which slammed the
-// worker with one big replaceActive (full sim rebuild) plus dozens of
-// concurrent popScale animations — a visible FPS dip right at the
-// moment the user starts watching. The warmup spreads that startup
-// cost over ~1-2s. Both easings have zero derivative at the seam, so
-// the rate transition is smooth.
-const WARMUP_DURATION_FRAC = 0.1;
-const WARMUP_NODE_FRAC = 0.1;
+// Group reveal rate: easeInOutCubic across the full duration. The
+// supernova-burst at t=0 was retired in favor of a smooth start —
+// dropping it removes the FPS hit from popping ~10% of nodes in a
+// single frame. With the per-node ease-in below, individual nodes
+// already get a slow visual entry as they're revealed.
 function onboardingRevealFraction(rawProgress: number): number {
   if (rawProgress <= 0) return 0;
   if (rawProgress >= 1) return 1;
-  if (rawProgress < WARMUP_DURATION_FRAC) {
-    const t = rawProgress / WARMUP_DURATION_FRAC;
-    return easeQuadInOut(t) * WARMUP_NODE_FRAC;
-  }
-  const t = (rawProgress - WARMUP_DURATION_FRAC) / (1 - WARMUP_DURATION_FRAC);
-  return WARMUP_NODE_FRAC + easeInOutCubic(t) * (1 - WARMUP_NODE_FRAC);
+  return easeInOutCubic(rawProgress);
 }
 
-function popScale(t: number): number {
+// Per-node entry animation. Driven by wall-clock time since the node
+// was first revealed, NOT by the group reveal rate. This means each
+// individual node eases in over POP_DURATION_MS regardless of how many
+// other nodes are revealing at the same moment — the slow ease-in is
+// "to singular nodes, not groups". The previous version derived
+// localProgress from `revealFloat - rank`, so any time multiple ranks
+// were crossed in one frame, those nodes jumped to scale=1 instantly.
+const POP_DURATION_MS = 600;
+function popScale(now: number, revealedAt: number | undefined): number {
+  if (revealedAt === undefined) return 0;
+  const t = Math.min(1, (now - revealedAt) / POP_DURATION_MS);
   if (t <= 0) return 0;
   if (t >= 1) return 1;
-  const eased = easeQuadInOut(t);
-  return 1 + 0.28 * Math.sin(Math.PI * eased);
+  return easeQuadInOut(t);
 }
 
 function revealBrightness(t: number): number {
@@ -270,11 +268,13 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
       state.blinkMinRank++;
     }
     // Active animation range — only nodes still popping or blinking.
+    // Both popScale and brightness are driven by wall-clock since each
+    // node was revealed, so per-node animations are independent of the
+    // group reveal rate.
     for (let rank = state.blinkMinRank; rank < revealCount; rank++) {
       const idx = state.order[rank]!;
-      const localProgress = Math.max(0, Math.min(1, revealFloat - rank));
-      nodes.setRevealScale(idx, popScale(localProgress));
       const revealedAt = state.revealStartedAtByIndex.get(idx)!;
+      nodes.setRevealScale(idx, popScale(now, revealedAt));
       const blinkProgress = Math.min(
         1,
         (now - revealedAt) / ONBOARDING_BLINK_MS,
