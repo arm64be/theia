@@ -6,6 +6,12 @@ Dates use ISO 8601.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-03
+
+First tagged release. Pulls together the chain-isolation, keyboard-nav,
+touch-tap, perf, and module-split work landed during the recent feature
+window.
+
 ### Added
 - **Edge-click chain isolation.** Click any visible edge to isolate the full
   connected chain (depth ≥ 1) over currently-enabled edge kinds. A floating
@@ -71,4 +77,5 @@ Dates use ISO 8601.
   separately)* — these landed during the same window through other PRs and
   are listed here for completeness; see `git log` for primary authorship.
 
-[Unreleased]: https://github.com/arm64be/theia/compare/19b71cc...dev
+[Unreleased]: https://github.com/arm64be/theia/compare/v0.1.0...dev
+[0.1.0]: https://github.com/arm64be/theia/compare/19b71cc...v0.1.0
