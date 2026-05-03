@@ -45,13 +45,13 @@ function stellarAgeColor(
 
   // Stellar-class gradient stops: hot/young → cool/old
   const stops: { t: number; r: number; g: number; b: number }[] = [
-    { t: 0.0, r: 0.608, g: 0.710, b: 1.0 },   // blue-white (B-class)
-    { t: 0.2, r: 1.0, g: 1.0, b: 1.0 },        // white (A-class)
-    { t: 0.4, r: 1.0, g: 0.961, b: 0.882 },    // yellow-white (F-class)
-    { t: 0.55, r: 1.0, g: 0.82, b: 0.4 },      // yellow (G-class)
-    { t: 0.7, r: 1.0, g: 0.624, b: 0.263 },    // orange (K-class)
+    { t: 0.0, r: 0.608, g: 0.71, b: 1.0 }, // blue-white (B-class)
+    { t: 0.2, r: 1.0, g: 1.0, b: 1.0 }, // white (A-class)
+    { t: 0.4, r: 1.0, g: 0.961, b: 0.882 }, // yellow-white (F-class)
+    { t: 0.55, r: 1.0, g: 0.82, b: 0.4 }, // yellow (G-class)
+    { t: 0.7, r: 1.0, g: 0.624, b: 0.263 }, // orange (K-class)
     { t: 0.85, r: 0.906, g: 0.298, b: 0.235 }, // red (M-class)
-    { t: 1.0, r: 0.36, g: 0.039, b: 0.039 },   // dark red (old M)
+    { t: 1.0, r: 0.36, g: 0.039, b: 0.039 }, // dark red (old M)
   ];
 
   for (let i = 0; i < stops.length - 1; i++) {
