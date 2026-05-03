@@ -255,9 +255,32 @@ export async function mount(
     }
     simNodes = nextNodes;
     simulation.alpha(animateNew ? 0.22 : simulation.alphaTarget());
+    wakePhysics();
+  }
+
+  // Settled-physics gate: skip the per-frame sim/lerp/edge-rewrite when
+  // the layout has stabilised. The lerp drives matrix uploads and a full
+  // edge-position attribute rewrite every frame; with 1.6k nodes that's
+  // most of the per-frame cost once the simulation has converged.
+  let settledFrames = 0;
+  const SETTLED_THRESHOLD = 30;
+  // Threshold ≈ 0.001² in world units — well below visible motion at any
+  // reasonable zoom, since node sizes top out at 0.18 (see Nodes.ts).
+  const SETTLE_EPSILON_SQ = 1e-6;
+  // Energy injected on wake so filter/visibility changes actually produce
+  // a visible re-equilibration. Without this, alpha sits at alphaTarget
+  // (0.012, see Simulation.ts) which makes wake invisible — sub-pixel
+  // motion that re-settles within a few ticks.
+  const WAKE_ALPHA = 0.18;
+  function wakePhysics() {
+    settledFrames = 0;
+    if (simulation && simulation.alpha() < WAKE_ALPHA) {
+      simulation.alpha(WAKE_ALPHA);
+    }
   }
 
   function syncRenderedPositionsFromSimulation() {
+    wakePhysics();
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i];
       if (!sn) continue;
@@ -521,6 +544,11 @@ export async function mount(
       nodes.setVisible(i, activeIds.has(currentGraph.nodes[i]!.id));
     }
     nodes.flush();
+    // Filter/focus toggles change the active set without going through
+    // replaceSimulation; wake physics so the layout can re-equilibrate
+    // for the new visible node set. The gate will re-arm after the
+    // simulation re-settles.
+    wakePhysics();
   }
 
   const EDGE_KIND_LABELS: Record<TheiaGraph["edges"][number]["kind"], string> =
@@ -947,17 +975,24 @@ export async function mount(
   }
 
   function tick() {
+    if (settledFrames >= SETTLED_THRESHOLD) return;
     simulation.tick(1);
     const smoothing = onboarding ? 0.14 : 0.34;
+    let maxDeltaSq = 0;
     for (let i = 0; i < simNodes.length; i++) {
       const sn = simNodes[i];
       if (!sn) continue;
       const px = renderedPositions[i * 3]!;
       const py = renderedPositions[i * 3 + 1]!;
       const pz = renderedPositions[i * 3 + 2]!;
-      const x = px + (sn.x - px) * smoothing;
-      const y = py + (sn.y - py) * smoothing;
-      const z = pz + (sn.z - pz) * smoothing;
+      const dx = (sn.x - px) * smoothing;
+      const dy = (sn.y - py) * smoothing;
+      const dz = (sn.z - pz) * smoothing;
+      const x = px + dx;
+      const y = py + dy;
+      const z = pz + dz;
+      const deltaSq = dx * dx + dy * dy + dz * dz;
+      if (deltaSq > maxDeltaSq) maxDeltaSq = deltaSq;
       renderedPositions[i * 3] = x;
       renderedPositions[i * 3 + 1] = y;
       renderedPositions[i * 3 + 2] = z;
@@ -965,6 +1000,8 @@ export async function mount(
     }
     nodes.flush();
     edges.updatePositions(nodePositions);
+    if (maxDeltaSq < SETTLE_EPSILON_SQ) settledFrames++;
+    else settledFrames = 0;
   }
 
   let disposed = false;
@@ -979,7 +1016,6 @@ export async function mount(
     const t = now / 1000;
     nodes.setTime(t);
     edges.setTime(t);
-    nodes.setCameraPosition(ctx.camera.position);
     post.renderEdges(edgesScene, ctx.camera);
     post.render();
     requestAnimationFrame(frame);

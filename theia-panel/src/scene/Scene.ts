@@ -52,6 +52,15 @@ function fovForAspect(a: number): number {
   return BASE_FOV_DEG;
 }
 
+// Cap pixel ratio to bound fragment work on high-DPR displays. The post
+// pipeline allocates four full-resolution HalfFloat render targets plus
+// runs a multi-pass composer + UnrealBloom — fragment cost scales with
+// dpr², so a 3× display would do 9× the shading of a 1× reference.
+// 2× is enough to look crisp without paying the full retina tax.
+const MAX_PIXEL_RATIO = 2;
+const effectivePixelRatio = (): number =>
+  Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO);
+
 export function createScene(container: HTMLElement): SceneContext {
   const scene = new THREE.Scene();
 
@@ -65,7 +74,7 @@ export function createScene(container: HTMLElement): SceneContext {
   );
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setPixelRatio(effectivePixelRatio());
   renderer.setSize(w, h, true);
   renderer.domElement.style.display = "block";
   container.appendChild(renderer.domElement);
@@ -102,7 +111,7 @@ export function createScene(container: HTMLElement): SceneContext {
     // Re-sync DPR — fullscreen transitions and monitor changes can
     // change devicePixelRatio, and the renderer caches it from the
     // first setPixelRatio call.
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(effectivePixelRatio());
     renderer.setSize(w2, h2, true);
     for (const fn of resizeListeners) fn();
   };
