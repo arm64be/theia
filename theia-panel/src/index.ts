@@ -21,7 +21,7 @@ import type { ThemeTokens } from "./ui/Theme";
 import {
   createLoadingOverlay,
   createChainOverlay,
-  createOptimizeOverlay,
+  createControlsOverlay,
 } from "./ui/Overlays";
 import {
   VALID_KINDS,
@@ -100,6 +100,7 @@ export async function mount(
   let searchFocusEnabled = saved?.searchFocus ?? false;
   let hideOrphansEnabled = saved?.hideOrphans ?? false;
   let componentFocusEnabled = saved?.componentFocus ?? false;
+  let jumpToNodeEnabled = true;
   let focusFilter: Set<string> | null = null;
   let componentFilter: Set<string> | null = null;
   let chainFilter: Set<string> | null = null;
@@ -276,7 +277,7 @@ export async function mount(
       const sn = simState.getNodePosition(idx);
       if (!sn) return;
       select(idx);
-      ctx.focusOn(sn.x, sn.y, 1.5);
+      if (jumpToNodeEnabled) ctx.focusOn(sn.x, sn.y, 1.5);
       const n = currentGraph.nodes[idx]!;
       const related = currentGraph.edges.filter(
         (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
@@ -613,7 +614,7 @@ export async function mount(
         const idx = nodeIndex.get(result.node.id);
         if (idx !== undefined && activeVisibleNodeIds().has(result.node.id)) {
           const sn = simState.getNodePosition(idx);
-          if (sn) ctx.focusOn(sn.x, sn.y, 1.5);
+          if (sn && jumpToNodeEnabled) ctx.focusOn(sn.x, sn.y, 1.5);
           select(idx);
         }
         const related = currentGraph.edges.filter(
@@ -880,8 +881,13 @@ export async function mount(
     },
   );
 
-  const optimizeOverlay = createOptimizeOverlay(element, theme, () => {
-    simState.optimize();
+  const controlsOverlay = createControlsOverlay(element, theme, {
+    onOptimize: () => simState.optimize(),
+    onHome: () => ctx.resetView(),
+    onJumpToggle: (enabled) => {
+      jumpToNodeEnabled = enabled;
+    },
+    initialJumpEnabled: jumpToNodeEnabled,
   });
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
@@ -910,7 +916,7 @@ export async function mount(
       window.removeEventListener("keydown", onKeyDown);
       chainOverlay?.remove();
       chainOverlay = null;
-      optimizeOverlay.remove();
+      controlsOverlay.remove();
       searchInputController?.abort();
       if (searchFocusTimer) clearTimeout(searchFocusTimer);
       stopThemeListener();

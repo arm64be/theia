@@ -14,6 +14,11 @@ export interface SceneContext {
   container: HTMLElement;
   pan(dxPixel: number, dyPixel: number): void;
   focusOn(x: number, y: number, targetZoom?: number): void;
+  /**
+   * Animate the camera back to the initial framing: origin target,
+   * front-on rotation, default zoom (the "fitted" view).
+   */
+  resetView(): void;
   setZoom(z: number): void;
   getZoom(): number;
   rotate(dxPixel: number, dyPixel: number): void;
@@ -159,6 +164,38 @@ export function createScene(container: HTMLElement): SceneContext {
         if (t < 1) {
           rafId = requestAnimationFrame(step);
         } else {
+          rafId = null;
+        }
+      }
+      rafId = requestAnimationFrame(step);
+    },
+    resetView() {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      const startTarget = target.clone();
+      const startRadius = radius;
+      const startTheta = theta;
+      const startPhi = phi;
+      const endZoom = 0.5; // matches initial setZoom(0.5) in mount()
+      const endRadius = baseRadius / endZoom;
+      const endTheta = 0;
+      const endPhi = Math.PI / 2;
+      const startTime = performance.now();
+      const duration = 700;
+
+      function step(now: number) {
+        const t = Math.min(1, (now - startTime) / duration);
+        const ease = 1 - Math.pow(1 - t, 3);
+        target.x = startTarget.x + (0 - startTarget.x) * ease;
+        target.y = startTarget.y + (0 - startTarget.y) * ease;
+        target.z = startTarget.z + (0 - startTarget.z) * ease;
+        theta = startTheta + (endTheta - startTheta) * ease;
+        phi = startPhi + (endPhi - startPhi) * ease;
+        radius = startRadius + (endRadius - startRadius) * ease;
+        updateCamera();
+        if (t < 1) {
+          rafId = requestAnimationFrame(step);
+        } else {
+          zoom = endZoom;
           rafId = null;
         }
       }

@@ -92,46 +92,128 @@ export function createChainOverlay(
   };
 }
 
-export function createOptimizeOverlay(
+export interface ControlsOverlayHandlers {
+  onOptimize: () => void;
+  onHome: () => void;
+  onJumpToggle: (enabled: boolean) => void;
+  initialJumpEnabled: boolean;
+}
+
+export interface ControlsOverlay {
+  remove(): void;
+  setJumpEnabled(enabled: boolean): void;
+}
+
+export function createControlsOverlay(
   element: HTMLElement,
   theme: ThemeTokens,
-  onClick: () => void,
-): { remove(): void } {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.setAttribute("data-ui-overlay", "true");
-  btn.setAttribute("aria-label", "Optimize layout");
-  btn.textContent = "Optimize layout";
-  btn.style.cssText = `
+  handlers: ControlsOverlayHandlers,
+): ControlsOverlay {
+  const bar = document.createElement("div");
+  bar.setAttribute("data-ui-overlay", "true");
+  bar.style.cssText = `
     position: absolute; bottom: 12px; right: 12px;
+    display: flex; align-items: stretch; gap: 6px;
+    z-index: 13;
+  `;
+
+  const baseButtonCss = `
     appearance: none; box-sizing: border-box;
-    padding: 8px 12px;
     border: 1px solid #${theme.border};
     background: ${themeBgAlpha(theme, 0.85)}; color: #${theme.fg};
     font: 13px/1.4 var(--theia-font, ${FONT_STACK});
-    cursor: pointer; z-index: 13; backdrop-filter: blur(4px);
-    transition: border-color 100ms, color 100ms;
+    cursor: pointer; backdrop-filter: blur(4px);
+    transition: border-color 100ms, color 100ms, background 100ms;
   `;
-  btn.onmouseenter = () => {
-    btn.style.borderColor = `#${theme.accent}`;
-    btn.style.color = `#${theme.accent}`;
-  };
-  btn.onmouseleave = () => {
-    btn.style.borderColor = `#${theme.border}`;
-    btn.style.color = `#${theme.fg}`;
-  };
-  btn.onclick = (e) => {
+
+  function styleHover(btn: HTMLButtonElement) {
+    btn.onmouseenter = () => {
+      if (btn.dataset.active === "true") return;
+      btn.style.borderColor = `#${theme.accent}`;
+      btn.style.color = `#${theme.accent}`;
+    };
+    btn.onmouseleave = () => {
+      if (btn.dataset.active === "true") return;
+      btn.style.borderColor = `#${theme.border}`;
+      btn.style.color = `#${theme.fg}`;
+    };
+  }
+
+  const optimize = document.createElement("button");
+  optimize.type = "button";
+  optimize.setAttribute("aria-label", "Optimize layout");
+  optimize.textContent = "Optimize layout";
+  optimize.style.cssText = baseButtonCss + `padding: 8px 12px;`;
+  styleHover(optimize);
+  optimize.onclick = (e) => {
     e.stopPropagation();
-    onClick();
+    handlers.onOptimize();
   };
-  element.appendChild(btn);
+
+  const home = document.createElement("button");
+  home.type = "button";
+  home.setAttribute("aria-label", "Reset to fitted view");
+  home.title = "Reset view";
+  home.textContent = "⌂";
+  home.style.cssText =
+    baseButtonCss +
+    `width: 36px; padding: 0; display: inline-flex;
+     align-items: center; justify-content: center;
+     font-size: 16px;`;
+  styleHover(home);
+  home.onclick = (e) => {
+    e.stopPropagation();
+    handlers.onHome();
+  };
+
+  const jump = document.createElement("button");
+  jump.type = "button";
+  jump.setAttribute("role", "switch");
+  jump.setAttribute("aria-label", "Jump to node on selection");
+  jump.title = "Jump to node on selection";
+  jump.textContent = "◎";
+  jump.style.cssText =
+    baseButtonCss +
+    `width: 36px; padding: 0; display: inline-flex;
+     align-items: center; justify-content: center;
+     font-size: 16px;`;
+  styleHover(jump);
+
+  function applyJumpState(enabled: boolean) {
+    jump.setAttribute("aria-checked", String(enabled));
+    jump.dataset.active = enabled ? "true" : "false";
+    if (enabled) {
+      jump.style.borderColor = `#${theme.accent}`;
+      jump.style.color = `#${theme.accent}`;
+      jump.style.background = themeBgAlpha(theme, 0.95);
+    } else {
+      jump.style.borderColor = `#${theme.border}`;
+      jump.style.color = `#${theme.fg2}`;
+      jump.style.background = themeBgAlpha(theme, 0.85);
+    }
+  }
+  applyJumpState(handlers.initialJumpEnabled);
+
+  jump.onclick = (e) => {
+    e.stopPropagation();
+    const next = jump.dataset.active !== "true";
+    applyJumpState(next);
+    handlers.onJumpToggle(next);
+  };
+
+  bar.append(optimize, home, jump);
+  element.appendChild(bar);
+
   return {
     remove() {
       try {
-        element.removeChild(btn);
+        element.removeChild(bar);
       } catch {
         /* container may have been destroyed */
       }
+    },
+    setJumpEnabled(enabled: boolean) {
+      applyJumpState(enabled);
     },
   };
 }
