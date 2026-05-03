@@ -265,19 +265,28 @@ function applyWake() {
   scheduleTick();
 }
 
-// Re-seed every active simNode back to its anchor (with deterministic
-// per-node jitter) and bump alpha to 1.0 so the simulation converges
-// from a perturbed start. The default layout otherwise stays close to
-// whatever local minimum the first run found; this gives the user a way
-// to trigger a fresh convergence pass.
+// Re-tune the existing forces and bump alpha so the layout reorganizes
+// in place: stronger many-body repulsion pushes nodes apart, stronger
+// neighbor clustering pulls connected groups tight, and a much weaker
+// anchor force lets nodes leave their original seed positions. The next
+// replaceActive (filter change, reload, etc.) recreates the simulation
+// from defaults, so we don't need to restore these strengths.
 function applyRelayout() {
   if (!simulation) return;
-  const jitter = 0.35;
+  const charge = simulation.force("charge") as
+    | { strength: (s: number) => unknown }
+    | undefined;
+  const cluster = simulation.force("cluster") as
+    | { strength: (s: number) => unknown }
+    | undefined;
+  const anchor = simulation.force("anchor") as
+    | { strength: (s: number) => unknown }
+    | undefined;
+  charge?.strength(-0.13);
+  cluster?.strength(0.08);
+  anchor?.strength(0.02);
   for (const sn of simNodes) {
     if (!sn) continue;
-    sn.x = sn.anchorX + hashN11(`${sn.id}:relayout-x`) * jitter;
-    sn.y = sn.anchorY + hashN11(`${sn.id}:relayout-y`) * jitter;
-    sn.z = sn.anchorZ + hashN11(`${sn.id}:relayout-z`) * jitter;
     sn.vx = 0;
     sn.vy = 0;
     sn.vz = 0;
