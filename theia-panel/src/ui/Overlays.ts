@@ -92,6 +92,50 @@ export function createChainOverlay(
   };
 }
 
+export function createOptimizeOverlay(
+  element: HTMLElement,
+  theme: ThemeTokens,
+  onClick: () => void,
+): { remove(): void } {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.setAttribute("data-ui-overlay", "true");
+  btn.setAttribute("aria-label", "Optimize layout");
+  btn.textContent = "Optimize layout";
+  btn.style.cssText = `
+    position: absolute; bottom: 12px; right: 12px;
+    appearance: none; box-sizing: border-box;
+    padding: 8px 12px;
+    border: 1px solid #${theme.border};
+    background: ${themeBgAlpha(theme, 0.85)}; color: #${theme.fg};
+    font: 13px/1.4 var(--theia-font, ${FONT_STACK});
+    cursor: pointer; z-index: 13; backdrop-filter: blur(4px);
+    transition: border-color 100ms, color 100ms;
+  `;
+  btn.onmouseenter = () => {
+    btn.style.borderColor = `#${theme.accent}`;
+    btn.style.color = `#${theme.accent}`;
+  };
+  btn.onmouseleave = () => {
+    btn.style.borderColor = `#${theme.border}`;
+    btn.style.color = `#${theme.fg}`;
+  };
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    onClick();
+  };
+  element.appendChild(btn);
+  return {
+    remove() {
+      try {
+        element.removeChild(btn);
+      } catch {
+        /* container may have been destroyed */
+      }
+    },
+  };
+}
+
 export function createOnboardingOverlay(element: HTMLElement): {
   update(progress: number): void;
   remove(): void;

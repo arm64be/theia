@@ -67,6 +67,7 @@ export type WorkerInMsg =
       isOnboarding: boolean;
     }
   | { type: "wake" }
+  | { type: "relayout" }
   | { type: "snapshotRequest"; requestId: number }
   | { type: "dispose" };
 
@@ -264,6 +265,28 @@ function applyWake() {
   scheduleTick();
 }
 
+// Re-seed every active simNode back to its anchor (with deterministic
+// per-node jitter) and bump alpha to 1.0 so the simulation converges
+// from a perturbed start. The default layout otherwise stays close to
+// whatever local minimum the first run found; this gives the user a way
+// to trigger a fresh convergence pass.
+function applyRelayout() {
+  if (!simulation) return;
+  const jitter = 0.35;
+  for (const sn of simNodes) {
+    if (!sn) continue;
+    sn.x = sn.anchorX + hashN11(`${sn.id}:relayout-x`) * jitter;
+    sn.y = sn.anchorY + hashN11(`${sn.id}:relayout-y`) * jitter;
+    sn.z = sn.anchorZ + hashN11(`${sn.id}:relayout-z`) * jitter;
+    sn.vx = 0;
+    sn.vy = 0;
+    sn.vz = 0;
+  }
+  simulation.alpha(1.0);
+  settledTicks = 0;
+  scheduleTick();
+}
+
 function applySnapshot(requestId: number) {
   const nodes: SnapshotPayloadNode[] = [];
   for (const sn of simNodes) {
@@ -307,6 +330,9 @@ self.addEventListener("message", (e: MessageEvent<WorkerInMsg>) => {
       return;
     case "wake":
       applyWake();
+      return;
+    case "relayout":
+      applyRelayout();
       return;
     case "snapshotRequest":
       applySnapshot(msg.requestId);
