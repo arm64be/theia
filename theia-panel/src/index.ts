@@ -726,6 +726,10 @@ export async function mount(
     const idx = picker.pickAt(clientX, clientY, 1.0);
     if (idx !== null) {
       select(idx);
+      if (jumpToNodeEnabled) {
+        const sn = simState.getNodePosition(idx);
+        if (sn) ctx.focusOn(sn.x, sn.y, 1.5);
+      }
       const n = currentGraph.nodes[idx]!;
       const related = currentGraph.edges.filter(
         (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
