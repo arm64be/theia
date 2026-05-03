@@ -9,18 +9,20 @@ const ONBOARDING_STORAGE_KEY = "theia-first-load-onboarding-complete";
 const ONBOARDING_ROTATION_RADIANS = Math.PI * 1.15;
 const ONBOARDING_BLINK_MS = 3200;
 const ONBOARDING_LINK_UP_MS = 700;
-const ONBOARDING_BASE_ZOOM = 0.72;
-const ONBOARDING_MIN_ZOOM = 0.42;
-const ONBOARDING_NEAR_DISTANCE = 3.2;
-const ONBOARDING_SAFE_DISTANCE = 5.6;
+// Camera zoom progressively retreats across the reveal so the user can
+// watch the constellation expand into view. Driven by raw time progress
+// (not reveal fraction) so the zoom-out feels steady regardless of how
+// the supernova-then-easeOutQuad reveal lands nodes.
+const ONBOARDING_START_ZOOM = 0.72;
+const ONBOARDING_END_ZOOM = 0.32;
 
-// Onboarding duration scales gently with node count, but capped so the
-// first-load reveal stays in the 5-18s range. Previously this was
-// `ceil(N/3) * 1000`, which produced ~9 minutes for a 1.6k-node graph.
-// Keep deterministic so the overlay can confidently advertise progress.
+// Onboarding duration scales gently with node count, capped so the
+// first-load reveal stays in roughly the 5-22s range. Previously this
+// was `ceil(N/3) * 1000`, which produced ~9 minutes for a 1.6k-node
+// graph. Keep deterministic so the overlay percentage stays meaningful.
 const ONBOARDING_MIN_DURATION_MS = 5000;
-const ONBOARDING_MAX_DURATION_MS = 18000;
-const ONBOARDING_MS_PER_NODE = 6;
+const ONBOARDING_MAX_DURATION_MS = 22000;
+const ONBOARDING_MS_PER_NODE = 9;
 function onboardingDurationMs(nodeCount: number): number {
   const raw = ONBOARDING_MIN_DURATION_MS + nodeCount * ONBOARDING_MS_PER_NODE;
   return Math.min(
@@ -29,11 +31,11 @@ function onboardingDurationMs(nodeCount: number): number {
   );
 }
 
-// Reveal progression: a "supernova" front-loads the first third of the
-// constellation in the opening burst, then easeOutQuad eases the rest
-// in across the remaining duration.
+// Reveal progression: a "supernova" front-loads the first quarter of
+// the constellation in the opening burst, then easeOutQuad eases the
+// rest in across the remaining duration.
 const SUPERNOVA_DURATION_FRAC = 0.18;
-const SUPERNOVA_NODE_FRAC = 1 / 3;
+const SUPERNOVA_NODE_FRAC = 1 / 4;
 function onboardingRevealFraction(rawProgress: number): number {
   if (rawProgress <= 0) return 0;
   if (rawProgress >= 1) return 1;
@@ -120,8 +122,8 @@ export interface OnboardingController {
   revealedNodeIds(): Set<string>;
   /** Per-frame update: reveal nodes, drive camera rotation, throttle rebuilds. */
   update(now: number): void;
-  /** Per-frame camera-zoom adjustment based on crowding around revealed nodes. */
-  updateCamera(): void;
+  /** Per-frame camera-zoom adjustment — pulls back as the reveal progresses. */
+  updateCamera(now: number): void;
   /** Disable auto-zoom and capture user's chosen zoom (called from input handlers). */
   onUserZoomChanged(zoom: number): void;
   /** Forcibly tear down — used on graph reload. */
@@ -171,12 +173,12 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
       lastRevealedCount: 0,
       lastHeavyRebuildAt: 0,
       lastEase: 0,
-      cameraZoom: ONBOARDING_BASE_ZOOM,
+      cameraZoom: ONBOARDING_START_ZOOM,
       cameraAutoZoomEnabled: true,
       complete: false,
       overlay: createOnboardingOverlay(deps.element),
     };
-    deps.ctx.setZoom(ONBOARDING_BASE_ZOOM);
+    deps.ctx.setZoom(ONBOARDING_START_ZOOM);
     const nodes = deps.nodes();
     for (let i = 0; i < g.nodes.length; i++) {
       nodes.setRevealScale(i, 0);
@@ -314,34 +316,19 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     }
   }
 
-  function updateCamera() {
+  function updateCamera(now: number) {
     if (!state || state.complete || !state.cameraAutoZoomEnabled) return;
-    const graph = deps.graph();
-    const nodePositions = deps.nodePositions();
-    const camPos = deps.ctx.camera.position;
-    let nearest = Number.POSITIVE_INFINITY;
-    for (const idx of state.order) {
-      if (!state.revealedNodeIds.has(graph.nodes[idx]!.id)) continue;
-      // nodePositions tracks the same per-frame smoothed values that the
-      // simulation tick writes; reading from there avoids reaching into
-      // the simulation module's private renderedPositions buffer.
-      const dx = nodePositions[idx * 3]! - camPos.x;
-      const dy = nodePositions[idx * 3 + 1]! - camPos.y;
-      const dz = nodePositions[idx * 3 + 2]! - camPos.z;
-      nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy + dz * dz));
-    }
-    if (!Number.isFinite(nearest)) return;
-    const crowding = Math.max(
-      0,
-      Math.min(
-        1,
-        (ONBOARDING_SAFE_DISTANCE - nearest) /
-          (ONBOARDING_SAFE_DISTANCE - ONBOARDING_NEAR_DISTANCE),
-      ),
-    );
+    // Time-progressive zoom-out: as the reveal proceeds, the camera
+    // pulls back so each newly-revealed node lands inside an
+    // ever-widening field of view. easeOutQuad means most of the
+    // pull-back happens in the first half — by the time the easeOutQuad
+    // reveal phase is filling in the long tail of nodes, the camera is
+    // already most of the way out and changes slowly, so the user
+    // perceives the constellation expanding into a stable wide shot.
+    const raw = Math.min(1, (now - state.startedAt) / state.durationMs);
+    const t = 1 - (1 - raw) * (1 - raw); // easeOutQuad
     const targetZoom =
-      ONBOARDING_BASE_ZOOM -
-      (ONBOARDING_BASE_ZOOM - ONBOARDING_MIN_ZOOM) * easeQuadInOut(crowding);
+      ONBOARDING_START_ZOOM + (ONBOARDING_END_ZOOM - ONBOARDING_START_ZOOM) * t;
     state.cameraZoom += (targetZoom - state.cameraZoom) * 0.08;
     deps.ctx.setZoom(state.cameraZoom);
   }

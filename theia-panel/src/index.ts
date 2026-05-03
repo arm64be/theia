@@ -663,7 +663,7 @@ export async function mount(
     keyboardNav.tick(now);
     simState.tick();
     maybeSavePhysicsSnapshot(now);
-    onboarding.updateCamera();
+    onboarding.updateCamera(now);
     const t = now / 1000;
     nodes.setTime(t);
     edges.setTime(t);
