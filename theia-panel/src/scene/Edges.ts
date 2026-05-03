@@ -55,6 +55,13 @@ export interface EdgeLayer {
     getProgress: ((edge: GraphEdge) => number) | null,
   ): void;
   setTime(t: number): void;
+  pickAt(
+    camera: THREE.Camera,
+    container: HTMLElement,
+    clientX: number,
+    clientY: number,
+    tolerancePx?: number,
+  ): GraphEdge | null;
   dispose(): void;
 }
 
@@ -258,6 +265,72 @@ export function createEdges(): EdgeLayer {
     }
   }
 
+  const _pickA = new THREE.Vector3();
+  const _pickB = new THREE.Vector3();
+  function pickAt(
+    camera: THREE.Camera,
+    container: HTMLElement,
+    clientX: number,
+    clientY: number,
+    tolerancePx = 6,
+  ): GraphEdge | null {
+    const rect = container.getBoundingClientRect();
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+    let best: GraphEdge | null = null;
+    let bestDist2 = tolerancePx * tolerancePx;
+
+    for (const {
+      line,
+      edgeList,
+      validIndices,
+    } of lineSegmentsByKind.values()) {
+      const posAttr = line.geometry.getAttribute("position") as
+        | THREE.BufferAttribute
+        | undefined;
+      if (!posAttr) continue;
+      for (const i of validIndices) {
+        _pickA.set(
+          posAttr.getX(i * 2 + 0),
+          posAttr.getY(i * 2 + 0),
+          posAttr.getZ(i * 2 + 0),
+        );
+        _pickB.set(
+          posAttr.getX(i * 2 + 1),
+          posAttr.getY(i * 2 + 1),
+          posAttr.getZ(i * 2 + 1),
+        );
+        _pickA.project(camera);
+        _pickB.project(camera);
+        // Reject if both endpoints behind the near plane
+        if (_pickA.z > 1 && _pickB.z > 1) continue;
+        const ax = (_pickA.x * 0.5 + 0.5) * rect.width;
+        const ay = (1 - (_pickA.y * 0.5 + 0.5)) * rect.height;
+        const bx = (_pickB.x * 0.5 + 0.5) * rect.width;
+        const by = (1 - (_pickB.y * 0.5 + 0.5)) * rect.height;
+        const dx = bx - ax;
+        const dy = by - ay;
+        const len2 = dx * dx + dy * dy;
+        let t = 0;
+        if (len2 > 0) {
+          t = ((mx - ax) * dx + (my - ay) * dy) / len2;
+          if (t < 0) t = 0;
+          else if (t > 1) t = 1;
+        }
+        const px = ax + t * dx;
+        const py = ay + t * dy;
+        const ex = mx - px;
+        const ey = my - py;
+        const dist2 = ex * ex + ey * ey;
+        if (dist2 < bestDist2) {
+          bestDist2 = dist2;
+          best = edgeList[i] ?? null;
+        }
+      }
+    }
+    return best;
+  }
+
   function dispose() {
     for (const { line } of lineSegmentsByKind.values()) {
       line.geometry.dispose();
@@ -272,6 +345,7 @@ export function createEdges(): EdgeLayer {
     setHoverNode,
     setConnectionProgress,
     setTime,
+    pickAt,
     dispose,
   };
 }
