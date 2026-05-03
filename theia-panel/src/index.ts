@@ -427,12 +427,42 @@ export async function mount(
   }
 
   const tooltip = createTooltip(element, theme);
+
+  function selectedNodeId(): string | null {
+    return selectedIdx === null ? null : currentGraph.nodes[selectedIdx]!.id;
+  }
+
+  function relatedNodeIds(nodeId: string): Set<string> {
+    const related = new Set<string>([nodeId]);
+    for (const edge of currentGraph.edges) {
+      if (!kinds.has(edge.kind)) continue;
+      if (edge.source === nodeId) related.add(edge.target);
+      else if (edge.target === nodeId) related.add(edge.source);
+    }
+    return related;
+  }
+
+  function applyDimAround(nodeId: string | null) {
+    if (nodeId === null) {
+      for (let i = 0; i < nodes.count; i++) nodes.setDim(i, false);
+      nodes.flush();
+      return;
+    }
+    const related = relatedNodeIds(nodeId);
+    for (let i = 0; i < nodes.count; i++) {
+      nodes.setDim(i, !related.has(currentGraph.nodes[i]!.id));
+    }
+    nodes.flush();
+  }
+
   function clearSelected() {
     if (selectedIdx !== null) {
       nodes.setSelected(selectedIdx, false);
       nodes.setHighlight(selectedIdx, false);
       selectedIdx = null;
     }
+    edges.setHoverNode(null);
+    applyDimAround(null);
   }
 
   function select(idx: number) {
@@ -440,6 +470,8 @@ export async function mount(
     selectedIdx = idx;
     nodes.setSelected(idx, true);
     nodes.setHighlight(idx, false);
+    edges.setHoverNode(currentGraph.nodes[idx]!.id);
+    if (!focusEnabled) applyDimAround(currentGraph.nodes[idx]!.id);
   }
 
   function enterPanelMode(
@@ -1007,17 +1039,24 @@ export async function mount(
           return false;
         return true;
       },
+      getEdges: () => edges.visibleEdges(),
     });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
       element.style.cursor = idx === null ? "" : "pointer";
-      edges.setHoverNode(nodeId);
+      const focusId = nodeId ?? selectedNodeId();
+      edges.setHoverNode(focusId);
       for (let i = 0; i < nodes.count; i++) {
         if (i === idx) {
           nodes.setHighlight(i, true);
         } else if (i !== selectedIdx) {
           nodes.setHighlight(i, false);
         }
+      }
+      if (focusEnabled) {
+        applyDimAround(null);
+      } else {
+        applyDimAround(focusId);
       }
       if (idx !== null) {
         tooltip.show(currentGraph.nodes[idx]!, lastMouse.x, lastMouse.y);
@@ -1026,6 +1065,14 @@ export async function mount(
       }
       nodes.flush();
       emit("node-hover", idx === null ? null : currentGraph.nodes[idx]!.id);
+    });
+    picker.onHoverEdge((edge) => {
+      edges.setHoverEdge(edge);
+      if (edge !== null) {
+        element.style.cursor = "pointer";
+      } else if (picker.currentHovered() === null) {
+        element.style.cursor = "";
+      }
     });
 
     searchInputController?.abort();

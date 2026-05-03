@@ -133,6 +133,7 @@ export interface NodeLayer {
   setHighlight(i: number, on: boolean): void;
   setSelected(i: number, on: boolean): void;
   setBrightness(i: number, multiplier: number): void;
+  setDim(i: number, on: boolean): void;
   setRevealScale(i: number, scale: number): void;
   setVisible(i: number, visible: boolean): void;
   setTime(t: number): void;
@@ -140,6 +141,8 @@ export interface NodeLayer {
   flush(): void;
   dispose(): void;
 }
+
+const DIM_FACTOR = 0.25;
 
 export function createNodes(
   graph: TheiaGraph,
@@ -216,6 +219,7 @@ export function createNodes(
 
   const highlighted = new Set<number>();
   const selected = new Set<number>();
+  const dimmed = new Set<number>();
   const visibleFlags = new Array(n).fill(true);
   const revealScales = new Float32Array(n).fill(1);
   const brightnessMultipliers = new Float32Array(n).fill(1);
@@ -253,6 +257,10 @@ export function createNodes(
     setBrightness(i, multiplier) {
       brightnessMultipliers[i] = Math.max(0, multiplier);
     },
+    setDim(i, on) {
+      if (on) dimmed.add(i);
+      else dimmed.delete(i);
+    },
     setRevealScale(i, scale) {
       revealScales[i] = Math.max(0, scale);
       writeMatrix(i);
@@ -286,11 +294,12 @@ export function createNodes(
         // Gentle wavy blink: slow traveling wave across the constellation
         const twinkle = 1.0 + 0.12 * Math.sin(t * 1.5 + nodeWaveOffsets[i]!);
         const brightness = brightnessMultipliers[i]!;
+        const dim = dimmed.has(i) ? DIM_FACTOR : 1.0;
         colorAttr.setXYZ(
           i,
-          Math.min(1, tint.r * twinkle * brightness),
-          Math.min(1, tint.g * twinkle * brightness),
-          Math.min(1, tint.b * twinkle * brightness),
+          Math.min(1, tint.r * twinkle * brightness * dim),
+          Math.min(1, tint.g * twinkle * brightness * dim),
+          Math.min(1, tint.b * twinkle * brightness * dim),
         );
       }
       colorAttr.needsUpdate = true;

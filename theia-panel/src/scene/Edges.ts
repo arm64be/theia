@@ -51,6 +51,7 @@ export interface EdgeLayer {
   ): void;
   updatePositions(nodePositions: Float32Array): void;
   setHoverNode(nodeId: string | null): void;
+  setHoverEdge(edge: GraphEdge | null): void;
   setConnectionProgress(
     getProgress: ((edge: GraphEdge) => number) | null,
   ): void;
@@ -62,6 +63,11 @@ export interface EdgeLayer {
     clientY: number,
     tolerancePx?: number,
   ): GraphEdge | null;
+  visibleEdges(): Array<{
+    edge: GraphEdge;
+    sourceIdx: number;
+    targetIdx: number;
+  }>;
   dispose(): void;
 }
 
@@ -74,6 +80,9 @@ export function createEdges(): EdgeLayer {
   >();
   let currentNodeIndex: Map<string, number> | null = null;
   let getConnectionProgress: ((edge: GraphEdge) => number) | null = null;
+  let hoverNodeId: string | null = null;
+  let hoverEdge: GraphEdge | null = null;
+  const HOVER_EDGE_OPACITY = 1.0;
 
   function rebuild(
     graph: TheiaGraph,
@@ -209,7 +218,7 @@ export function createEdges(): EdgeLayer {
     }
   }
 
-  function setHoverNode(nodeId: string | null) {
+  function refreshOpacities() {
     for (const [
       kind,
       { line, edgeList, validIndices },
@@ -224,14 +233,50 @@ export function createEdges(): EdgeLayer {
         SIZES.edgeOpacity;
       for (const i of validIndices) {
         const e = edgeList[i]!;
-        const dim =
-          nodeId !== null && e.source !== nodeId && e.target !== nodeId;
-        const opacity = dim ? 0.08 : baseOpacity;
+        let opacity: number;
+        if (hoverEdge !== null && e === hoverEdge) {
+          opacity = HOVER_EDGE_OPACITY;
+        } else {
+          const dim =
+            hoverNodeId !== null &&
+            e.source !== hoverNodeId &&
+            e.target !== hoverNodeId;
+          opacity = dim ? 0.08 : baseOpacity;
+        }
         attr.setX(i * 2 + 0, opacity);
         attr.setX(i * 2 + 1, opacity);
       }
       attr.needsUpdate = true;
     }
+  }
+
+  function setHoverNode(nodeId: string | null) {
+    hoverNodeId = nodeId;
+    refreshOpacities();
+  }
+
+  function setHoverEdge(edge: GraphEdge | null) {
+    hoverEdge = edge;
+    refreshOpacities();
+  }
+
+  function visibleEdges() {
+    if (!currentNodeIndex) return [];
+    const out: Array<{
+      edge: GraphEdge;
+      sourceIdx: number;
+      targetIdx: number;
+    }> = [];
+    for (const { edgeList, validIndices } of lineSegmentsByKind.values()) {
+      for (const i of validIndices) {
+        const e = edgeList[i]!;
+        const sourceIdx = currentNodeIndex.get(e.source);
+        const targetIdx = currentNodeIndex.get(e.target);
+        if (sourceIdx === undefined || targetIdx === undefined) continue;
+        out.push({ edge: e, sourceIdx, targetIdx });
+      }
+    }
+    return out;
   }
 
   function setConnectionProgress(
@@ -343,6 +388,8 @@ export function createEdges(): EdgeLayer {
     rebuild,
     updatePositions,
     setHoverNode,
+    setHoverEdge,
+    visibleEdges,
     setConnectionProgress,
     setTime,
     pickAt,
