@@ -11,17 +11,17 @@ const ONBOARDING_BLINK_MS = 3200;
 const ONBOARDING_LINK_UP_MS = 700;
 // Camera zoom progressively retreats across the reveal so the user can
 // watch the constellation expand into view. Driven by raw time progress
-// (not reveal fraction) so the zoom-out feels steady regardless of how
-// the supernova-burst-then-easeInOutCubic reveal lands nodes.
+// (not reveal fraction) so the zoom-out feels steady regardless of the
+// reveal cadence.
 const ONBOARDING_START_ZOOM = 0.72;
 const ONBOARDING_END_ZOOM = 0.32;
 
 // Onboarding duration scales gently with node count, capped so the
-// first-load reveal stays in roughly the 5-22s range. Previously this
+// first-load reveal stays in roughly the 5-24s range. Previously this
 // was `ceil(N/3) * 1000`, which produced ~9 minutes for a 1.6k-node
 // graph. Keep deterministic so the overlay percentage stays meaningful.
 const ONBOARDING_MIN_DURATION_MS = 5000;
-const ONBOARDING_MAX_DURATION_MS = 22000;
+const ONBOARDING_MAX_DURATION_MS = 24000;
 const ONBOARDING_MS_PER_NODE = 9;
 function onboardingDurationMs(nodeCount: number): number {
   const raw = ONBOARDING_MIN_DURATION_MS + nodeCount * ONBOARDING_MS_PER_NODE;
@@ -35,35 +35,58 @@ function easeQuadInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-// Group reveal rate: easeInOutCubic across the full duration. The
-// supernova-burst at t=0 was retired in favor of a smooth start —
-// dropping it removes the FPS hit from popping ~10% of nodes in a
-// single frame. With the per-node ease-in below, individual nodes
-// already get a slow visual entry as they're revealed.
+// Group reveal rate: quadratic easeIn (`t²`). Linear was too dense
+// at frame 1 ("much at once"); easeInOutCubic was the opposite —
+// `cubic(0.1) ≈ 0.004` left the first ~2s essentially empty before
+// flooding the worker mid-reveal. Quadratic gives the gradual ramp
+// the user wants (1, then 2, then 4…) while still completing on
+// schedule.
 function onboardingRevealFraction(rawProgress: number): number {
   if (rawProgress <= 0) return 0;
   if (rawProgress >= 1) return 1;
-  return easeInOutCubic(rawProgress);
+  return rawProgress * rawProgress;
 }
 
-// Per-node entry animation. Driven by wall-clock time since the node
-// was first revealed, NOT by the group reveal rate. This means each
-// individual node eases in over POP_DURATION_MS regardless of how many
-// other nodes are revealing at the same moment — the slow ease-in is
-// "to singular nodes, not groups". The previous version derived
-// localProgress from `revealFloat - rank`, so any time multiple ranks
-// were crossed in one frame, those nodes jumped to scale=1 instantly.
-const POP_DURATION_MS = 600;
-function popScale(now: number, revealedAt: number | undefined): number {
+// Per-node entry animation. Driven by wall-clock since each node was
+// revealed (not by group rate), so individuals animate independently
+// regardless of how many siblings reveal alongside.
+//
+// Duration is **adaptive** — derived from the actual spawn interval
+// so each pop lasts ~POP_INTERVAL_K × the time between consecutive
+// reveals. Slow phases (early in t², small graphs) get long satisfying
+// pops; fast phases collapse toward the floor so concurrent pops
+// don't pile up indefinitely. Bounded by [MIN, MAX] so tiny graphs
+// (long interval) don't get multi-second pops, and high-rate phases
+// (~zero interval) still get a visible pop.
+//
+// Curve mirrors the original: snap to scale=1 instantly on the reveal
+// frame, then sin overshoot to ~1.28 and back to 1. At raw=0,
+// easeQuadInOut(0)=0 → sin(0)=0 → returns 1, so the node is visible
+// on its reveal frame; the bounce starts immediately after.
+const MIN_POP_DURATION_MS = 300;
+const MAX_POP_DURATION_MS = 1500;
+const POP_INTERVAL_K = 4;
+function clamp(min: number, max: number, v: number): number {
+  return v < min ? min : v > max ? max : v;
+}
+function popDurationFromInterval(intervalMs: number): number {
+  return clamp(
+    MIN_POP_DURATION_MS,
+    MAX_POP_DURATION_MS,
+    POP_INTERVAL_K * intervalMs,
+  );
+}
+function popScale(
+  now: number,
+  revealedAt: number | undefined,
+  popDurationMs: number,
+): number {
   if (revealedAt === undefined) return 0;
-  const t = Math.min(1, (now - revealedAt) / POP_DURATION_MS);
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  return easeQuadInOut(t);
+  const raw = (now - revealedAt) / popDurationMs;
+  if (raw < 0) return 0;
+  if (raw >= 1) return 1;
+  const eased = easeQuadInOut(raw);
+  return 1 + 0.28 * Math.sin(Math.PI * eased);
 }
 
 function revealBrightness(t: number): number {
@@ -153,6 +176,12 @@ interface OnboardingStateInternal {
   lastRevealedCount: number;
   lastHeavyRebuildAt: number;
   lastRebuiltRevealCount: number;
+  // Tracks the wall-clock time of the most recent reveal-batch and the
+  // last observed spawn interval (ms per node). popDurationFromInterval
+  // turns this into the per-node animation length so slow phases get
+  // long pops and fast phases get short ones — bounded by [MIN, MAX].
+  lastSpawnAt: number;
+  lastSpawnIntervalMs: number;
   // Smallest rank whose reveal+blink animation is still in progress.
   // Ranks below this are settled at scale=1, brightness=1; ranks above
   // revealCount aren't yet revealed. Per-frame work only touches the
@@ -190,6 +219,8 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
       lastRevealedCount: 0,
       lastHeavyRebuildAt: 0,
       lastRebuiltRevealCount: 0,
+      lastSpawnAt: performance.now(),
+      lastSpawnIntervalMs: MAX_POP_DURATION_MS / POP_INTERVAL_K,
       blinkMinRank: 0,
       lastEase: 0,
       cameraZoom: ONBOARDING_START_ZOOM,
@@ -242,12 +273,23 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     const graph = deps.graph();
     const nodes = deps.nodes();
     const raw = Math.min(1, (now - state.startedAt) / state.durationMs);
-    // Camera rotation rides easeQuadInOut; reveal rides the
-    // supernova-burst-then-easeInOutCubic curve. Decoupled so the
-    // camera motion stays smooth even as nodes pop in.
+    // Camera rotation rides easeQuadInOut; group rate is quadratic
+    // and per-node pop is adaptive (matches spawn interval). Decoupled
+    // so camera motion stays smooth as nodes appear.
     const eased = easeQuadInOut(raw);
     const revealFloat = onboardingRevealFraction(raw) * state.order.length;
     const revealCount = Math.min(state.order.length, Math.ceil(revealFloat));
+
+    const newRevealsThisFrame = revealCount - state.lastRevealedCount;
+    if (newRevealsThisFrame > 0) {
+      // Spawn interval = wall-clock since the last batch divided by
+      // the number of new reveals in this batch. Drives popDurationMs
+      // adaptively so per-node animations match the actual cadence.
+      state.lastSpawnIntervalMs =
+        (now - state.lastSpawnAt) / newRevealsThisFrame;
+      state.lastSpawnAt = now;
+    }
+    const popDurationMs = popDurationFromInterval(state.lastSpawnIntervalMs);
 
     for (let rank = state.lastRevealedCount; rank < revealCount; rank++) {
       const idx = state.order[rank]!;
@@ -274,7 +316,7 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     for (let rank = state.blinkMinRank; rank < revealCount; rank++) {
       const idx = state.order[rank]!;
       const revealedAt = state.revealStartedAtByIndex.get(idx)!;
-      nodes.setRevealScale(idx, popScale(now, revealedAt));
+      nodes.setRevealScale(idx, popScale(now, revealedAt, popDurationMs));
       const blinkProgress = Math.min(
         1,
         (now - revealedAt) / ONBOARDING_BLINK_MS,
@@ -290,15 +332,22 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
       deps.ctx.setCameraState({ ...cam, theta: cam.theta + rotationDelta });
     }
 
-    // Throttle the heavy rebuild path; always force one final rebuild
-    // when the last node has been revealed so the simulation gets the
-    // full active set before settling.
     const sawNewReveals = revealCount !== state.lastRevealedCount;
     state.lastRevealedCount = revealCount;
     const finalReveal = revealCount === state.order.length;
     const newSinceRebuild = revealCount - state.lastRebuiltRevealCount;
     const enoughNewToRebuild =
       newSinceRebuild >= minRebuildDelta(state.order.length);
+
+    // Make newly revealed nodes visible immediately so they don't wait
+    // for the heavy rebuild throttle — that caused "plops" where 20-30
+    // nodes appeared at once after a black-screen delay.
+    if (sawNewReveals) {
+      deps.setNodeVisibilityFromState();
+    }
+
+    // Throttle the heavy rebuild path (edges + worker simulation);
+    // always force one final rebuild when the last node is revealed.
     if (
       sawNewReveals &&
       (finalReveal ||
@@ -307,7 +356,6 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     ) {
       state.lastHeavyRebuildAt = now;
       state.lastRebuiltRevealCount = revealCount;
-      deps.setNodeVisibilityFromState();
       deps.rebuildVisibleEdges();
       deps.simState().replaceActive({
         activeIds: deps.activeVisibleNodeIds(),
