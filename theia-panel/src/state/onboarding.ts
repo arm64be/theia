@@ -293,15 +293,22 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
       deps.ctx.setCameraState({ ...cam, theta: cam.theta + rotationDelta });
     }
 
-    // Throttle the heavy rebuild path; always force one final rebuild
-    // when the last node has been revealed so the simulation gets the
-    // full active set before settling.
     const sawNewReveals = revealCount !== state.lastRevealedCount;
     state.lastRevealedCount = revealCount;
     const finalReveal = revealCount === state.order.length;
     const newSinceRebuild = revealCount - state.lastRebuiltRevealCount;
     const enoughNewToRebuild =
       newSinceRebuild >= minRebuildDelta(state.order.length);
+
+    // Make newly revealed nodes visible immediately so they don't wait
+    // for the heavy rebuild throttle — that caused "plops" where 20-30
+    // nodes appeared at once after a black-screen delay.
+    if (sawNewReveals) {
+      deps.setNodeVisibilityFromState();
+    }
+
+    // Throttle the heavy rebuild path (edges + worker simulation);
+    // always force one final rebuild when the last node is revealed.
     if (
       sawNewReveals &&
       (finalReveal ||
@@ -310,7 +317,6 @@ export function createOnboarding(deps: OnboardingDeps): OnboardingController {
     ) {
       state.lastHeavyRebuildAt = now;
       state.lastRebuiltRevealCount = revealCount;
-      deps.setNodeVisibilityFromState();
       deps.rebuildVisibleEdges();
       deps.simState().replaceActive({
         activeIds: deps.activeVisibleNodeIds(),
