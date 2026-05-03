@@ -277,7 +277,8 @@ export async function mount(
       const sn = simState.getNodePosition(idx);
       if (!sn) return;
       select(idx);
-      if (jumpToNodeEnabled) ctx.focusOn(sn.x, sn.y, 1.5);
+      if (jumpToNodeEnabled)
+        ctx.focusOn(sn.x, sn.y, Math.max(1.5, ctx.getZoom()));
       const n = currentGraph.nodes[idx]!;
       const related = currentGraph.edges.filter(
         (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
@@ -614,7 +615,8 @@ export async function mount(
         const idx = nodeIndex.get(result.node.id);
         if (idx !== undefined && activeVisibleNodeIds().has(result.node.id)) {
           const sn = simState.getNodePosition(idx);
-          if (sn && jumpToNodeEnabled) ctx.focusOn(sn.x, sn.y, 1.5);
+          if (sn && jumpToNodeEnabled)
+            ctx.focusOn(sn.x, sn.y, Math.max(1.5, ctx.getZoom()));
           select(idx);
         }
         const related = currentGraph.edges.filter(
@@ -728,7 +730,7 @@ export async function mount(
       select(idx);
       if (jumpToNodeEnabled) {
         const sn = simState.getNodePosition(idx);
-        if (sn) ctx.focusOn(sn.x, sn.y, 1.5);
+        if (sn) ctx.focusOn(sn.x, sn.y, Math.max(1.5, ctx.getZoom()));
       }
       const n = currentGraph.nodes[idx]!;
       const related = currentGraph.edges.filter(
