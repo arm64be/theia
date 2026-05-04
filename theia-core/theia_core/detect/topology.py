@@ -154,9 +154,7 @@ def _subagent_tree_metrics(
     return depth, desc
 
 
-def _cron_sequence_ids(
-    node_ids: set[str], edges: list[Edge]
-) -> dict[str, int | None]:
+def _cron_sequence_ids(node_ids: set[str], edges: list[Edge]) -> dict[str, int | None]:
     """Group cron-chain edges with gap ≤ 48h into connected sequences."""
     cron_adj: dict[str, set[str]] = {nid: set() for nid in node_ids}
     for e in edges:
@@ -197,9 +195,7 @@ def _cron_sequence_ids(
     return out
 
 
-def detect_topology(
-    sessions: list[Session], edges: list[Edge]
-) -> dict[str, dict[str, Any]]:
+def detect_topology(sessions: list[Session], edges: list[Edge]) -> dict[str, dict[str, Any]]:
     """Compute per-node topology metadata.
 
     Returns a mapping ``{node_id: metadata_dict}`` where every value contains
