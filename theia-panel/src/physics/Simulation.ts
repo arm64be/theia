@@ -30,8 +30,9 @@ interface PhysicsLink {
 }
 
 /** Custom force: pulls each node toward its semantic anchor. */
-function forceAnchor(strength = 0.15) {
+function forceAnchor(initialStrength = 0.15) {
   let nodes: PhysicsNode[] = [];
+  let strength = initialStrength;
   function force(alpha: number) {
     for (const n of nodes) {
       n.vx = (n.vx ?? 0) + (n.anchorX - n.x) * strength * alpha;
@@ -42,89 +43,145 @@ function forceAnchor(strength = 0.15) {
   force.initialize = (n: PhysicsNode[]) => {
     nodes = n;
   };
+  force.strength = (s: number) => {
+    strength = s;
+    return force;
+  };
   return force;
 }
 
 /**
  * Custom force: mild attraction toward the centroid of each node's
  * immediate neighbors. Keeps clusters coherent without exploding.
+ *
+ * Adjacency is resolved once per simulation in initialize(), not per
+ * tick. Links and node identities don't change between ticks for a
+ * given simulation; rebuilding the adjacency map every tick was pure
+ * GC churn at 1.6k nodes (thousands of Map/Set allocations per tick).
  */
-function forceCluster(links: PhysicsLink[], strength = 0.03) {
+function forceCluster(links: PhysicsLink[], initialStrength = 0.03) {
   let nodes: PhysicsNode[] = [];
+  let neighborIdx: Int32Array[] = [];
+  let strength = initialStrength;
   function force(alpha: number) {
-    const adj = new Map<string, Set<string>>();
-    const nodeMap = new Map<string, PhysicsNode>();
-    for (const n of nodes) {
-      adj.set(n.id, new Set());
-      nodeMap.set(n.id, n);
-    }
-    for (const l of links) {
-      adj.get(l.source)?.add(l.target);
-      adj.get(l.target)?.add(l.source);
-    }
-
-    for (const n of nodes) {
-      const neighbors = adj.get(n.id);
-      if (!neighbors || neighbors.size === 0) continue;
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i]!;
+      const idx = neighborIdx[i]!;
+      const count = idx.length;
+      if (count === 0) continue;
       let cx = 0;
       let cy = 0;
       let cz = 0;
-      let count = 0;
-      for (const nid of neighbors) {
-        const neighbor = nodeMap.get(nid);
-        if (neighbor) {
-          cx += neighbor.x;
-          cy += neighbor.y;
-          cz += neighbor.z;
-          count++;
-        }
+      for (let k = 0; k < count; k++) {
+        const neighbor = nodes[idx[k]!]!;
+        cx += neighbor.x;
+        cy += neighbor.y;
+        cz += neighbor.z;
       }
-      if (count > 0) {
-        cx /= count;
-        cy /= count;
-        cz /= count;
-        n.vx = (n.vx ?? 0) + (cx - n.x) * strength * alpha;
-        n.vy = (n.vy ?? 0) + (cy - n.y) * strength * alpha;
-        n.vz = (n.vz ?? 0) + (cz - n.z) * strength * alpha;
-      }
+      cx /= count;
+      cy /= count;
+      cz /= count;
+      n.vx = (n.vx ?? 0) + (cx - n.x) * strength * alpha;
+      n.vy = (n.vy ?? 0) + (cy - n.y) * strength * alpha;
+      n.vz = (n.vz ?? 0) + (cz - n.z) * strength * alpha;
     }
   }
   force.initialize = (n: PhysicsNode[]) => {
     nodes = n;
+    const idxById = new Map<string, number>();
+    for (let i = 0; i < n.length; i++) idxById.set(n[i]!.id, i);
+    const tmp: number[][] = n.map(() => []);
+    for (const l of links) {
+      const si = idxById.get(l.source);
+      const ti = idxById.get(l.target);
+      if (si === undefined || ti === undefined) continue;
+      tmp[si]!.push(ti);
+      tmp[ti]!.push(si);
+    }
+    neighborIdx = tmp.map((a) => Int32Array.from(a));
+  };
+  force.strength = (s: number) => {
+    strength = s;
+    return force;
   };
   return force;
 }
 
-/** Custom 3D collision force. */
+/**
+ * Custom 3D collision force, spatial-hashed.
+ *
+ * The previous O(N²) all-pairs check did ~1.28M pair tests per tick at
+ * 1.6k nodes — the dominant cost in the entire simulation. Now we bin
+ * nodes into a uniform cubic grid sized to the maximum collision
+ * distance, so each node only checks its own cell + 26 neighbors.
+ * Average candidate set drops from N to a small constant (proportional
+ * to local density), giving ~O(N) per tick at typical layouts.
+ */
 function forceCollide(strength = 0.5) {
   let nodes: PhysicsNode[] = [];
+  let cellSize = 0.4;
+  const grid = new Map<number, number[]>();
+  // Pack 3 signed ints into a single key. ±2¹⁰ cells per axis covers
+  // layouts spanning a few world units at our scale.
+  const key3 = (cx: number, cy: number, cz: number) =>
+    ((cx + 1024) << 20) | ((cy + 1024) << 10) | (cz + 1024);
   function force(alpha: number) {
+    grid.clear();
+    const inv = 1 / cellSize;
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i]!;
+      const k = key3(
+        Math.floor(n.x * inv),
+        Math.floor(n.y * inv),
+        Math.floor(n.z * inv),
+      );
+      const bucket = grid.get(k);
+      if (bucket) bucket.push(i);
+      else grid.set(k, [i]);
+    }
     for (let i = 0; i < nodes.length; i++) {
       const a = nodes[i]!;
-      for (let j = i + 1; j < nodes.length; j++) {
-        const b = nodes[j]!;
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        const dz = a.z - b.z;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        const minDist = a.radius + b.radius + 0.02;
-        if (dist > 0 && dist < minDist) {
-          const overlap = minDist - dist;
-          const fx = (dx / dist) * overlap * strength * alpha;
-          const fy = (dy / dist) * overlap * strength * alpha;
-          const fz = (dz / dist) * overlap * strength * alpha;
-          a.vx = (a.vx ?? 0) + fx;
-          a.vy = (a.vy ?? 0) + fy;
-          a.vz = (a.vz ?? 0) + fz;
-          b.vx = (b.vx ?? 0) - fx;
-          b.vy = (b.vy ?? 0) - fy;
-          b.vz = (b.vz ?? 0) - fz;
+      const cx = Math.floor(a.x * inv);
+      const cy = Math.floor(a.y * inv);
+      const cz = Math.floor(a.z * inv);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            const bucket = grid.get(key3(cx + dx, cy + dy, cz + dz));
+            if (!bucket) continue;
+            for (let bi = 0; bi < bucket.length; bi++) {
+              const j = bucket[bi]!;
+              if (j <= i) continue;
+              const b = nodes[j]!;
+              const ddx = a.x - b.x;
+              const ddy = a.y - b.y;
+              const ddz = a.z - b.z;
+              const distSq = ddx * ddx + ddy * ddy + ddz * ddz;
+              const minDist = a.radius + b.radius + 0.02;
+              if (distSq > 0 && distSq < minDist * minDist) {
+                const dist = Math.sqrt(distSq);
+                const overlap = minDist - dist;
+                const fx = (ddx / dist) * overlap * strength * alpha;
+                const fy = (ddy / dist) * overlap * strength * alpha;
+                const fz = (ddz / dist) * overlap * strength * alpha;
+                a.vx = (a.vx ?? 0) + fx;
+                a.vy = (a.vy ?? 0) + fy;
+                a.vz = (a.vz ?? 0) + fz;
+                b.vx = (b.vx ?? 0) - fx;
+                b.vy = (b.vy ?? 0) - fy;
+                b.vz = (b.vz ?? 0) - fz;
+              }
+            }
+          }
         }
       }
     }
   }
   force.initialize = (n: PhysicsNode[]) => {
     nodes = n;
+    let maxR = 0;
+    for (const node of n) if (node.radius > maxR) maxR = node.radius;
+    cellSize = Math.max(0.05, maxR * 2 + 0.02);
   };
   return force;
 }

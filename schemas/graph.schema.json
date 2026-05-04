@@ -49,7 +49,19 @@
               { "type": "array", "items": { "type": "number" } }
             ]
           },
-          "parent_id": { "type": ["string", "null"] }
+          "parent_id": { "type": ["string", "null"] },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "component_id": { "type": ["integer", "null"] },
+              "hub_score": { "type": "number", "minimum": 0, "maximum": 1 },
+              "hierarchy_depth": { "type": "integer", "minimum": 0 },
+              "descendant_count": { "type": "integer", "minimum": 0 },
+              "is_orphan": { "type": "boolean" },
+              "cron_sequence_id": { "type": ["integer", "null"] }
+            }
+          }
         }
       }
     },

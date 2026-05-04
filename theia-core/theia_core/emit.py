@@ -54,6 +54,7 @@ def build_graph(
     positions: np.ndarray,
     projection: str,
     feature_dim: int,
+    metadata: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if positions.shape != (len(sessions), 2):
         raise ValueError(
@@ -61,23 +62,24 @@ def build_graph(
         )
     nodes = []
     for sess, (x, y) in zip(sessions, positions, strict=True):
-        nodes.append(
-            {
-                "id": sess.id,
-                "title": sess.title,
-                "preview": sess.preview,
-                "started_at": sess.started_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
-                "duration_sec": sess.duration_sec,
-                "tool_count": len(sess.tool_calls),
-                "message_count": sess.message_count,
-                "model": sess.model,
-                "summary": _extract_summary(sess),
-                "initial_prompt": _extract_initial_prompt(sess),
-                "position": {"x": float(x), "y": float(y)},
-                "features": None,
-                "parent_id": sess.parent_id,
-            }
-        )
+        node: dict[str, Any] = {
+            "id": sess.id,
+            "title": sess.title,
+            "preview": sess.preview,
+            "started_at": sess.started_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+            "duration_sec": sess.duration_sec,
+            "tool_count": len(sess.tool_calls),
+            "message_count": sess.message_count,
+            "model": sess.model,
+            "summary": _extract_summary(sess),
+            "initial_prompt": _extract_initial_prompt(sess),
+            "position": {"x": float(x), "y": float(y)},
+            "features": None,
+            "parent_id": sess.parent_id,
+        }
+        if metadata is not None and sess.id in metadata:
+            node["metadata"] = metadata[sess.id]
+        nodes.append(node)
     session_ids = {sess.id for sess in sessions}
     valid_edges: list[Edge] = []
     dropped: list[tuple[Edge, list[str]]] = []

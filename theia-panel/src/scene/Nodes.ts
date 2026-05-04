@@ -28,42 +28,98 @@ function makeGlowTexture(): THREE.Texture {
   return tex;
 }
 
-/** Derive a slight tint from the model name, keeping the base amber feel. */
-function modelTintColor(model: string | undefined): THREE.Color {
-  const base = new THREE.Color(PALETTE.nodeBase);
-  if (!model) return base;
-  const hash = hash01(model);
-  const hsl = { h: 0, s: 0, l: 0 };
-  base.getHSL(hsl);
-  // Shift hue +/- 25 degrees for visible but tasteful model distinction
-  hsl.h = (hsl.h + (hash - 0.5) * 0.14 + 1) % 1;
-  // Vary saturation and lightness subtly
-  hsl.s = Math.min(1, Math.max(0.3, hsl.s + (hash - 0.5) * 0.2));
-  hsl.l = Math.min(0.85, Math.max(0.25, hsl.l + (hash - 0.5) * 0.15));
-  const c = new THREE.Color();
-  c.setHSL(hsl.h, hsl.s, hsl.l);
-  return c;
+/** Stellar evolution color based on session age (started_at).
+ *  Youngest (hottest) → blue O-class, oldest (coolest) → dark red origin.
+ *  Stops follow the OFGKM spectral classification; nodes between two
+ *  classes get a linearly interpolated tint based on their creation date.
+ */
+function stellarAgeColor(
+  startedAt: string,
+  minTime: number,
+  maxTime: number,
+  model?: string,
+): THREE.Color {
+  const rawT =
+    maxTime === minTime
+      ? 0.5
+      : (Date.parse(startedAt) - minTime) / (maxTime - minTime);
+  const t = Math.max(0, Math.min(1, rawT));
+
+  // Spectral-class gradient stops: hot/young → cool/old.
+  // O/F/G/K/M are evenly spaced; the final stop pulls the very oldest
+  // (origin) nodes into the darkest red.
+  const stops: { t: number; r: number; g: number; b: number }[] = [
+    { t: 0.0, r: 0.36, g: 0.55, b: 1.0 }, // O — blue (Rigel, Spica, Bellatrix) ~25,000 K
+    { t: 0.25, r: 1.0, g: 1.0, b: 1.0 }, // F — white (Sirius, Vega) ~10,000 K
+    { t: 0.5, r: 1.0, g: 0.85, b: 0.4 }, // G — yellow (Proxima, the Sun) ~6,000 K
+    { t: 0.75, r: 1.0, g: 0.58, b: 0.22 }, // K — orange (Aldebaran, Arcturus) ~4,000 K
+    { t: 0.92, r: 0.92, g: 0.28, b: 0.2 }, // M — red (Antares, Betelgeuse) ~3,000 K
+    { t: 1.0, r: 0.36, g: 0.04, b: 0.04 }, // origin — darkest red (oldest)
+  ];
+
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i]!;
+    const b = stops[i + 1]!;
+    if (t >= a.t && t <= b.t) {
+      const localT = (t - a.t) / (b.t - a.t);
+      const c = new THREE.Color();
+      c.r = a.r + (b.r - a.r) * localT;
+      c.g = a.g + (b.g - a.g) * localT;
+      c.b = a.b + (b.b - a.b) * localT;
+
+      // Subtle model tint so same-age stars from different models
+      // remain faintly distinguishable without breaking the gradient.
+      if (model) {
+        const hash = hash01(model);
+        const hsl = { h: 0, s: 0, l: 0 };
+        c.getHSL(hsl);
+        hsl.h = (hsl.h + (hash - 0.5) * 0.05 + 1) % 1;
+        hsl.s = Math.min(1, Math.max(0.2, hsl.s + (hash - 0.5) * 0.06));
+        hsl.l = Math.min(0.9, Math.max(0.2, hsl.l + (hash - 0.5) * 0.05));
+        c.setHSL(hsl.h, hsl.s, hsl.l);
+      }
+      return c;
+    }
+  }
+
+  const last = stops[stops.length - 1]!;
+  return new THREE.Color(last.r, last.g, last.b);
 }
 
 const VERT = `
+attribute vec3 aBaseColor;
+attribute float aWaveOffset;
+attribute float aBrightness;
+attribute float aDim;
+attribute float aState;
+
 varying vec2 vUv;
-varying vec3 vColor;
+varying vec3 vBaseColor;
 varying vec3 vCenterPos;
+varying float vWaveOffset;
+varying float vBrightness;
+varying float vDim;
+varying float vState;
+
 void main() {
   vUv = uv;
-  vColor = instanceColor;
+  vBaseColor = aBaseColor;
+  vWaveOffset = aWaveOffset;
+  vBrightness = aBrightness;
+  vDim = aDim;
+  vState = aState;
 
   vec3 instancePos = instanceMatrix[3].xyz;
-  vec3 scale = vec3(
-    length(instanceMatrix[0].xyz),
-    length(instanceMatrix[1].xyz),
-    length(instanceMatrix[2].xyz)
-  );
+  // writeMatrix() always sets identity quaternion + uniform scale, so the
+  // instance matrix is diagonal-scale + translation. Pull scale straight
+  // from the matrix diagonal — equivalent to length(matrix[0].xyz)
+  // without three sqrts per vertex.
+  float instScale = instanceMatrix[0][0];
 
   vCenterPos = instancePos;
 
   vec4 viewPos = viewMatrix * vec4(instancePos, 1.0);
-  viewPos.xy += position.xy * scale.xy;
+  viewPos.xy += position.xy * instScale;
 
   gl_Position = projectionMatrix * viewPos;
 }
@@ -72,19 +128,50 @@ void main() {
 const FRAG = `
 precision highp float;
 uniform sampler2D map;
-uniform vec3 uCameraPos;
+uniform float uTime;
+uniform vec3 uHighlightColor;
+uniform vec3 uSelectedColor;
+uniform float uDimFactor;
+
 varying vec2 vUv;
-varying vec3 vColor;
+varying vec3 vBaseColor;
 varying vec3 vCenterPos;
+varying float vWaveOffset;
+varying float vBrightness;
+varying float vDim;
+varying float vState;
+
 void main() {
   vec4 texColor = texture2D(map, vUv);
-  vec3 finalColor = texColor.rgb * vColor;
+
+  // Selected (state=2) and highlighted (state=1) override twinkle/brightness,
+  // matching the original CPU-side branching in setTime(). vState is
+  // per-instance, so all fragments of a given quad take the same branch
+  // — coherent control flow, fine on modern GPUs.
+  vec3 tint;
+  float effect;
+  if (vState > 1.5) {
+    tint = uSelectedColor;
+    effect = 1.0;
+  } else if (vState > 0.5) {
+    tint = uHighlightColor;
+    effect = 1.0;
+  } else {
+    tint = vBaseColor;
+    float twinkle = 1.0 + 0.12 * sin(uTime * 1.5 + vWaveOffset);
+    float dim = mix(1.0, uDimFactor, vDim);
+    effect = twinkle * vBrightness * dim;
+  }
+
+  vec3 rgb = min(texColor.rgb * tint * effect, vec3(1.0));
   float alpha = texColor.a;
-  float dist = distance(vCenterPos, uCameraPos);
+  // cameraPosition is auto-injected by ShaderMaterial — no explicit
+  // uniform needed.
+  float dist = distance(vCenterPos, cameraPosition);
   float fade = smoothstep(0.15, 0.8, dist);
   alpha *= fade;
   if (alpha < 0.01) discard;
-  gl_FragColor = vec4(finalColor, alpha);
+  gl_FragColor = vec4(rgb, alpha);
 }
 `;
 
@@ -95,13 +182,15 @@ export interface NodeLayer {
   setHighlight(i: number, on: boolean): void;
   setSelected(i: number, on: boolean): void;
   setBrightness(i: number, multiplier: number): void;
+  setDim(i: number, on: boolean): void;
   setRevealScale(i: number, scale: number): void;
   setVisible(i: number, visible: boolean): void;
   setTime(t: number): void;
-  setCameraPosition(pos: THREE.Vector3): void;
   flush(): void;
   dispose(): void;
 }
+
+const DIM_FACTOR = 0.25;
 
 export function createNodes(
   graph: TheiaGraph,
@@ -109,10 +198,27 @@ export function createNodes(
 ): NodeLayer {
   const n = graph.nodes.length;
   const geometry = new THREE.PlaneGeometry(1, 1);
+  const highlightColor = new THREE.Color(PALETTE.nodeHighlight);
+  const selectedColor = new THREE.Color(PALETTE.nodeSelected);
   const material = new THREE.ShaderMaterial({
     uniforms: {
       map: { value: NODE_GLOW_TEXTURE },
-      uCameraPos: { value: new THREE.Vector3() },
+      uTime: { value: 0 },
+      uHighlightColor: {
+        value: new THREE.Vector3(
+          highlightColor.r,
+          highlightColor.g,
+          highlightColor.b,
+        ),
+      },
+      uSelectedColor: {
+        value: new THREE.Vector3(
+          selectedColor.r,
+          selectedColor.g,
+          selectedColor.b,
+        ),
+      },
+      uDimFactor: { value: DIM_FACTOR },
     },
     vertexShader: VERT,
     fragmentShader: FRAG,
@@ -122,23 +228,63 @@ export function createNodes(
   });
   const mesh = new THREE.InstancedMesh(geometry, material, n);
   const dummy = new THREE.Object3D();
-  const highlightColor = new THREE.Color(PALETTE.nodeHighlight);
-  const selectedColor = new THREE.Color(PALETTE.nodeSelected);
 
-  // Precompute per-node size, color, and wave offset for spatial twinkling
+  // Compute time range for stellar age coloring
+  let minTime = Infinity;
+  let maxTime = -Infinity;
+  for (const node of graph.nodes) {
+    const ts = Date.parse(node.started_at);
+    if (Number.isFinite(ts)) {
+      minTime = Math.min(minTime, ts);
+      maxTime = Math.max(maxTime, ts);
+    }
+  }
+  if (!Number.isFinite(minTime)) {
+    minTime = 0;
+    maxTime = 1;
+  }
+
   const nodeSizes = new Float32Array(n);
-  const nodeColors: THREE.Color[] = new Array(n);
-  const nodeWaveOffsets = new Float32Array(n);
+
+  // Per-instance shader inputs. These are uploaded only when their values
+  // actually change — not every frame. Twinkle/highlight/dim/select math
+  // moved into the fragment shader; setTime() collapses to a single
+  // uniform update.
+  const baseColorArr = new Float32Array(n * 3);
+  const waveOffsetArr = new Float32Array(n);
+  const brightnessArr = new Float32Array(n);
+  const dimArr = new Float32Array(n);
+  const stateArr = new Float32Array(n);
 
   for (let i = 0; i < n; i++) {
     const node = graph.nodes[i]!;
     const turns = node.message_count ?? node.tool_count;
     nodeSizes[i] = Math.min(0.18, 0.05 + Math.log1p(turns) * 0.014);
-    nodeColors[i] = modelTintColor(node.model);
+    const c = stellarAgeColor(node.started_at, minTime, maxTime, node.model);
+    baseColorArr[i * 3 + 0] = c.r;
+    baseColorArr[i * 3 + 1] = c.g;
+    baseColorArr[i * 3 + 2] = c.b;
     // Spatial wave: coherent ripple across the constellation
-    nodeWaveOffsets[i] =
+    waveOffsetArr[i] =
       node.position.x * 2.0 + node.position.y * 1.5 + hash01(node.id) * 3.0;
+    brightnessArr[i] = 1;
+    dimArr[i] = 0;
+    stateArr[i] = 0;
   }
+
+  const baseColorAttr = new THREE.InstancedBufferAttribute(baseColorArr, 3);
+  const waveOffsetAttr = new THREE.InstancedBufferAttribute(waveOffsetArr, 1);
+  const brightnessAttr = new THREE.InstancedBufferAttribute(brightnessArr, 1);
+  const dimAttr = new THREE.InstancedBufferAttribute(dimArr, 1);
+  const stateAttr = new THREE.InstancedBufferAttribute(stateArr, 1);
+  brightnessAttr.setUsage(THREE.DynamicDrawUsage);
+  dimAttr.setUsage(THREE.DynamicDrawUsage);
+  stateAttr.setUsage(THREE.DynamicDrawUsage);
+  geometry.setAttribute("aBaseColor", baseColorAttr);
+  geometry.setAttribute("aWaveOffset", waveOffsetAttr);
+  geometry.setAttribute("aBrightness", brightnessAttr);
+  geometry.setAttribute("aDim", dimAttr);
+  geometry.setAttribute("aState", stateAttr);
 
   for (let i = 0; i < n; i++) {
     const node = graph.nodes[i]!;
@@ -151,16 +297,13 @@ export function createNodes(
     dummy.scale.set(sz, sz, sz);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
-    mesh.setColorAt(i, nodeColors[i]!);
   }
   mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 
   const highlighted = new Set<number>();
   const selected = new Set<number>();
   const visibleFlags = new Array(n).fill(true);
   const revealScales = new Float32Array(n).fill(1);
-  const brightnessMultipliers = new Float32Array(n).fill(1);
 
   function writeMatrix(i: number) {
     const sz = visibleFlags[i] ? nodeSizes[i]! * revealScales[i]! : 0;
@@ -175,6 +318,15 @@ export function createNodes(
     mesh.setMatrixAt(i, dummy.matrix);
   }
 
+  // Selected wins over highlighted, matching original branching.
+  function writeState(i: number) {
+    const s = selected.has(i) ? 2 : highlighted.has(i) ? 1 : 0;
+    if (stateArr[i] !== s) {
+      stateArr[i] = s;
+      stateAttr.needsUpdate = true;
+    }
+  }
+
   return {
     mesh,
     count: n,
@@ -187,62 +339,43 @@ export function createNodes(
     setHighlight(i, on) {
       if (on) highlighted.add(i);
       else highlighted.delete(i);
+      writeState(i);
     },
     setSelected(i, on) {
       if (on) selected.add(i);
       else selected.delete(i);
+      writeState(i);
     },
     setBrightness(i, multiplier) {
-      brightnessMultipliers[i] = Math.max(0, multiplier);
+      const v = Math.max(0, multiplier);
+      if (brightnessArr[i] !== v) {
+        brightnessArr[i] = v;
+        brightnessAttr.needsUpdate = true;
+      }
+    },
+    setDim(i, on) {
+      const v = on ? 1 : 0;
+      if (dimArr[i] !== v) {
+        dimArr[i] = v;
+        dimAttr.needsUpdate = true;
+      }
     },
     setRevealScale(i, scale) {
-      revealScales[i] = Math.max(0, scale);
+      const v = Math.max(0, scale);
+      if (revealScales[i] === v) return;
+      revealScales[i] = v;
       writeMatrix(i);
     },
     setVisible(i, visible) {
+      if (visibleFlags[i] === visible) return;
       visibleFlags[i] = visible;
       writeMatrix(i);
     },
     setTime(t: number) {
-      const colorAttr = mesh.instanceColor!;
-      for (let i = 0; i < n; i++) {
-        if (selected.has(i)) {
-          colorAttr.setXYZ(
-            i,
-            selectedColor.r,
-            selectedColor.g,
-            selectedColor.b,
-          );
-          continue;
-        }
-        if (highlighted.has(i)) {
-          colorAttr.setXYZ(
-            i,
-            highlightColor.r,
-            highlightColor.g,
-            highlightColor.b,
-          );
-          continue;
-        }
-        const tint = nodeColors[i]!;
-        // Gentle wavy blink: slow traveling wave across the constellation
-        const twinkle = 1.0 + 0.12 * Math.sin(t * 1.5 + nodeWaveOffsets[i]!);
-        const brightness = brightnessMultipliers[i]!;
-        colorAttr.setXYZ(
-          i,
-          Math.min(1, tint.r * twinkle * brightness),
-          Math.min(1, tint.g * twinkle * brightness),
-          Math.min(1, tint.b * twinkle * brightness),
-        );
-      }
-      colorAttr.needsUpdate = true;
-    },
-    setCameraPosition(pos) {
-      material.uniforms.uCameraPos!.value.copy(pos);
+      material.uniforms.uTime!.value = t;
     },
     flush() {
       mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     },
     dispose() {
       geometry.dispose();

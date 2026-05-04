@@ -5,15 +5,37 @@ import { createScene } from "./scene/Scene";
 import { createNodes, type NodeLayer } from "./scene/Nodes";
 import { createEdges } from "./scene/Edges";
 import { createPost } from "./scene/Post";
-import { createSimulation } from "./physics/Simulation";
 import { createPicker } from "./scene/Picker";
+import {
+  createSimulationState,
+  type SimulationState,
+} from "./state/simulation";
+import { createKeyboardNav } from "./scene/KeyboardNav";
+import { computeEdgeChain } from "./scene/chain";
 import { createTooltip } from "./ui/Tooltip";
 import { createFilterBar } from "./ui/FilterBar";
 import { createSearchBar } from "./ui/SearchBar";
 import { createSidePanel } from "./ui/SidePanel";
-import { readTheme, applyTheme, onThemeMessage, FONT_STACK } from "./ui/Theme";
+import { readTheme, applyTheme, onThemeMessage } from "./ui/Theme";
 import type { ThemeTokens } from "./ui/Theme";
-import { hashN11 } from "./util/hash";
+import {
+  createLoadingOverlay,
+  createChainOverlay,
+  createControlsOverlay,
+} from "./ui/Overlays";
+import {
+  VALID_KINDS,
+  DEFAULT_KINDS,
+  loadFilterState,
+  saveFilterState,
+  computeVisibleNodeIds,
+} from "./state/filterState";
+import { createPhysicsSnapshotIO } from "./state/physicsSnapshot";
+import {
+  createOnboarding,
+  hasCompletedOnboarding,
+  type OnboardingController,
+} from "./state/onboarding";
 
 export interface PanelOptions {
   edgeKinds?: TheiaGraph["edges"][number]["kind"][];
@@ -26,46 +48,6 @@ export interface Controller {
   reload(graphUrl?: string): Promise<void>;
 }
 
-const VALID_KINDS: TheiaGraph["edges"][number]["kind"][] = [
-  "memory-share",
-  "cross-search",
-  "tool-overlap",
-  "subagent",
-  "cron-chain",
-];
-
-const DEFAULT_KINDS: TheiaGraph["edges"][number]["kind"][] = VALID_KINDS;
-
-const STORAGE_KEY = "theia-constellation-filter";
-const ONBOARDING_STORAGE_KEY = "theia-first-load-onboarding-complete";
-const PHYSICS_SNAPSHOT_KEY_PREFIX = "theia-physics-snapshot:";
-const ONBOARDING_ROTATION_RADIANS = Math.PI * 1.15;
-const ONBOARDING_BLINK_MS = 3200;
-const ONBOARDING_LINK_UP_MS = 700;
-const PHYSICS_SNAPSHOT_INTERVAL_MS = 5000;
-const ONBOARDING_BASE_ZOOM = 0.72;
-const ONBOARDING_MIN_ZOOM = 0.42;
-const ONBOARDING_NEAR_DISTANCE = 3.2;
-const ONBOARDING_SAFE_DISTANCE = 5.6;
-
-function easeQuadInOut(t: number): number {
-  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-}
-
-function popScale(t: number): number {
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  const eased = easeQuadInOut(t);
-  return 1 + 0.28 * Math.sin(Math.PI * eased);
-}
-
-function revealBrightness(t: number): number {
-  if (t <= 0) return 0;
-  if (t >= 1) return 1;
-  const eased = easeQuadInOut(t);
-  return 1 + 0.5 * Math.sin(Math.PI * eased);
-}
-
 const edgeKeyCache = new WeakMap<TheiaGraph["edges"][number], string>();
 function edgeKey(edge: TheiaGraph["edges"][number]): string {
   let key = edgeKeyCache.get(edge);
@@ -76,80 +58,6 @@ function edgeKey(edge: TheiaGraph["edges"][number]): string {
       : `${edge.target}|${edge.source}|${edge.kind}`;
   edgeKeyCache.set(edge, key);
   return key;
-}
-
-function hasCompletedOnboarding(): boolean {
-  try {
-    return localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1";
-  } catch {
-    return true;
-  }
-}
-
-function markOnboardingComplete(): void {
-  try {
-    localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
-  } catch {
-    /* quota exceeded, ignore */
-  }
-}
-
-type PhysicsSnapshotNode = {
-  x: number;
-  y: number;
-  z: number;
-  vx: number;
-  vy: number;
-  vz: number;
-};
-
-function physicsSnapshotKey(graphUrl: string): string {
-  return `${PHYSICS_SNAPSHOT_KEY_PREFIX}${graphUrl}`;
-}
-
-type PhysicsSnapshot = {
-  nodes: Map<string, PhysicsSnapshotNode>;
-  camera: ReturnType<ReturnType<typeof createScene>["getCameraState"]> | null;
-};
-
-function loadFilterState(): {
-  kinds: Set<TheiaGraph["edges"][number]["kind"]>;
-  model: string | null;
-  searchFocus: boolean;
-} | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const parsedKinds = Array.isArray(parsed?.kinds)
-      ? parsed.kinds.filter(
-          (k: unknown): k is TheiaGraph["edges"][number]["kind"] =>
-            (VALID_KINDS as readonly unknown[]).includes(k),
-        )
-      : DEFAULT_KINDS;
-    return {
-      kinds: new Set(parsedKinds.length > 0 ? parsedKinds : DEFAULT_KINDS),
-      model: typeof parsed?.model === "string" ? parsed.model : null,
-      searchFocus: parsed?.searchFocus === true,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function saveFilterState(
-  kinds: Set<string>,
-  model: string | null,
-  searchFocus: boolean,
-): void {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ kinds: Array.from(kinds), model, searchFocus }),
-    );
-  } catch {
-    /* quota exceeded, ignore */
-  }
 }
 
 export async function mount(
@@ -190,22 +98,18 @@ export async function mount(
   }
   let focusEnabled = false;
   let searchFocusEnabled = saved?.searchFocus ?? false;
+  let hideOrphansEnabled = saved?.hideOrphans ?? false;
+  let componentFocusEnabled = saved?.componentFocus ?? false;
+  let jumpToNodeEnabled = true;
   let focusFilter: Set<string> | null = null;
-  let onboarding: {
-    startedAt: number;
-    durationMs: number;
-    order: number[];
-    rankByIndex: Map<number, number>;
-    revealedNodeIds: Set<string>;
-    revealStartedAtByIndex: Map<number, number>;
-    linkStartedAtByKey: Map<string, number>;
-    lastRevealedCount: number;
-    lastEase: number;
-    cameraZoom: number;
-    cameraAutoZoomEnabled: boolean;
-    complete: boolean;
-    overlay: { update(progress: number): void; remove(): void };
+  let componentFilter: Set<string> | null = null;
+  let chainFilter: Set<string> | null = null;
+  let chainEdge: TheiaGraph["edges"][number] | null = null;
+  let chainOverlay: {
+    update(nodeCount: number, edgeCount: number, label: string): void;
+    remove(): void;
   } | null = null;
+  let onboarding: OnboardingController;
   let searchFocusMatchKey = "";
   let searchInputController: AbortController | null = null;
   let searchFocusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -215,202 +119,76 @@ export async function mount(
   let nodes: NodeLayer;
   let nodeIndex = new Map<string, number>();
   let nodePositions = new Float32Array(0);
-  let simNodes: ReturnType<typeof createSimulation>["nodes"] = [];
-  let simulation: ReturnType<typeof createSimulation>["simulation"];
-  let renderedPositions = new Float32Array(0);
+  let simState: SimulationState;
   let picker: ReturnType<typeof createPicker>;
+  const keyboardNav = createKeyboardNav(ctx);
   let searchBar: ReturnType<typeof createSearchBar>;
   let selectedIdx: number | null = null;
   let currentGraphUrl = graphUrl;
-  let lastPhysicsSnapshotAt = 0;
+  const physicsSnapshotIO = createPhysicsSnapshotIO();
 
-  function simulationGraphFor(activeIds: Set<string> | null): TheiaGraph {
-    if (!activeIds) return currentGraph;
-    return {
-      ...currentGraph,
-      nodes: currentGraph.nodes.filter((node) => activeIds.has(node.id)),
-      edges: currentGraph.edges.filter(
-        (edge) => activeIds.has(edge.source) && activeIds.has(edge.target),
-      ),
-    };
-  }
-
-  function replaceSimulation(
-    activeIds: Set<string> | null,
-    animateNew = false,
-    preserveExisting = true,
-    seedPositions = new Map<string, PhysicsSnapshotNode>(),
-  ) {
-    const oldPositions = new Map<
-      string,
-      { x: number; y: number; z: number; vx?: number; vy?: number; vz?: number }
-    >();
-    for (const sn of simNodes) {
-      if (sn) {
-        oldPositions.set(sn.id, {
-          x: sn.x,
-          y: sn.y,
-          z: sn.z,
-          vx: sn.vx,
-          vy: sn.vy,
-          vz: sn.vz,
-        });
-      }
-    }
-
-    simulation?.stop();
-    const simResult = createSimulation(
-      simulationGraphFor(activeIds),
-      kinds,
-      onboarding && !onboarding.complete ? "onboarding" : "normal",
-    );
-    simulation = simResult.simulation;
-    simulation.stop();
-
-    const nextNodes = new Array(currentGraph.nodes.length) as typeof simNodes;
-    for (const sn of simResult.nodes) {
-      const idx = nodeIndex.get(sn.id);
-      if (idx === undefined) continue;
-      const old = preserveExisting ? oldPositions.get(sn.id) : undefined;
-      const seed = seedPositions.get(sn.id);
-      if (old || seed) {
-        const source = old ?? seed!;
-        sn.x = source.x;
-        sn.y = source.y;
-        sn.z = source.z;
-        sn.vx = source.vx ?? 0;
-        sn.vy = source.vy ?? 0;
-        sn.vz = source.vz ?? 0;
-      } else if (animateNew) {
-        const jitter = 0.08;
-        sn.x = sn.anchorX * 0.55 + hashN11(`${sn.id}:x`) * jitter;
-        sn.y = sn.anchorY * 0.55 + hashN11(`${sn.id}:y`) * jitter;
-        sn.z = sn.anchorZ * 0.55 + hashN11(`${sn.id}:z`) * jitter;
-        sn.vx = (sn.anchorX - sn.x) * 0.006;
-        sn.vy = (sn.anchorY - sn.y) * 0.006;
-        sn.vz = (sn.anchorZ - sn.z) * 0.006;
-        renderedPositions[idx * 3] = sn.x;
-        renderedPositions[idx * 3 + 1] = sn.y;
-        renderedPositions[idx * 3 + 2] = sn.z;
-        nodes?.setPosition(idx, sn.x, sn.y, sn.z);
-      }
-      nextNodes[idx] = sn;
-    }
-    simNodes = nextNodes;
-    simulation.alpha(animateNew ? 0.22 : simulation.alphaTarget());
-  }
-
-  function syncRenderedPositionsFromSimulation() {
-    for (let i = 0; i < simNodes.length; i++) {
-      const sn = simNodes[i];
-      if (!sn) continue;
-      renderedPositions[i * 3] = sn.x;
-      renderedPositions[i * 3 + 1] = sn.y;
-      renderedPositions[i * 3 + 2] = sn.z;
-      nodes.setPosition(i, sn.x, sn.y, sn.z);
-    }
-    nodes.flush();
-    edges.updatePositions(nodePositions);
-  }
-
-  function loadPhysicsSnapshot(): PhysicsSnapshot {
-    try {
-      const raw = localStorage.getItem(physicsSnapshotKey(currentGraphUrl));
-      if (!raw) return { nodes: new Map(), camera: null };
-      const parsed = JSON.parse(raw);
-      const nodesById = parsed?.nodes;
-      if (!nodesById || typeof nodesById !== "object") {
-        return { nodes: new Map(), camera: null };
-      }
-      const snapshot = new Map<string, PhysicsSnapshotNode>();
-      for (const [id, value] of Object.entries(nodesById)) {
-        if (!value || typeof value !== "object") continue;
-        const node = value as Record<string, unknown>;
-        const x = Number(node.x);
-        const y = Number(node.y);
-        const z = Number(node.z);
-        const vx = Number(node.vx ?? 0);
-        const vy = Number(node.vy ?? 0);
-        const vz = Number(node.vz ?? 0);
-        if ([x, y, z, vx, vy, vz].every(Number.isFinite)) {
-          snapshot.set(id, { x, y, z, vx, vy, vz });
-        }
-      }
-      const cameraRaw = parsed?.camera;
-      const targetRaw = cameraRaw?.target;
-      const camera =
-        cameraRaw &&
-        targetRaw &&
-        [
-          targetRaw.x,
-          targetRaw.y,
-          targetRaw.z,
-          cameraRaw.theta,
-          cameraRaw.phi,
-          cameraRaw.zoom,
-        ]
-          .map(Number)
-          .every(Number.isFinite)
-          ? {
-              target: {
-                x: Number(targetRaw.x),
-                y: Number(targetRaw.y),
-                z: Number(targetRaw.z),
-              },
-              theta: Number(cameraRaw.theta),
-              phi: Number(cameraRaw.phi),
-              zoom: Number(cameraRaw.zoom),
-            }
-          : null;
-      return { nodes: snapshot, camera };
-    } catch {
-      return { nodes: new Map(), camera: null };
-    }
+  function canSavePhysicsSnapshot(): boolean {
+    if (!currentGraph || !hasCompletedOnboarding()) return false;
+    if (onboarding.isActive() && !onboarding.isComplete()) return false;
+    return true;
   }
 
   function savePhysicsSnapshot() {
-    if (!currentGraph || !hasCompletedOnboarding()) return;
-    if (onboarding && !onboarding.complete) return;
-    const nodesById: Record<string, PhysicsSnapshotNode> = {};
-    for (const sn of simNodes) {
-      if (!sn) continue;
-      nodesById[sn.id] = {
-        x: sn.x,
-        y: sn.y,
-        z: sn.z,
-        vx: sn.vx ?? 0,
-        vy: sn.vy ?? 0,
-        vz: sn.vz ?? 0,
-      };
-    }
-    try {
-      localStorage.setItem(
-        physicsSnapshotKey(currentGraphUrl),
-        JSON.stringify({
-          version: 1,
-          saved_at: Date.now(),
-          nodes: nodesById,
-          camera: ctx.getCameraState(),
-        }),
-      );
-    } catch {
-      /* quota exceeded, ignore */
-    }
+    if (!canSavePhysicsSnapshot()) return;
+    physicsSnapshotIO.save(
+      currentGraphUrl,
+      simState.getSimNodes(),
+      ctx.getCameraState(),
+    );
   }
 
   function maybeSavePhysicsSnapshot(now: number) {
-    if (now - lastPhysicsSnapshotAt < PHYSICS_SNAPSHOT_INTERVAL_MS) return;
-    lastPhysicsSnapshotAt = now;
-    savePhysicsSnapshot();
+    physicsSnapshotIO.maybeSave(
+      now,
+      currentGraphUrl,
+      simState.getSimNodes(),
+      () => ctx.getCameraState(),
+      canSavePhysicsSnapshot(),
+    );
   }
 
   const tooltip = createTooltip(element, theme);
+
+  function selectedNodeId(): string | null {
+    return selectedIdx === null ? null : currentGraph.nodes[selectedIdx]!.id;
+  }
+
+  function relatedNodeIds(nodeId: string): Set<string> {
+    const related = new Set<string>([nodeId]);
+    for (const edge of currentGraph.edges) {
+      if (!kinds.has(edge.kind)) continue;
+      if (edge.source === nodeId) related.add(edge.target);
+      else if (edge.target === nodeId) related.add(edge.source);
+    }
+    return related;
+  }
+
+  function applyDimAround(nodeId: string | null) {
+    if (nodeId === null) {
+      for (let i = 0; i < nodes.count; i++) nodes.setDim(i, false);
+      nodes.flush();
+      return;
+    }
+    const related = relatedNodeIds(nodeId);
+    for (let i = 0; i < nodes.count; i++) {
+      nodes.setDim(i, !related.has(currentGraph.nodes[i]!.id));
+    }
+    nodes.flush();
+  }
+
   function clearSelected() {
     if (selectedIdx !== null) {
       nodes.setSelected(selectedIdx, false);
       nodes.setHighlight(selectedIdx, false);
       selectedIdx = null;
     }
+    edges.setHoverNode(null);
+    applyDimAround(null);
   }
 
   function select(idx: number) {
@@ -418,6 +196,8 @@ export async function mount(
     selectedIdx = idx;
     nodes.setSelected(idx, true);
     nodes.setHighlight(idx, false);
+    edges.setHoverNode(currentGraph.nodes[idx]!.id);
+    if (!focusEnabled) applyDimAround(currentGraph.nodes[idx]!.id);
   }
 
   function enterPanelMode(
@@ -442,20 +222,62 @@ export async function mount(
 
   function onSearchFocusToggle(enabled: boolean) {
     searchFocusEnabled = enabled;
-    saveFilterState(kinds, modelFilter, searchFocusEnabled);
+    saveFilterState(
+      kinds,
+      modelFilter,
+      searchFocusEnabled,
+      hideOrphansEnabled,
+      componentFocusEnabled,
+    );
     const searchMatchesChanged = updateVisibility();
     const id = sidePanel.currentNodeId();
     if (id && searchMatchesChanged) applyFocusModeIfEnabled(id);
+  }
+
+  function onHideOrphansToggle(enabled: boolean) {
+    hideOrphansEnabled = enabled;
+    saveFilterState(
+      kinds,
+      modelFilter,
+      searchFocusEnabled,
+      hideOrphansEnabled,
+      componentFocusEnabled,
+    );
+    // Hiding/un-hiding orphans changes the visible-edge subgraph, so the chain
+    // filter (depth-N from a clicked edge) may now reference hidden nodes.
+    clearChainSelection();
+    updateVisibility();
+    const id = sidePanel.currentNodeId();
+    if (id) applyFocusModeIfEnabled(id);
+  }
+
+  function onComponentFocusToggle(enabled: boolean) {
+    componentFocusEnabled = enabled;
+    saveFilterState(
+      kinds,
+      modelFilter,
+      searchFocusEnabled,
+      hideOrphansEnabled,
+      componentFocusEnabled,
+    );
+    if (!componentFocusEnabled) {
+      componentFilter = null;
+      setNodeVisibilityFromState();
+      rebuildVisibleEdges();
+    } else {
+      const id = sidePanel.currentNodeId();
+      if (id) applyFocusModeIfEnabled(id);
+    }
   }
 
   const sidePanel = createSidePanel(element, theme, {
     onNavigate: (targetId) => {
       const idx = nodeIndex.get(targetId);
       if (idx === undefined || !activeVisibleNodeIds().has(targetId)) return;
-      const sn = simNodes[idx];
+      const sn = simState.getNodePosition(idx);
       if (!sn) return;
       select(idx);
-      ctx.focusOn(sn.x, sn.y, 1.5);
+      if (jumpToNodeEnabled) ctx.focusOn(sn.x, sn.y, 1.5);
       const n = currentGraph.nodes[idx]!;
       const related = currentGraph.edges.filter(
         (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
@@ -482,71 +304,34 @@ export async function mount(
   const isInteracting = () =>
     isMouseDown || performance.now() - lastWheelAt < 200;
 
-  function computeVisibleNodeIds(
-    graph: TheiaGraph,
-    enabledKinds: Set<string>,
-    modelFilter?: string | null,
-  ): Set<string> {
-    const kindVisible = new Set<string>();
-    if (enabledKinds.has("subagent")) {
-      for (const node of graph.nodes) {
-        kindVisible.add(node.id);
-      }
-    } else {
-      const subagentIds = new Set<string>();
-      const hasNonSubagentConnection = new Map<string, boolean>();
-      for (const node of graph.nodes) {
-        if (node.parent_id) {
-          subagentIds.add(node.id);
-        } else {
-          hasNonSubagentConnection.set(node.id, true);
-        }
-      }
-      for (const edge of graph.edges) {
-        if (edge.kind === "subagent") continue;
-        if (!enabledKinds.has(edge.kind)) continue;
-        if (!subagentIds.has(edge.source)) {
-          hasNonSubagentConnection.set(edge.source, true);
-        }
-        if (!subagentIds.has(edge.target)) {
-          hasNonSubagentConnection.set(edge.target, true);
-        }
-      }
-      for (const node of graph.nodes) {
-        if (hasNonSubagentConnection.get(node.id)) {
-          kindVisible.add(node.id);
-        }
-      }
-    }
-    if (modelFilter) {
-      const modelMatch = new Set<string>();
-      for (const node of graph.nodes) {
-        if (node.model === modelFilter && kindVisible.has(node.id)) {
-          modelMatch.add(node.id);
-        }
-      }
-      return modelMatch;
-    }
-    return kindVisible;
-  }
-
   let visibleNodeIds = new Set<string>();
 
   function activeVisibleNodeIds(): Set<string> {
     let ids = visibleNodeIds;
-    if (focusFilter) {
+    // chainFilter (depth-N isolation from a clicked edge) takes precedence
+    // over the depth-1 focusFilter; the two are conceptually different modes.
+    if (chainFilter) {
+      ids = new Set([...ids].filter((id) => chainFilter!.has(id)));
+    } else if (focusFilter) {
       ids = new Set([...ids].filter((id) => focusFilter!.has(id)));
     }
-    if (onboarding) {
-      ids = new Set(
-        [...ids].filter((id) => onboarding!.revealedNodeIds.has(id)),
-      );
+    if (componentFilter) {
+      ids = new Set([...ids].filter((id) => componentFilter!.has(id)));
+    }
+    if (onboarding.isActive()) {
+      const revealed = onboarding.revealedNodeIds();
+      ids = new Set([...ids].filter((id) => revealed.has(id)));
     }
     return ids;
   }
 
   function updateVisibility(): boolean {
-    visibleNodeIds = computeVisibleNodeIds(currentGraph, kinds, modelFilter);
+    visibleNodeIds = computeVisibleNodeIds(
+      currentGraph,
+      kinds,
+      modelFilter,
+      hideOrphansEnabled,
+    );
     let searchMatchesChanged = false;
     if (searchFocusEnabled && searchBar) {
       const query = searchBar.input.value.trim();
@@ -573,7 +358,9 @@ export async function mount(
     setNodeVisibilityFromState();
 
     // Start at equilibrium to prevent jittery readjustment.
-    replaceSimulation(onboarding ? activeVisibleNodeIds() : null);
+    simState.replaceActive({
+      activeIds: onboarding.isActive() ? activeVisibleNodeIds() : null,
+    });
 
     rebuildVisibleEdges();
     return searchMatchesChanged;
@@ -596,211 +383,130 @@ export async function mount(
       nodes.setVisible(i, activeIds.has(currentGraph.nodes[i]!.id));
     }
     nodes.flush();
+    // Filter/focus toggles change the active set without going through
+    // replaceActive; wake physics so the layout can re-equilibrate for
+    // the new visible node set. The gate will re-arm after the
+    // simulation re-settles.
+    simState.wakePhysics();
+  }
+
+  const EDGE_KIND_LABELS: Record<TheiaGraph["edges"][number]["kind"], string> =
+    {
+      "memory-share": "memory share",
+      "cross-search": "cross-search",
+      "tool-overlap": "tool overlap",
+      subagent: "subagent",
+      "cron-chain": "cron chain",
+    };
+
+  function applyChainSelection(edge: TheiaGraph["edges"][number]) {
+    const { nodes: chainNodes, edgeCount } = computeEdgeChain(
+      currentGraph,
+      [edge.source, edge.target],
+      kinds,
+      visibleNodeIds,
+    );
+    if (chainNodes.size === 0) return;
+    chainEdge = edge;
+    chainFilter = chainNodes;
+    // Drop any stale 1-hop focus filter — focusFilter is bound to a selected
+    // node, and chain mode has no selected node. Leaving it would resurface
+    // a stale neighbor set when the chain is cleared.
+    focusFilter = null;
+    setNodeVisibilityFromState();
+    rebuildVisibleEdges();
+    showChainOverlay(chainNodes.size, edgeCount, EDGE_KIND_LABELS[edge.kind]);
+  }
+
+  function clearChainSelection() {
+    if (!chainFilter && !chainEdge && !chainOverlay) return;
+    chainFilter = null;
+    chainEdge = null;
+    chainOverlay?.remove();
+    chainOverlay = null;
+    setNodeVisibilityFromState();
+    rebuildVisibleEdges();
+  }
+
+  function showChainOverlay(
+    nodeCount: number,
+    edgeCount: number,
+    kindLabel: string,
+  ) {
+    if (!chainOverlay)
+      chainOverlay = createChainOverlay(element, theme, () =>
+        clearChainSelection(),
+      );
+    chainOverlay.update(nodeCount, edgeCount, kindLabel);
   }
 
   function applyFocusModeIfEnabled(selectedNodeId: string) {
-    if (!focusEnabled) {
+    let touched = false;
+    if (focusEnabled) {
+      const neighbors = new Set<string>();
+      neighbors.add(selectedNodeId);
+      for (const edge of currentGraph.edges) {
+        if (!kinds.has(edge.kind)) continue;
+        if (edge.source === selectedNodeId) {
+          neighbors.add(edge.target);
+        } else if (edge.target === selectedNodeId) {
+          neighbors.add(edge.source);
+        }
+      }
+      focusFilter = neighbors;
+      touched = true;
+    } else if (focusFilter) {
       focusFilter = null;
-      return;
+      touched = true;
     }
-    const neighbors = new Set<string>();
-    neighbors.add(selectedNodeId);
-    for (const edge of currentGraph.edges) {
-      if (!kinds.has(edge.kind)) continue;
-      if (edge.source === selectedNodeId) {
-        neighbors.add(edge.target);
-      } else if (edge.target === selectedNodeId) {
-        neighbors.add(edge.source);
-      }
-    }
-    focusFilter = neighbors;
-    setNodeVisibilityFromState();
-    rebuildVisibleEdges();
-  }
 
-  function shouldRunOnboarding(g: TheiaGraph): boolean {
-    return g.nodes.length > 0 && !hasCompletedOnboarding();
-  }
-
-  function beginOnboarding(g: TheiaGraph) {
-    const order = g.nodes
-      .map((node, index) => ({ index, time: Date.parse(node.started_at) }))
-      .sort((a, b) => {
-        const at = Number.isFinite(a.time) ? a.time : Number.POSITIVE_INFINITY;
-        const bt = Number.isFinite(b.time) ? b.time : Number.POSITIVE_INFINITY;
-        return at - bt || a.index - b.index;
-      })
-      .map(({ index }) => index);
-    onboarding = {
-      startedAt: performance.now(),
-      durationMs: Math.max(1, Math.ceil(g.nodes.length / 3)) * 1000,
-      order,
-      rankByIndex: new Map(order.map((index, rank) => [index, rank])),
-      revealedNodeIds: new Set(),
-      revealStartedAtByIndex: new Map(),
-      linkStartedAtByKey: new Map(),
-      lastRevealedCount: 0,
-      lastEase: 0,
-      cameraZoom: ONBOARDING_BASE_ZOOM,
-      cameraAutoZoomEnabled: true,
-      complete: false,
-      overlay: createOnboardingOverlay(),
-    };
-    ctx.setZoom(ONBOARDING_BASE_ZOOM);
-    for (let i = 0; i < g.nodes.length; i++) {
-      nodes.setRevealScale(i, 0);
-      nodes.setBrightness(i, 0);
-    }
-    setNodeVisibilityFromState();
-    rebuildVisibleEdges();
-    replaceSimulation(activeVisibleNodeIds(), true);
-  }
-
-  function updateOnboardingLinks(now: number) {
-    if (!onboarding) {
-      edges.setConnectionProgress(null);
-      return;
-    }
-    for (const edge of currentGraph.edges) {
-      if (
-        onboarding.revealedNodeIds.has(edge.source) &&
-        onboarding.revealedNodeIds.has(edge.target)
-      ) {
-        const key = edgeKey(edge);
-        if (!onboarding.linkStartedAtByKey.has(key)) {
-          onboarding.linkStartedAtByKey.set(key, now);
+    if (componentFocusEnabled) {
+      const selected = currentGraph.nodes.find((n) => n.id === selectedNodeId);
+      const cid = selected?.metadata?.component_id;
+      if (cid !== undefined && cid !== null) {
+        const sameComponent = new Set<string>();
+        for (const node of currentGraph.nodes) {
+          if (node.metadata?.component_id === cid) sameComponent.add(node.id);
         }
+        componentFilter = sameComponent;
+      } else {
+        // Selected node has no labeled component (small fragment) — don't
+        // collapse the canvas to a single point; just clear the filter.
+        componentFilter = null;
       }
-    }
-    edges.setConnectionProgress((edge) => {
-      const startedAt = onboarding?.linkStartedAtByKey.get(edgeKey(edge));
-      if (startedAt === undefined) return 0;
-      return easeQuadInOut(
-        Math.min(1, (now - startedAt) / ONBOARDING_LINK_UP_MS),
-      );
-    });
-  }
-
-  function updateOnboarding(now: number) {
-    if (!onboarding) return;
-    const raw = Math.min(
-      1,
-      (now - onboarding.startedAt) / onboarding.durationMs,
-    );
-    const eased = easeQuadInOut(raw);
-    const revealFloat = eased * onboarding.order.length;
-    const revealCount = Math.min(
-      onboarding.order.length,
-      Math.ceil(revealFloat),
-    );
-
-    for (let rank = onboarding.lastRevealedCount; rank < revealCount; rank++) {
-      const idx = onboarding.order[rank]!;
-      onboarding.revealedNodeIds.add(currentGraph.nodes[idx]!.id);
-      onboarding.revealStartedAtByIndex.set(idx, now);
+      touched = true;
+    } else if (componentFilter) {
+      componentFilter = null;
+      touched = true;
     }
 
-    for (const idx of onboarding.order) {
-      const rank = onboarding.rankByIndex.get(idx)!;
-      const localProgress = Math.max(0, Math.min(1, revealFloat - rank));
-      nodes.setRevealScale(idx, popScale(localProgress));
-      const revealedAt = onboarding.revealStartedAtByIndex.get(idx);
-      const blinkProgress =
-        revealedAt === undefined
-          ? 0
-          : Math.min(1, (now - revealedAt) / ONBOARDING_BLINK_MS);
-      nodes.setBrightness(idx, revealBrightness(blinkProgress));
-    }
-    updateOnboardingLinks(now);
-
-    const rotationDelta =
-      (eased - onboarding.lastEase) * ONBOARDING_ROTATION_RADIANS;
-    if (rotationDelta !== 0) {
-      const state = ctx.getCameraState();
-      ctx.setCameraState({ ...state, theta: state.theta + rotationDelta });
-    }
-
-    if (revealCount !== onboarding.lastRevealedCount) {
-      onboarding.lastRevealedCount = revealCount;
+    if (touched) {
       setNodeVisibilityFromState();
       rebuildVisibleEdges();
-      replaceSimulation(activeVisibleNodeIds(), true);
-    }
-    onboarding.lastEase = eased;
-    onboarding.overlay.update(eased);
-
-    if (raw >= 1 && !onboarding.complete) {
-      for (const idx of onboarding.order) {
-        onboarding.revealedNodeIds.add(currentGraph.nodes[idx]!.id);
-        nodes.setRevealScale(idx, 1);
-        if (!onboarding.revealStartedAtByIndex.has(idx)) {
-          onboarding.revealStartedAtByIndex.set(idx, now);
-        }
-      }
-      onboarding.complete = true;
-      markOnboardingComplete();
-      onboarding.overlay.remove();
-      setNodeVisibilityFromState();
-      rebuildVisibleEdges();
-      updateOnboardingLinks(now);
-      savePhysicsSnapshot();
-    }
-
-    if (onboarding.complete) {
-      let allBlinkDone = true;
-      for (const idx of onboarding.order) {
-        const revealedAt = onboarding.revealStartedAtByIndex.get(idx) ?? now;
-        const blinkProgress = Math.min(
-          1,
-          (now - revealedAt) / ONBOARDING_BLINK_MS,
-        );
-        nodes.setBrightness(idx, revealBrightness(blinkProgress));
-        allBlinkDone &&= blinkProgress >= 1;
-      }
-      if (allBlinkDone) {
-        for (const idx of onboarding.order) {
-          nodes.setBrightness(idx, 1);
-        }
-        onboarding = null;
-        edges.setConnectionProgress(null);
-      }
     }
   }
 
-  function updateOnboardingCamera() {
-    if (!onboarding || onboarding.complete || !onboarding.cameraAutoZoomEnabled)
-      return;
-    let nearest = Number.POSITIVE_INFINITY;
-    for (const idx of onboarding.order) {
-      if (!onboarding.revealedNodeIds.has(currentGraph.nodes[idx]!.id)) {
-        continue;
-      }
-      const dx = renderedPositions[idx * 3]! - ctx.camera.position.x;
-      const dy = renderedPositions[idx * 3 + 1]! - ctx.camera.position.y;
-      const dz = renderedPositions[idx * 3 + 2]! - ctx.camera.position.z;
-      nearest = Math.min(nearest, Math.sqrt(dx * dx + dy * dy + dz * dz));
-    }
-    if (!Number.isFinite(nearest)) return;
-
-    const crowding = Math.max(
-      0,
-      Math.min(
-        1,
-        (ONBOARDING_SAFE_DISTANCE - nearest) /
-          (ONBOARDING_SAFE_DISTANCE - ONBOARDING_NEAR_DISTANCE),
-      ),
-    );
-    const targetZoom =
-      ONBOARDING_BASE_ZOOM -
-      (ONBOARDING_BASE_ZOOM - ONBOARDING_MIN_ZOOM) * easeQuadInOut(crowding);
-    onboarding.cameraZoom += (targetZoom - onboarding.cameraZoom) * 0.08;
-    ctx.setZoom(onboarding.cameraZoom);
-  }
+  onboarding = createOnboarding({
+    element,
+    graph: () => currentGraph,
+    nodes: () => nodes,
+    edges,
+    ctx,
+    simState: () => simState,
+    nodePositions: () => nodePositions,
+    setNodeVisibilityFromState,
+    rebuildVisibleEdges,
+    activeVisibleNodeIds,
+    edgeKey,
+    savePhysicsSnapshot,
+  });
 
   function setupGraph(g: TheiaGraph) {
-    simulation?.stop();
-    onboarding?.overlay.remove();
-    onboarding = null;
+    simState?.dispose();
+    onboarding.cancel();
+    // Clear any chain isolation from a prior graph: edge identity is
+    // graph-scoped, so the previous selection is meaningless once we reload.
+    clearChainSelection();
 
     if (nodes) {
       ctx.scene.remove(nodes.mesh);
@@ -809,26 +515,43 @@ export async function mount(
 
     currentGraph = g;
     nodePositions = new Float32Array(g.nodes.length * 3);
-    renderedPositions = new Float32Array(g.nodes.length * 3);
     nodes = createNodes(g, nodePositions);
     ctx.scene.add(nodes.mesh);
 
     nodeIndex = new Map(g.nodes.map((n, i) => [n.id, i]));
+    simState = createSimulationState({
+      graph: g,
+      kinds,
+      isOnboarding: () => onboarding.isActive() && !onboarding.isComplete(),
+      nodes,
+      edges,
+      nodePositions,
+    });
 
     if (hasCompletedOnboarding()) {
-      const snapshot = loadPhysicsSnapshot();
-      replaceSimulation(null, true, false, snapshot.nodes);
-      syncRenderedPositionsFromSimulation();
+      const snapshot = physicsSnapshotIO.load(currentGraphUrl);
+      simState.replaceActive({
+        activeIds: null,
+        animateNew: true,
+        preserveExisting: false,
+        seedPositions: snapshot.nodes,
+      });
+      simState.syncRenderedPositionsFromSimulation();
       if (snapshot.camera) {
         ctx.setCameraState(snapshot.camera);
       }
     } else {
-      replaceSimulation(null);
-      simulation.tick(1);
-      syncRenderedPositionsFromSimulation();
+      simState.replaceActive({ activeIds: null });
+      simState.primeOnce();
+      simState.syncRenderedPositionsFromSimulation();
     }
 
-    visibleNodeIds = computeVisibleNodeIds(g, kinds, modelFilter);
+    visibleNodeIds = computeVisibleNodeIds(
+      g,
+      kinds,
+      modelFilter,
+      hideOrphansEnabled,
+    );
     setNodeVisibilityFromState();
     rebuildVisibleEdges();
     post.resize();
@@ -843,17 +566,24 @@ export async function mount(
           return false;
         return true;
       },
+      getEdges: () => edges.visibleEdges(),
     });
     picker.onHover((idx) => {
       const nodeId = idx === null ? null : currentGraph.nodes[idx]!.id;
       element.style.cursor = idx === null ? "" : "pointer";
-      edges.setHoverNode(nodeId);
+      const focusId = nodeId ?? selectedNodeId();
+      edges.setHoverNode(focusId);
       for (let i = 0; i < nodes.count; i++) {
         if (i === idx) {
           nodes.setHighlight(i, true);
         } else if (i !== selectedIdx) {
           nodes.setHighlight(i, false);
         }
+      }
+      if (focusEnabled) {
+        applyDimAround(null);
+      } else {
+        applyDimAround(focusId);
       }
       if (idx !== null) {
         tooltip.show(currentGraph.nodes[idx]!, lastMouse.x, lastMouse.y);
@@ -862,6 +592,14 @@ export async function mount(
       }
       nodes.flush();
       emit("node-hover", idx === null ? null : currentGraph.nodes[idx]!.id);
+    });
+    picker.onHoverEdge((edge) => {
+      edges.setHoverEdge(edge);
+      if (edge !== null) {
+        element.style.cursor = "pointer";
+      } else if (picker.currentHovered() === null) {
+        element.style.cursor = "";
+      }
     });
 
     searchInputController?.abort();
@@ -875,8 +613,9 @@ export async function mount(
       (result) => {
         const idx = nodeIndex.get(result.node.id);
         if (idx !== undefined && activeVisibleNodeIds().has(result.node.id)) {
-          const sn = simNodes[idx];
-          if (sn) ctx.focusOn(sn.x, sn.y, 1.5);
+          const sn = simState.getNodePosition(idx);
+          if (sn && jumpToNodeEnabled) ctx.focusOn(sn.x, sn.y, 1.5);
+          select(idx);
         }
         const related = currentGraph.edges.filter(
           (e) =>
@@ -884,6 +623,7 @@ export async function mount(
             kinds.has(e.kind),
         );
         enterPanelMode(result.node, related);
+        applyFocusModeIfEnabled(result.node.id);
       },
       theme,
       (node) => activeVisibleNodeIds().has(node.id),
@@ -906,62 +646,7 @@ export async function mount(
     );
   }
 
-  function createLoadingOverlay(text: string): { remove(): void } {
-    const el = document.createElement("div");
-    el.style.cssText = `
-      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-      background: rgba(7,8,13,0.8); color: rgba(255,255,255,0.6);
-      font: 13px/1.4 var(--theia-font, ${FONT_STACK});
-      letter-spacing: 0.05em; z-index: 20; transition: opacity 300ms;
-    `;
-    el.textContent = text;
-    element.appendChild(el);
-    return {
-      remove() {
-        el.style.opacity = "0";
-        setTimeout(() => {
-          try {
-            element.removeChild(el);
-          } catch {
-            /* container may have been destroyed during load */
-          }
-        }, 300);
-      },
-    };
-  }
-
-  function createOnboardingOverlay(): {
-    update(progress: number): void;
-    remove(): void;
-  } {
-    const el = document.createElement("div");
-    el.setAttribute("data-ui-overlay", "true");
-    el.style.cssText = `
-      position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
-      color: rgba(255,255,255,0.58); font: 11px/1.2 var(--theia-font, ${FONT_STACK});
-      letter-spacing: 0.18em; text-transform: uppercase; z-index: 12;
-      pointer-events: none; text-align: center; transition: opacity 450ms;
-    `;
-    element.appendChild(el);
-    return {
-      update(progress) {
-        const pct = Math.max(0, Math.min(100, Math.round(progress * 100)));
-        el.textContent = `CREATING THE UNIVERSE - ${pct}%`;
-      },
-      remove() {
-        el.style.opacity = "0";
-        setTimeout(() => {
-          try {
-            element.removeChild(el);
-          } catch {
-            /* container may have been destroyed */
-          }
-        }, 450);
-      },
-    };
-  }
-
-  const loading = createLoadingOverlay("Loading constellation\u2026");
+  const loading = createLoadingOverlay(element, "Loading constellation\u2026");
   let initialGraph: TheiaGraph;
   try {
     initialGraph = await loadGraph(graphUrl);
@@ -971,43 +656,22 @@ export async function mount(
   }
   loading.remove();
   setupGraph(initialGraph);
-  if (shouldRunOnboarding(initialGraph)) {
-    beginOnboarding(initialGraph);
-  }
-
-  function tick() {
-    simulation.tick(1);
-    const smoothing = onboarding ? 0.14 : 0.34;
-    for (let i = 0; i < simNodes.length; i++) {
-      const sn = simNodes[i];
-      if (!sn) continue;
-      const px = renderedPositions[i * 3]!;
-      const py = renderedPositions[i * 3 + 1]!;
-      const pz = renderedPositions[i * 3 + 2]!;
-      const x = px + (sn.x - px) * smoothing;
-      const y = py + (sn.y - py) * smoothing;
-      const z = pz + (sn.z - pz) * smoothing;
-      renderedPositions[i * 3] = x;
-      renderedPositions[i * 3 + 1] = y;
-      renderedPositions[i * 3 + 2] = z;
-      nodes.setPosition(i, x, y, z);
-    }
-    nodes.flush();
-    edges.updatePositions(nodePositions);
+  if (initialGraph.nodes.length > 0 && !hasCompletedOnboarding()) {
+    onboarding.begin();
   }
 
   let disposed = false;
   function frame() {
     if (disposed) return;
     const now = performance.now();
-    updateOnboarding(now);
-    tick();
+    onboarding.update(now);
+    keyboardNav.tick(now);
+    simState.tick();
     maybeSavePhysicsSnapshot(now);
-    updateOnboardingCamera();
+    onboarding.updateCamera(now);
     const t = now / 1000;
     nodes.setTime(t);
     edges.setTime(t);
-    nodes.setCameraPosition(ctx.camera.position);
     post.renderEdges(edgesScene, ctx.camera);
     post.render();
     requestAnimationFrame(frame);
@@ -1058,6 +722,35 @@ export async function mount(
     }
   });
 
+  function runTapSelection(clientX: number, clientY: number) {
+    const idx = picker.pickAt(clientX, clientY, 1.0);
+    if (idx !== null) {
+      select(idx);
+      if (jumpToNodeEnabled) {
+        const sn = simState.getNodePosition(idx);
+        if (sn) ctx.focusOn(sn.x, sn.y, 1.5);
+      }
+      const n = currentGraph.nodes[idx]!;
+      const related = currentGraph.edges.filter(
+        (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
+      );
+      enterPanelMode(n, related);
+      applyFocusModeIfEnabled(n.id);
+      emit("node-click", n.id);
+      return;
+    }
+    const pickedEdge = edges.pickAt(ctx.camera, element, clientX, clientY);
+    if (pickedEdge && kinds.has(pickedEdge.kind)) {
+      clearSelected();
+      sidePanel.hide();
+      applyChainSelection(pickedEdge);
+    } else {
+      clearChainSelection();
+      clearSelected();
+      sidePanel.hide();
+    }
+  }
+
   element.addEventListener("mouseup", (e) => {
     const target = e.target as HTMLElement;
     if (target.closest("aside") || target.closest("[data-ui-overlay]")) {
@@ -1065,20 +758,7 @@ export async function mount(
       return;
     }
     if (isMouseDown && !hasDragged && performance.now() - lastWheelAt >= 200) {
-      const idx = picker.pickAt(e.clientX, e.clientY, 1.0);
-      if (idx !== null) {
-        select(idx);
-        const n = currentGraph.nodes[idx]!;
-        const related = currentGraph.edges.filter(
-          (e) => (e.source === n.id || e.target === n.id) && kinds.has(e.kind),
-        );
-        enterPanelMode(n, related);
-        applyFocusModeIfEnabled(n.id);
-        emit("node-click", n.id);
-      } else {
-        clearSelected();
-        sidePanel.hide();
-      }
+      runTapSelection(e.clientX, e.clientY);
     }
     resetDrag();
   });
@@ -1086,9 +766,69 @@ export async function mount(
   // Catch mouseup outside the element/viewport to prevent stuck drag states
   window.addEventListener("mouseup", resetDrag);
 
+  // Touch tap-to-select. We do not synthesize pan/orbit from touch — that's
+  // a future enhancement. preventDefault on a recognized tap suppresses the
+  // synthetic mouse event chain so we don't double-select.
+  let touchStartPos: { x: number; y: number } | null = null;
+  let touchStartAt = 0;
+  const TAP_MAX_MOVE_PX = 10;
+  const TAP_MAX_DURATION_MS = 500;
+
+  element.addEventListener(
+    "touchstart",
+    (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("aside") || target.closest("[data-ui-overlay]")) {
+        touchStartPos = null;
+        return;
+      }
+      if (e.touches.length !== 1) {
+        touchStartPos = null;
+        return;
+      }
+      const t = e.touches[0]!;
+      touchStartPos = { x: t.clientX, y: t.clientY };
+      touchStartAt = performance.now();
+    },
+    { passive: true },
+  );
+
+  element.addEventListener("touchmove", (e) => {
+    if (!touchStartPos || e.touches.length !== 1) return;
+    const t = e.touches[0]!;
+    const dx = t.clientX - touchStartPos.x;
+    const dy = t.clientY - touchStartPos.y;
+    if (Math.abs(dx) > TAP_MAX_MOVE_PX || Math.abs(dy) > TAP_MAX_MOVE_PX) {
+      touchStartPos = null;
+    }
+  });
+
+  element.addEventListener("touchend", (e) => {
+    if (!touchStartPos) return;
+    const elapsed = performance.now() - touchStartAt;
+    const startPos = touchStartPos;
+    touchStartPos = null;
+    if (elapsed > TAP_MAX_DURATION_MS) return;
+    // Suppress synthetic mouse events so the mouseup handler doesn't re-run
+    // the same selection a moment later.
+    e.preventDefault();
+    runTapSelection(startPos.x, startPos.y);
+  });
+
+  element.addEventListener("touchcancel", () => {
+    touchStartPos = null;
+  });
+
   element.addEventListener("contextmenu", (e) => {
     e.preventDefault();
   });
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && chainFilter) {
+      clearChainSelection();
+    }
+  };
+  window.addEventListener("keydown", onKeyDown);
 
   // Wheel zoom — let overlay UI (side panel, filter bar, search bar) scroll naturally
   element.addEventListener(
@@ -1096,10 +836,7 @@ export async function mount(
     (e) => {
       if ((e.target as HTMLElement).closest("[data-ui-overlay]")) return;
       lastWheelAt = performance.now();
-      if (onboarding) {
-        onboarding.cameraAutoZoomEnabled = false;
-        onboarding.cameraZoom = ctx.getZoom();
-      }
+      onboarding.onUserZoomChanged(ctx.getZoom());
       e.preventDefault();
       const delta = e.deltaY > 0 ? 1.1 : 0.9;
       ctx.setZoom(ctx.getZoom() * delta);
@@ -1115,8 +852,17 @@ export async function mount(
     (state) => {
       kinds = state.kinds;
       modelFilter = state.model;
-      saveFilterState(kinds, modelFilter, searchFocusEnabled);
+      saveFilterState(
+        kinds,
+        modelFilter,
+        searchFocusEnabled,
+        hideOrphansEnabled,
+        componentFocusEnabled,
+      );
       focusFilter = null;
+      // Filter changes can invalidate the chain (an edge kind we traversed
+      // through may now be hidden); drop the chain rather than recompute it.
+      clearChainSelection();
       updateVisibility();
       const id = sidePanel.currentNodeId();
       if (id) applyFocusModeIfEnabled(id);
@@ -1132,8 +878,21 @@ export async function mount(
       initialFocusEnabled: focusEnabled,
       onSearchFocusToggle,
       initialSearchFocusEnabled: searchFocusEnabled,
+      onHideOrphansToggle,
+      initialHideOrphansEnabled: hideOrphansEnabled,
+      onComponentFocusToggle,
+      initialComponentFocusEnabled: componentFocusEnabled,
     },
   );
+
+  const controlsOverlay = createControlsOverlay(element, theme, {
+    onOptimize: () => simState.optimize(),
+    onHome: () => ctx.resetView(),
+    onJumpToggle: (enabled) => {
+      jumpToNodeEnabled = enabled;
+    },
+    initialJumpEnabled: jumpToNodeEnabled,
+  });
 
   const listeners: Record<string, Array<(...args: unknown[]) => void>> = {
     "node-click": [],
@@ -1156,12 +915,16 @@ export async function mount(
     destroy() {
       disposed = true;
       savePhysicsSnapshot();
-      onboarding?.overlay.remove();
+      onboarding.cancel();
       window.removeEventListener("mouseup", resetDrag);
+      window.removeEventListener("keydown", onKeyDown);
+      chainOverlay?.remove();
+      chainOverlay = null;
+      controlsOverlay.remove();
       searchInputController?.abort();
       if (searchFocusTimer) clearTimeout(searchFocusTimer);
       stopThemeListener();
-      simulation.stop();
+      simState.dispose();
       nodes.dispose();
       edges.dispose();
       post.edgesTarget.dispose();
@@ -1171,6 +934,7 @@ export async function mount(
       ctx.dispose();
       tooltip.dispose();
       picker.dispose();
+      keyboardNav.dispose();
       sidePanel.dispose();
       filterBar.dispose();
       searchBar.dispose();
@@ -1182,7 +946,7 @@ export async function mount(
       const targetUrl = url ?? graphUrl;
       currentGraphUrl = targetUrl;
 
-      const loading = createLoadingOverlay("Reloading\u2026");
+      const loading = createLoadingOverlay(element, "Reloading\u2026");
       let newGraph: TheiaGraph;
       try {
         newGraph = await loadGraph(targetUrl);

@@ -53,4 +53,15 @@ export default defineConfig(({ command }) => ({
     },
     rollupOptions: { external: ["three", "d3-force-3d"] },
   },
+  // The lib build externalizes d3-force-3d so the host can dedupe it,
+  // but the physics worker has no access to the host's import map and
+  // would fail on a bare module specifier. Bundle d3-force-3d into the
+  // worker chunk; three isn't used in the worker so we still externalize
+  // it (size hygiene only).
+  worker: {
+    format: "es",
+    rollupOptions: {
+      external: ["three"],
+    },
+  },
 }));
