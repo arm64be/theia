@@ -1,3 +1,5 @@
+
+
 # theia
 
 ![theia icon](icon.png)
@@ -5,7 +7,7 @@
 Visualize Hermes agent sessions as a semantic constellation.
 
 - `theia-core/` — Python build tool: Hermes SQLite DB → `theia-graph.json`
-- `theia-panel/` — TypeScript panel: `theia-graph.json` → three.js constellation
+- `theia-panel/` — TypeScript panel: `theia-graph.json` → three.js + d3-force-3d constellation
 - `schemas/graph.schema.json` — contract between the two halves
 
 ## Install
